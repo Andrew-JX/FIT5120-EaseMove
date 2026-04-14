@@ -82,170 +82,165 @@ watch(
 </script>
 
 <template>
-  <section class="weight-panel" aria-labelledby="comfort-preferences-title">
-    <header class="panel-header">
-      <div>
-        <p class="eyebrow">Settings</p>
-        <h2 id="comfort-preferences-title">Comfort Preferences</h2>
-      </div>
-      <button class="reset-button" type="button" @click="resetWeights">
-        Reset to defaults
-      </button>
-    </header>
+  <div class="slider-panel">
+    <div class="panel-header">
+      <h3 class="panel-title">Comfort Preferences</h3>
+      <p class="panel-sub">Adjust how each factor affects the comfort score</p>
+    </div>
 
     <div class="slider-list">
-      <label v-for="key in sliderKeys" :key="key" class="slider-row">
-        <span class="slider-label">
-          {{ sliderLabels[key] }}
-          <strong>{{ preferencesStore.weights[key] }}%</strong>
-        </span>
+      <div v-for="key in sliderKeys" :key="key" class="slider-row">
+        <div class="slider-top">
+          <span class="slider-label">{{ sliderLabels[key] }}</span>
+          <span class="slider-pct">{{ preferencesStore.weights[key] }}%</span>
+        </div>
         <input
-          :aria-label="`${sliderLabels[key]} preference weight`"
           type="range"
-          min="0"
-          max="100"
-          step="1"
+          :min="0"
+          :max="100"
+          :step="1"
           :value="preferencesStore.weights[key]"
+          :aria-label="`${sliderLabels[key]} weight`"
+          :aria-valuenow="preferencesStore.weights[key]"
+          class="slider"
           @input="handleSliderInput(key, $event)"
         />
-      </label>
+        <div class="slider-track-label">
+          <span>0%</span><span>100%</span>
+        </div>
+      </div>
     </div>
+
+    <div class="total-row">
+      <span class="total-label">Total</span>
+      <span
+        class="total-value"
+        :class="{ ok: sliderKeys.reduce((total, key) => total + preferencesStore.weights[key], 0) === 100 }"
+      >
+        {{ sliderKeys.reduce((total, key) => total + preferencesStore.weights[key], 0) }}%
+      </span>
+    </div>
+
+    <button class="reset-btn" type="button" @click="resetWeights">
+      Reset to defaults (60 / 30 / 10)
+    </button>
 
     <p class="privacy-note">
       Your preferences are saved on this device only and are never shared or uploaded.
     </p>
-  </section>
+  </div>
 </template>
 
 <style scoped>
-.weight-panel {
-  --stormy-teal: #006d77;
-  --pearl-aqua: #83c5be;
-  --alice-blue: #edf6f9;
-  --almond-silk: #ffddd2;
-  --tangerine-dream: #e29578;
-  width: min(360px, calc(100vw - 32px));
+.slider-panel {
   padding: 18px;
-  border: 1px solid rgba(0, 109, 119, 0.16);
-  border-radius: 8px;
-  background: #ffffff;
-  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.18);
-  color: #102a2f;
 }
 
 .panel-header {
-  display: grid;
-  gap: 12px;
+  margin-bottom: 16px;
 }
 
-.eyebrow,
-h2,
-p {
-  margin: 0;
+.panel-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #006d77;
 }
 
-.eyebrow {
-  color: var(--stormy-teal);
-  font-size: 14px;
-  font-weight: 800;
-  letter-spacing: 0;
-  text-transform: uppercase;
-}
-
-h2 {
-  font-size: 22px;
-  font-weight: 800;
-  line-height: 1.2;
-}
-
-.reset-button {
-  justify-self: start;
-  min-height: 40px;
-  padding: 0 14px;
-  border: 1px solid var(--stormy-teal);
-  border-radius: 8px;
-  background: #ffffff;
-  color: var(--stormy-teal);
-  font-size: 14px;
-  font-weight: 800;
-  cursor: pointer;
+.panel-sub {
+  font-size: 12px;
+  color: #9ca3af;
+  margin-top: 3px;
 }
 
 .slider-list {
-  display: grid;
-  gap: 18px;
-  margin-top: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-bottom: 14px;
 }
 
-.slider-row {
-  display: grid;
-  gap: 10px;
+.slider-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
 }
 
 .slider-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: #374151;
+}
+
+.slider-pct {
+  font-size: 13px;
+  font-weight: 700;
+  color: #006d77;
+}
+
+.slider {
+  width: 100%;
+  height: 6px;
+  border-radius: 3px;
+  outline: none;
+  cursor: pointer;
+  accent-color: #006d77;
+}
+
+.slider-track-label {
   display: flex;
   justify-content: space-between;
-  gap: 16px;
-  color: #243f45;
-  font-size: 15px;
-  font-weight: 800;
+  font-size: 10px;
+  color: #d1d5db;
+  margin-top: 3px;
 }
 
-.slider-label strong {
-  color: var(--stormy-teal);
-  font-size: 15px;
-  font-weight: 900;
+.total-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  border-top: 1px solid #f3f4f6;
+  margin-bottom: 12px;
 }
 
-input[type='range'] {
+.total-label {
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.total-value {
+  font-size: 13px;
+  font-weight: 700;
+  color: #ef4444;
+}
+
+.total-value.ok {
+  color: #22c55e;
+}
+
+.reset-btn {
   width: 100%;
-  accent-color: var(--stormy-teal);
+  padding: 10px;
+  background: #ffffff;
+  border: 1.5px solid #006d77;
+  border-radius: 8px;
+  color: #006d77;
+  font-size: 13px;
+  font-weight: 600;
   cursor: pointer;
-  transition: opacity 180ms ease;
+  margin-bottom: 10px;
+  transition: background 0.2s;
 }
 
-input[type='range']::-webkit-slider-runnable-track {
-  height: 8px;
-  border-radius: 8px;
-  background: linear-gradient(90deg, var(--stormy-teal), var(--pearl-aqua));
-}
-
-input[type='range']::-webkit-slider-thumb {
-  width: 22px;
-  height: 22px;
-  margin-top: -7px;
-  border: 2px solid #ffffff;
-  border-radius: 50%;
-  background: var(--stormy-teal);
-  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.24);
-  appearance: none;
-}
-
-input[type='range']::-moz-range-track {
-  height: 8px;
-  border-radius: 8px;
-  background: linear-gradient(90deg, var(--stormy-teal), var(--pearl-aqua));
-}
-
-input[type='range']::-moz-range-thumb {
-  width: 22px;
-  height: 22px;
-  border: 2px solid #ffffff;
-  border-radius: 50%;
-  background: var(--stormy-teal);
-  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.24);
+.reset-btn:hover {
+  background: #edf6f9;
 }
 
 .privacy-note {
-  margin-top: 18px;
-  color: #5c7479;
-  font-size: 14px;
-  line-height: 1.45;
-}
-
-@media (max-width: 768px) {
-  .weight-panel {
-    width: calc(100vw - 24px);
-  }
+  font-size: 11px;
+  color: #9ca3af;
+  line-height: 1.5;
+  text-align: center;
 }
 </style>
