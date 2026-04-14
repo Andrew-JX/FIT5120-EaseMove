@@ -20,25 +20,33 @@ const mapElement = ref(null)
 const facilitiesEnabled = ref(false)
 const facilityError = ref(false)
 const preferencesOpen = ref(false)
+const activeView = ref('map')
+const sidebarCollapsed = ref(false)
 let map = null
 let markerLayer = null
 let facilitiesLayer = null
 let refreshTimer = null
 
+const activeFilter = ref(null)
+
+const filteredPrecincts = computed(() => {
+  if (!activeFilter.value) return precinctStore.precincts
+  return precinctStore.precincts.filter(p => p.comfort_label === activeFilter.value)
+})
+
 const selectedPrecinctId = computed(() => precinctStore.selectedPrecinct)
 
-function clearMarkers() {
-  if (!markerLayer) return
-  markerLayer.clearLayers()
+function toggleFilter(label) {
+  activeFilter.value = activeFilter.value === label ? null : label
 }
 
-function renderMarkers() {
+function renderMarkers(precincts) {
   if (!map || !markerLayer) return
 
-  clearMarkers()
+  markerLayer.clearLayers()
 
-  precinctStore.precincts.forEach((precinct) => {
-    if (precinct.lat === null || precinct.lng === null) return
+  precincts.forEach((precinct) => {
+    if (precinct.lat == null || precinct.lng == null) return
 
     const marker = L.marker([precinct.lat, precinct.lng], {
       icon: createPrecinctMarkerIcon(precinct)
@@ -115,10 +123,16 @@ function togglePreferences() {
   preferencesOpen.value = !preferencesOpen.value
 }
 
+async function switchView(view) {
+  activeView.value = view
+  await nextTick()
+  if (map) map.invalidateSize()
+}
+
 async function fetchAndRenderPrecincts() {
   await precinctStore.fetchCurrentPrecincts()
   await nextTick()
-  renderMarkers()
+  renderMarkers(filteredPrecincts.value)
 }
 
 function initialiseMap() {
@@ -126,8 +140,9 @@ function initialiseMap() {
     zoomControl: true
   }).setView(MELBOURNE_CENTER, 14)
 
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; OpenStreetMap contributors'
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+    maxZoom: 19
   }).addTo(map)
 
   markerLayer = L.layerGroup().addTo(map)
@@ -136,6 +151,8 @@ function initialiseMap() {
 onMounted(async () => {
   preferencesStore.loadFromStorage()
   initialiseMap()
+  await nextTick()
+  if (map) map.invalidateSize()
   await fetchAndRenderPrecincts()
 
   refreshTimer = window.setInterval(fetchAndRenderPrecincts, REFRESH_INTERVAL_MS)
@@ -147,7 +164,7 @@ onBeforeUnmount(() => {
   if (map) map.remove()
 })
 
-watch(() => precinctStore.precincts, renderMarkers, { deep: true })
+watch(filteredPrecincts, renderMarkers)
 </script>
 
 <template>
@@ -155,13 +172,7 @@ watch(() => precinctStore.precincts, renderMarkers, { deep: true })
     <nav class="navbar">
       <div class="navbar-inner">
         <div class="brand">
-          <div class="logo" aria-hidden="true">
-            <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
-              <rect width="36" height="36" rx="10" fill="#006d77" />
-              <path d="M18 8 C13 8 9 12 9 17 C9 24 18 30 18 30 C18 30 27 24 27 17 C27 12 23 8 18 8Z" fill="white" opacity="0.9" />
-              <circle cx="18" cy="17" r="4" fill="#006d77" />
-            </svg>
-          </div>
+          <div class="logo" aria-hidden="true">EM</div>
           <div>
             <h1 class="brand-title">EaseMove Melbourne</h1>
             <p class="brand-sub">Travel comfort decision-support tool</p>
@@ -177,8 +188,22 @@ watch(() => precinctStore.precincts, renderMarkers, { deep: true })
     <main class="main-container">
       <div class="map-card">
         <div class="tabs">
-          <button class="tab-btn active" type="button">View</button>
-          <button class="tab-btn" type="button">Compare</button>
+          <button
+            class="tab-btn"
+            :class="{ active: activeView === 'map' }"
+            type="button"
+            @click="switchView('map')"
+          >
+            View
+          </button>
+          <button
+            class="tab-btn"
+            :class="{ active: activeView === 'compare' }"
+            type="button"
+            @click="switchView('compare')"
+          >
+            Compare
+          </button>
         </div>
 
         <div v-if="precinctStore.loading" class="status-banner loading-banner">
@@ -190,31 +215,76 @@ watch(() => precinctStore.precincts, renderMarkers, { deep: true })
           Unable to load comfort data. Showing last known conditions.
         </div>
 
-        <div class="map-layout">
-          <aside class="sidebar">
+        <section class="view-header">
+          <div class="view-icon" :class="{ compare: activeView === 'compare' }">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M3 6l6-3 6 3 6-3v15l-6 3-6-3-6 3V6z" />
+              <path d="M9 3v15M15 6v15" />
+            </svg>
+          </div>
+          <div>
+            <h2>{{ activeView === 'compare' ? 'Precinct Comparison' : 'Precinct Map View' }}</h2>
+            <p>
+              {{ activeView === 'compare'
+                ? 'Open precinct cards and press Compare to review comfort levels side by side'
+                : 'Interactive map visualization - click markers for detailed score cards' }}
+            </p>
+          </div>
+        </section>
+
+        <div class="map-layout" :class="{ 'compare-mode': activeView === 'compare' }">
+          <aside v-show="activeView === 'map'" class="sidebar" :class="{ collapsed: sidebarCollapsed }">
             <div class="sidebar-inner">
-              <h3 class="sidebar-title">Comfort Levels</h3>
+              <h3 class="sidebar-title">Filter by Comfort</h3>
               <div class="filter-list">
-                <div class="filter-btn comfortable">
+                <button
+                  class="filter-btn comfortable"
+                  :class="{ active: activeFilter === 'Comfortable' }"
+                  type="button"
+                  @click="toggleFilter('Comfortable')"
+                >
                   <span class="filter-dot"></span>
                   <span class="filter-label">Comfortable</span>
-                  <span class="filter-count">{{ precinctStore.precincts.filter((precinct) => precinct.comfort_label === 'Comfortable').length }}</span>
-                </div>
-                <div class="filter-btn caution">
+                  <span class="filter-count">{{ precinctStore.precincts.filter((p) => p.comfort_label === 'Comfortable').length }}</span>
+                </button>
+                <button
+                  class="filter-btn caution"
+                  :class="{ active: activeFilter === 'Caution' }"
+                  type="button"
+                  @click="toggleFilter('Caution')"
+                >
                   <span class="filter-dot"></span>
                   <span class="filter-label">Caution</span>
-                  <span class="filter-count">{{ precinctStore.precincts.filter((precinct) => precinct.comfort_label === 'Caution').length }}</span>
-                </div>
-                <div class="filter-btn high-risk">
+                  <span class="filter-count">{{ precinctStore.precincts.filter((p) => p.comfort_label === 'Caution').length }}</span>
+                </button>
+                <button
+                  class="filter-btn high-risk"
+                  :class="{ active: activeFilter === 'High Risk' }"
+                  type="button"
+                  @click="toggleFilter('High Risk')"
+                >
                   <span class="filter-dot"></span>
                   <span class="filter-label">High Risk</span>
-                  <span class="filter-count">{{ precinctStore.precincts.filter((precinct) => precinct.comfort_label === 'High Risk').length }}</span>
-                </div>
+                  <span class="filter-count">{{ precinctStore.precincts.filter((p) => p.comfort_label === 'High Risk').length }}</span>
+                </button>
               </div>
             </div>
           </aside>
 
           <section class="map-wrapper">
+            <button
+              v-show="activeView === 'map'"
+              class="sidebar-toggle"
+              type="button"
+              :aria-label="sidebarCollapsed ? 'Show comfort filters' : 'Hide comfort filters'"
+              @click="sidebarCollapsed = !sidebarCollapsed"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline v-if="sidebarCollapsed" points="9 18 15 12 9 6"></polyline>
+                <polyline v-else points="15 18 9 12 15 6"></polyline>
+              </svg>
+            </button>
+
             <button
               class="map-fab"
               :class="{ 'fab-active': facilitiesEnabled }"
@@ -247,6 +317,14 @@ watch(() => precinctStore.precincts, renderMarkers, { deep: true })
 
             <div ref="mapElement" class="leaflet-map" aria-label="Melbourne comfort map"></div>
 
+            <div
+              v-if="!precinctStore.loading && !precinctStore.error && precinctStore.precincts.length === 0"
+              class="empty-map-state"
+            >
+              <p class="empty-title">No precinct data available</p>
+              <p class="empty-copy">The map is connected, but the current API response has no precinct records yet.</p>
+            </div>
+
             <div class="legend">
               <div class="legend-title">Comfort Levels</div>
               <div class="legend-item"><span class="legend-dot comfortable"></span>Comfortable (70-100)</div>
@@ -267,7 +345,7 @@ watch(() => precinctStore.precincts, renderMarkers, { deep: true })
             </Transition>
           </section>
 
-          <aside v-if="precinctStore.isComparing" class="compare-panel">
+          <aside v-show="activeView === 'compare'" class="compare-panel">
             <CompareView />
           </aside>
         </div>
@@ -284,19 +362,18 @@ watch(() => precinctStore.precincts, renderMarkers, { deep: true })
 }
 
 .navbar {
-  position: sticky;
-  top: 0;
+  margin-bottom: 24px;
   z-index: 100;
-  background: rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(12px);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.3);
-  box-shadow: 0 2px 12px rgba(0, 109, 119, 0.08);
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 }
 
 .navbar-inner {
   max-width: 1400px;
   margin: 0 auto;
-  padding: 14px 24px;
+  padding: 16px 24px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -308,17 +385,30 @@ watch(() => precinctStore.precincts, renderMarkers, { deep: true })
   gap: 14px;
 }
 
+.logo {
+  width: 56px;
+  height: 56px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #14b8a6 0%, #06b6d4 100%);
+  color: #ffffff;
+  font-size: 24px;
+  font-weight: 800;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
 .brand-title {
-  font-size: 22px;
-  font-weight: 700;
-  color: #006d77;
+  font-size: 28px;
+  font-weight: 800;
+  color: #111827;
   line-height: 1.2;
 }
 
 .brand-sub {
-  font-size: 12px;
+  font-size: 14px;
   color: #6b7280;
-  margin-top: 2px;
+  margin-top: 4px;
 }
 
 .live-badge {
@@ -343,22 +433,24 @@ watch(() => precinctStore.precincts, renderMarkers, { deep: true })
 
 .main-container {
   max-width: 1400px;
-  margin: 24px auto;
+  margin: 0 auto;
   padding: 0 24px 24px;
+  width: 100%;
 }
 
 .map-card {
-  background: rgba(255, 255, 255, 0.97);
+  background: rgba(255, 255, 255, 0.95);
   border-radius: 16px;
-  box-shadow: 0 10px 40px rgba(0, 109, 119, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.4);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
   overflow: hidden;
 }
 
 .tabs {
   display: flex;
   border-bottom: 1px solid #e5e7eb;
-  padding: 0 24px;
+  padding: 16px 24px 0;
+  background: #ffffff;
 }
 
 .tab-btn {
@@ -368,8 +460,12 @@ watch(() => precinctStore.precincts, renderMarkers, { deep: true })
   color: #6b7280;
   background: none;
   border: none;
-  cursor: default;
+  cursor: pointer;
   position: relative;
+}
+
+.tab-btn:hover {
+  color: #111827;
 }
 
 .tab-btn.active {
@@ -395,6 +491,47 @@ watch(() => precinctStore.precincts, renderMarkers, { deep: true })
   gap: 8px;
 }
 
+.view-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 24px 24px 16px;
+  background: #ffffff;
+}
+
+.view-icon {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border-radius: 12px;
+  color: #ffffff;
+  background: linear-gradient(135deg, #14b8a6 0%, #06b6d4 100%);
+  box-shadow: 0 4px 6px rgba(20, 184, 166, 0.3);
+}
+
+.view-icon.compare {
+  background: linear-gradient(135deg, #3b82f6 0%, #9333ea 100%);
+  box-shadow: 0 4px 6px rgba(59, 130, 246, 0.3);
+}
+
+.view-header h2 {
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.2;
+  background: linear-gradient(90deg, #0d9488 0%, #0891b2 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.view-header p {
+  margin-top: 4px;
+  color: #6b7280;
+  font-size: 14px;
+}
+
 .loading-banner {
   background: #edf6f9;
   color: #006d77;
@@ -418,19 +555,25 @@ watch(() => precinctStore.precincts, renderMarkers, { deep: true })
 
 .map-layout {
   display: flex;
-  height: 560px;
+  height: 600px;
 }
 
 .sidebar {
-  width: 220px;
+  width: 224px;
   flex-shrink: 0;
   border-right: 1px solid #e5e7eb;
-  background: #f9fafb;
+  background: rgba(249, 250, 251, 0.72);
   overflow: hidden;
+  transition: width 0.3s ease;
+}
+
+.sidebar.collapsed {
+  width: 0;
 }
 
 .sidebar-inner {
   padding: 16px;
+  width: 224px;
 }
 
 .sidebar-title {
@@ -458,6 +601,12 @@ watch(() => precinctStore.precincts, renderMarkers, { deep: true })
   font-size: 13px;
   color: #374151;
   text-align: left;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.filter-btn:hover {
+  transform: scale(1.02);
 }
 
 .filter-btn.comfortable {
@@ -473,6 +622,30 @@ watch(() => precinctStore.precincts, renderMarkers, { deep: true })
 .filter-btn.high-risk {
   border-color: #ef4444;
   background: #fef2f2;
+}
+
+.filter-btn.comfortable.active {
+  background: #dcfce7;
+  border-width: 3px;
+  box-shadow: 0 2px 8px rgba(34, 197, 94, 0.3);
+  transform: scale(1.03);
+  font-weight: 600;
+}
+
+.filter-btn.caution.active {
+  background: #fef9c3;
+  border-width: 3px;
+  box-shadow: 0 2px 8px rgba(234, 179, 8, 0.3);
+  transform: scale(1.03);
+  font-weight: 600;
+}
+
+.filter-btn.high-risk.active {
+  background: #fee2e2;
+  border-width: 3px;
+  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);
+  transform: scale(1.03);
+  font-weight: 600;
 }
 
 .filter-dot,
@@ -512,12 +685,47 @@ watch(() => precinctStore.precincts, renderMarkers, { deep: true })
   flex: 1;
   position: relative;
   overflow: hidden;
+  min-width: 0;
+  background: #ffffff;
+  height: 600px;
+  min-height: 500px;
 }
 
 .leaflet-map {
-  width: 100%;
-  height: 100%;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  min-height: 500px;
   z-index: 1;
+  border-radius: 8px;
+  background: #e5e7eb;
+  overflow: hidden;
+}
+
+.sidebar-toggle {
+  position: absolute;
+  top: 40px;
+  left: 40px;
+  z-index: 30;
+  width: 36px;
+  height: 36px;
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #374151;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  transition: all 0.2s;
+}
+
+.sidebar-toggle:hover {
+  background: #ffffff;
+  transform: scale(1.05);
 }
 
 .map-fab {
@@ -550,14 +758,16 @@ watch(() => precinctStore.precincts, renderMarkers, { deep: true })
 
 .legend {
   position: absolute;
-  top: 16px;
-  right: 70px;
+  top: 40px;
+  right: 94px;
   z-index: 10;
   background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(10px);
   border: 1px solid #e5e7eb;
-  border-radius: 10px;
-  padding: 12px 16px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  border-radius: 8px;
+  padding: 16px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  pointer-events: none;
 }
 
 .legend-title {
@@ -595,10 +805,39 @@ watch(() => precinctStore.precincts, renderMarkers, { deep: true })
   pointer-events: none;
 }
 
+.empty-map-state {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 10;
+  width: min(360px, calc(100% - 64px));
+  transform: translate(-50%, -50%);
+  padding: 18px;
+  border: 1px dashed #cbd5e1;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.92);
+  text-align: center;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
+  pointer-events: none;
+}
+
+.empty-title {
+  color: #111827;
+  font-size: 15px;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+.empty-copy {
+  color: #6b7280;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
 .weight-panel {
   position: absolute;
-  top: 70px;
-  right: 70px;
+  top: 94px;
+  right: 94px;
   z-index: 20;
   width: 300px;
   background: #ffffff;
@@ -631,7 +870,7 @@ watch(() => precinctStore.precincts, renderMarkers, { deep: true })
 }
 
 .compare-panel {
-  width: 420px;
+  width: min(520px, 40%);
   flex-shrink: 0;
   border-left: 1px solid #e5e7eb;
   overflow-y: auto;
@@ -689,23 +928,61 @@ watch(() => precinctStore.precincts, renderMarkers, { deep: true })
   }
 
   .map-layout {
-    height: calc(100vh - 130px);
+    display: block;
+    height: calc(100vh - 150px);
+    min-height: 560px;
   }
 
-  .sidebar,
-  .compare-panel {
-    display: none;
+  .sidebar {
+    position: absolute;
+    left: 12px;
+    top: 116px;
+    z-index: 35;
+    width: min(224px, calc(100vw - 48px));
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.12);
+  }
+
+  .sidebar.collapsed {
+    width: 0;
+    border: 0;
+  }
+
+  .map-wrapper {
+    height: calc(100vh - 150px);
+    min-height: 500px;
   }
 
   .legend {
-    right: 16px;
-    top: 120px;
+    right: 72px;
+    top: 72px;
+    max-width: calc(100vw - 100px);
   }
 
   .weight-panel {
-    right: 8px;
-    top: 60px;
-    width: calc(100vw - 16px);
+    right: 20px;
+    left: 20px;
+    top: 72px;
+    width: auto;
+  }
+
+  .sidebar-toggle {
+    top: 28px;
+    left: 28px;
+  }
+
+  .compare-panel {
+    position: absolute;
+    left: 12px;
+    right: 12px;
+    bottom: 12px;
+    z-index: 25;
+    width: auto;
+    max-height: min(60vh, 520px);
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.14);
   }
 }
 </style>
