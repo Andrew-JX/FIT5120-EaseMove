@@ -1,0 +1,30 @@
+[
+  {
+    "id": "cbd",
+    "name": "Melbourne CBD",
+    "lat": -37.8155,
+    "lng": 144.9690,
+    "devices": ["ICTMicroclimate-02", "ICTMicroclimate-03", "ICTMicroclimate-08"]
+  },
+  {
+    "id": "east-melbourne",
+    "name": "East Melbourne",
+    "lat": -37.8161,
+    "lng": 144.9745,
+    "devices": ["ICTMicroclimate-01", "ICTMicroclimate-06", "ICTMicroclimate-07", "ICTMicroclimate-10", "ICTMicroclimate-11"]
+  },
+  {
+    "id": "docklands",
+    "name": "Docklands",
+    "lat": -37.8204,
+    "lng": 144.9591,
+    "devices": ["ICTMicroclimate-05"]
+  },
+  {
+    "id": "southbank",
+    "name": "Southbank",
+    "lat": -37.8223,
+    "lng": 144.9522,
+    "devices": ["ICTMicroclimate-09"]
+  }
+]
