@@ -151,174 +151,492 @@ watch(() => precinctStore.precincts, renderMarkers, { deep: true })
 </script>
 
 <template>
-  <main class="map-view">
-    <div ref="mapElement" class="map-canvas" aria-label="Melbourne comfort map"></div>
+  <div class="page">
+    <nav class="navbar">
+      <div class="navbar-inner">
+        <div class="brand">
+          <div class="logo" aria-hidden="true">
+            <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
+              <rect width="36" height="36" rx="10" fill="#006d77" />
+              <path d="M18 8 C13 8 9 12 9 17 C9 24 18 30 18 30 C18 30 27 24 27 17 C27 12 23 8 18 8Z" fill="white" opacity="0.9" />
+              <circle cx="18" cy="17" r="4" fill="#006d77" />
+            </svg>
+          </div>
+          <div>
+            <h1 class="brand-title">EaseMove Melbourne</h1>
+            <p class="brand-sub">Travel comfort decision-support tool</p>
+          </div>
+        </div>
+        <div class="live-badge">
+          <span class="live-dot"></span>
+          Live sensors
+        </div>
+      </div>
+    </nav>
 
-    <div v-if="precinctStore.loading" class="loading-overlay">
-      <div class="spinner" aria-label="Loading comfort data"></div>
-    </div>
+    <main class="main-container">
+      <div class="map-card">
+        <div class="tabs">
+          <button class="tab-btn active" type="button">View</button>
+          <button class="tab-btn" type="button">Compare</button>
+        </div>
 
-    <div v-if="precinctStore.error" class="error-banner">
-      Unable to load comfort data. Showing last known conditions.
-    </div>
+        <div v-if="precinctStore.loading" class="status-banner loading-banner">
+          <span class="spinner" aria-label="Loading comfort data"></span>
+          Loading comfort data...
+        </div>
 
-    <button class="facilities-toggle" type="button" :class="{ active: facilitiesEnabled }" @click="toggleFacilities">
-      Street facilities
-    </button>
+        <div v-if="precinctStore.error" class="status-banner error-banner">
+          Unable to load comfort data. Showing last known conditions.
+        </div>
 
-    <button
-      class="settings-toggle"
-      type="button"
-      :aria-expanded="preferencesOpen"
-      aria-controls="comfort-preferences-panel"
-      @click="togglePreferences"
-    >
-      <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
-        <path
-          fill="currentColor"
-          d="M19.4 13.5c.1-.5.1-1 .1-1.5s0-1-.1-1.5l2-1.5-2-3.4-2.4 1a8 8 0 0 0-2.6-1.5L14 2.5h-4l-.4 2.6A8 8 0 0 0 7 6.6l-2.4-1-2 3.4 2 1.5c-.1.5-.1 1-.1 1.5s0 1 .1 1.5l-2 1.5 2 3.4 2.4-1a8 8 0 0 0 2.6 1.5l.4 2.6h4l.4-2.6a8 8 0 0 0 2.6-1.5l2.4 1 2-3.4-2-1.5ZM12 15.5A3.5 3.5 0 1 1 12 8a3.5 3.5 0 0 1 0 7.5Z"
-        />
-      </svg>
-      Settings
-    </button>
+        <div class="map-layout">
+          <aside class="sidebar">
+            <div class="sidebar-inner">
+              <h3 class="sidebar-title">Comfort Levels</h3>
+              <div class="filter-list">
+                <div class="filter-btn comfortable">
+                  <span class="filter-dot"></span>
+                  <span class="filter-label">Comfortable</span>
+                  <span class="filter-count">{{ precinctStore.precincts.filter((precinct) => precinct.comfort_label === 'Comfortable').length }}</span>
+                </div>
+                <div class="filter-btn caution">
+                  <span class="filter-dot"></span>
+                  <span class="filter-label">Caution</span>
+                  <span class="filter-count">{{ precinctStore.precincts.filter((precinct) => precinct.comfort_label === 'Caution').length }}</span>
+                </div>
+                <div class="filter-btn high-risk">
+                  <span class="filter-dot"></span>
+                  <span class="filter-label">High Risk</span>
+                  <span class="filter-count">{{ precinctStore.precincts.filter((precinct) => precinct.comfort_label === 'High Risk').length }}</span>
+                </div>
+              </div>
+            </div>
+          </aside>
 
-    <div v-if="preferencesOpen" id="comfort-preferences-panel" class="preferences-panel">
-      <WeightSlider />
-    </div>
+          <section class="map-wrapper">
+            <button
+              class="map-fab"
+              :class="{ 'fab-active': facilitiesEnabled }"
+              type="button"
+              style="right: 16px; top: 16px;"
+              title="Street facilities"
+              @click="toggleFacilities"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 22s-8-4.5-8-11.8A8 8 0 0 1 12 2a8 8 0 0 1 8 8.2c0 7.3-8 11.8-8 11.8z" />
+                <circle cx="12" cy="10" r="3" />
+              </svg>
+            </button>
 
-    <div v-if="facilityError" class="toast" role="status">
-      Street facilities data temporarily unavailable
-    </div>
+            <button
+              class="map-fab"
+              :class="{ 'fab-active': preferencesOpen }"
+              type="button"
+              style="right: 16px; top: 68px;"
+              title="Comfort preferences"
+              :aria-expanded="preferencesOpen"
+              aria-controls="comfort-preferences-panel"
+              @click="togglePreferences"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="3" />
+                <path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14" />
+              </svg>
+            </button>
 
-    <PrecinctCard v-if="selectedPrecinctId" :precinct-id="selectedPrecinctId" />
-    <CompareView />
-  </main>
+            <div ref="mapElement" class="leaflet-map" aria-label="Melbourne comfort map"></div>
+
+            <div class="legend">
+              <div class="legend-title">Comfort Levels</div>
+              <div class="legend-item"><span class="legend-dot comfortable"></span>Comfortable (70-100)</div>
+              <div class="legend-item"><span class="legend-dot caution"></span>Caution (40-69)</div>
+              <div class="legend-item"><span class="legend-dot high-risk"></span>High Risk (0-39)</div>
+            </div>
+
+            <div v-if="facilityError" class="toast" role="status">
+              Street facilities data temporarily unavailable
+            </div>
+
+            <div v-if="preferencesOpen" id="comfort-preferences-panel" class="weight-panel">
+              <WeightSlider />
+            </div>
+
+            <Transition name="slide-up">
+              <PrecinctCard v-if="selectedPrecinctId" :precinct-id="selectedPrecinctId" class="precinct-card-overlay" />
+            </Transition>
+          </section>
+
+          <aside v-if="precinctStore.isComparing" class="compare-panel">
+            <CompareView />
+          </aside>
+        </div>
+      </div>
+    </main>
+  </div>
 </template>
 
 <style scoped>
 @import 'leaflet/dist/leaflet.css';
 
-:global(body) {
-  min-width: 320px;
-  display: block;
-  place-items: initial;
-}
-
-:global(#app) {
-  width: 100%;
-  max-width: none;
+.page {
   min-height: 100vh;
-  margin: 0;
-  padding: 0;
-  display: block;
 }
 
-.map-view {
-  --stormy-teal: #006d77;
-  --pearl-aqua: #83c5be;
-  --alice-blue: #edf6f9;
-  --almond-silk: #ffddd2;
-  --tangerine-dream: #e29578;
-  position: relative;
-  width: 100%;
-  min-height: 100vh;
-  overflow: hidden;
-  color: #102a2f;
+.navbar {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 2px 12px rgba(0, 109, 119, 0.08);
 }
 
-.map-canvas {
-  width: 100%;
-  height: calc(100vh - 0px);
-  min-height: 520px;
+.navbar-inner {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 14px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
-.loading-overlay {
-  position: absolute;
-  inset: 0;
-  z-index: 1000;
-  display: grid;
-  place-items: center;
-  background: rgba(237, 246, 249, 0.72);
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 14px;
 }
 
-.spinner {
-  width: 44px;
-  height: 44px;
-  border: 5px solid var(--pearl-aqua);
-  border-top-color: var(--stormy-teal);
+.brand-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: #006d77;
+  line-height: 1.2;
+}
+
+.brand-sub {
+  font-size: 12px;
+  color: #6b7280;
+  margin-top: 2px;
+}
+
+.live-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #374151;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  padding: 5px 12px;
+  border-radius: 20px;
+}
+
+.live-dot {
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
-  animation: spin 800ms linear infinite;
+  background: #22c55e;
+  animation: pulse 2s infinite;
 }
 
-.error-banner,
-.toast,
-.facilities-toggle,
-.settings-toggle {
-  position: absolute;
-  z-index: 1000;
-  border-radius: 8px;
+.main-container {
+  max-width: 1400px;
+  margin: 24px auto;
+  padding: 0 24px 24px;
+}
+
+.map-card {
+  background: rgba(255, 255, 255, 0.97);
+  border-radius: 16px;
+  box-shadow: 0 10px 40px rgba(0, 109, 119, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  overflow: hidden;
+}
+
+.tabs {
+  display: flex;
+  border-bottom: 1px solid #e5e7eb;
+  padding: 0 24px;
+}
+
+.tab-btn {
+  padding: 14px 24px;
   font-size: 14px;
-  font-weight: 800;
+  font-weight: 500;
+  color: #6b7280;
+  background: none;
+  border: none;
+  cursor: default;
+  position: relative;
+}
+
+.tab-btn.active {
+  color: #006d77;
+}
+
+.tab-btn.active::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: #006d77;
+  border-radius: 2px 2px 0 0;
+}
+
+.status-banner {
+  padding: 10px 24px;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.loading-banner {
+  background: #edf6f9;
+  color: #006d77;
 }
 
 .error-banner {
-  top: 16px;
-  left: 50%;
-  width: min(520px, calc(100vw - 32px));
-  padding: 12px 16px;
-  transform: translateX(-50%);
-  border: 1px solid var(--tangerine-dream);
-  background: var(--almond-silk);
-  color: #8a3a1e;
-  text-align: center;
+  background: #fef3c7;
+  color: #92400e;
+  border-top: 1px solid #fde68a;
 }
 
-.facilities-toggle {
-  top: 16px;
-  right: 16px;
-  min-height: 44px;
-  border: 1px solid rgba(0, 109, 119, 0.25);
+.spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid #83c5be;
+  border-top-color: #006d77;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  flex-shrink: 0;
+}
+
+.map-layout {
+  display: flex;
+  height: 560px;
+}
+
+.sidebar {
+  width: 220px;
+  flex-shrink: 0;
+  border-right: 1px solid #e5e7eb;
+  background: #f9fafb;
+  overflow: hidden;
+}
+
+.sidebar-inner {
+  padding: 16px;
+}
+
+.sidebar-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 12px;
+}
+
+.filter-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.filter-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border: 2px solid #e5e7eb;
+  border-radius: 10px;
   background: #ffffff;
-  color: var(--stormy-teal);
-  cursor: pointer;
-  padding: 0 16px;
+  font-size: 13px;
+  color: #374151;
+  text-align: left;
 }
 
-.settings-toggle {
-  top: 72px;
-  right: 16px;
-  display: inline-flex;
+.filter-btn.comfortable {
+  border-color: #22c55e;
+  background: #f0fdf4;
+}
+
+.filter-btn.caution {
+  border-color: #eab308;
+  background: #fefce8;
+}
+
+.filter-btn.high-risk {
+  border-color: #ef4444;
+  background: #fef2f2;
+}
+
+.filter-dot,
+.legend-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.filter-btn.comfortable .filter-dot,
+.legend-dot.comfortable {
+  background: #22c55e;
+}
+
+.filter-btn.caution .filter-dot,
+.legend-dot.caution {
+  background: #eab308;
+}
+
+.filter-btn.high-risk .filter-dot,
+.legend-dot.high-risk {
+  background: #ef4444;
+}
+
+.filter-label {
+  flex: 1;
+}
+
+.filter-count {
+  font-size: 12px;
+  font-weight: 600;
+  color: #6b7280;
+}
+
+.map-wrapper {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+}
+
+.leaflet-map {
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+}
+
+.map-fab {
+  position: absolute;
+  z-index: 10;
+  width: 40px;
+  height: 40px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #374151;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  transition: all 0.2s;
+}
+
+.map-fab:hover {
+  background: #f0fdf9;
+  color: #006d77;
+}
+
+.map-fab.fab-active {
+  background: #006d77;
+  color: #ffffff;
+  border-color: #006d77;
+}
+
+.legend {
+  position: absolute;
+  top: 16px;
+  right: 70px;
+  z-index: 10;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 12px 16px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.legend-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 8px;
+}
+
+.legend-item {
+  display: flex;
   align-items: center;
   gap: 8px;
-  min-height: 44px;
-  border: 1px solid rgba(0, 109, 119, 0.25);
-  background: #ffffff;
-  color: var(--stormy-teal);
-  cursor: pointer;
-  padding: 0 16px;
+  font-size: 12px;
+  color: #4b5563;
+  margin-bottom: 5px;
 }
 
-.preferences-panel {
-  position: absolute;
-  top: 128px;
-  right: 16px;
-  z-index: 1000;
-}
-
-.facilities-toggle.active {
-  border-color: var(--stormy-teal);
-  background: var(--stormy-teal);
-  color: #ffffff;
+.legend-item:last-child {
+  margin-bottom: 0;
 }
 
 .toast {
-  right: 16px;
-  bottom: 24px;
-  max-width: 320px;
-  padding: 12px 14px;
+  position: absolute;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+  background: rgba(17, 24, 39, 0.88);
+  color: #ffffff;
+  font-size: 13px;
+  padding: 8px 18px;
+  border-radius: 20px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.weight-panel {
+  position: absolute;
+  top: 70px;
+  right: 70px;
+  z-index: 20;
+  width: 300px;
   background: #ffffff;
-  color: #102a2f;
-  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.18);
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.14);
+  border: 1px solid #e5e7eb;
+  overflow: hidden;
+}
+
+.precinct-card-overlay {
+  position: absolute;
+  z-index: 20;
+}
+
+.slide-up-enter-active,
+.slide-up-leave-active {
+  transition: transform 300ms ease, opacity 200ms ease;
+}
+
+.slide-up-enter-from,
+.slide-up-leave-to {
+  transform: translateY(100%);
+  opacity: 0;
+}
+
+.slide-up-enter-to,
+.slide-up-leave-from {
+  transform: translateY(0);
+  opacity: 1;
+}
+
+.compare-panel {
+  width: 420px;
+  flex-shrink: 0;
+  border-left: 1px solid #e5e7eb;
+  overflow-y: auto;
+  padding: 16px;
+  background: #fafafa;
 }
 
 :global(.facility-icon) {
@@ -337,7 +655,17 @@ watch(() => precinctStore.precincts, renderMarkers, { deep: true })
 }
 
 :global(.facility-icon-bike) {
-  background: var(--stormy-teal);
+  background: #006d77;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
 }
 
 @keyframes spin {
@@ -347,29 +675,37 @@ watch(() => precinctStore.precincts, renderMarkers, { deep: true })
 }
 
 @media (max-width: 768px) {
-  .map-canvas {
-    min-height: 100vh;
+  .navbar-inner {
+    padding: 12px 16px;
   }
 
-  .facilities-toggle {
-    top: 12px;
-    right: 12px;
+  .brand-title {
+    font-size: 18px;
   }
 
-  .settings-toggle {
-    top: 64px;
-    right: 12px;
+  .main-container {
+    padding: 12px;
+    margin: 12px auto;
   }
 
-  .preferences-panel {
-    top: 116px;
-    right: 12px;
+  .map-layout {
+    height: calc(100vh - 130px);
   }
 
-  .toast {
-    right: 12px;
-    bottom: 12px;
-    max-width: calc(100vw - 24px);
+  .sidebar,
+  .compare-panel {
+    display: none;
+  }
+
+  .legend {
+    right: 16px;
+    top: 120px;
+  }
+
+  .weight-panel {
+    right: 8px;
+    top: 60px;
+    width: calc(100vw - 16px);
   }
 }
 </style>
