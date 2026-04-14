@@ -6,7 +6,12 @@ const precinctRouter = require('./routes/precincts');
 
 const app = express();
 
-app.use(cors({ origin: process.env.CORS_ORIGIN }));
+const allowedOrigins = [
+  process.env.CORS_ORIGIN,
+  'http://localhost:5173',
+  'http://localhost:4173'
+].filter(Boolean);
+app.use(cors({ origin: allowedOrigins }));
 app.use(express.json());
 
 const limiter = rateLimit({

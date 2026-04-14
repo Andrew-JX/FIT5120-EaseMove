@@ -7,16 +7,33 @@ const precincts = require('../../config/precincts.json');
 const COM_API_URL = 'https://data.melbourne.vic.gov.au/api/explore/v2.1/catalog/datasets/microclimate-sensors-data/records';
 
 /**
- * Fetches the latest batch of sensor readings from CoM API.
- * Uses order_by=received_at DESC to get most recent first.
- * @returns {Promise<Array>} Raw reading objects from CoM API
+ * Fetches the latest sensor readings from CoM API for every device in precincts.json.
+ * One request per device ensures high-frequency devices (e.g. aws5-0999) cannot
+ * crowd out less-active ICTMicroclimate sensors in a single paginated result.
+ * @returns {Promise<Array>} Raw reading objects from CoM API (all devices combined)
  */
 async function fetchSensorReadings() {
-  const response = await axios.get(COM_API_URL, {
-    params: { limit: 50, order_by: 'received_at DESC', timezone: 'Australia/Sydney' },
-    timeout: 10000
-  });
-  return response.data.results;
+  const allDeviceIds = precincts.flatMap(p => p.devices);
+  const results = [];
+
+  for (const deviceId of allDeviceIds) {
+    try {
+      const response = await axios.get(COM_API_URL, {
+        params: {
+          limit: 5,
+          order_by: 'received_at DESC',
+          timezone: 'Australia/Sydney',
+          where: `device_id="${deviceId}"`
+        },
+        timeout: 10000
+      });
+      results.push(...(response.data.results || []));
+    } catch (err) {
+      console.warn(`[DataPoller] Failed to fetch device ${deviceId}:`, err.message);
+    }
+  }
+
+  return results;
 }
 
 /**
@@ -75,7 +92,10 @@ async function calculateAndStorePrecinct(precinct) {
   );
 
   const rows = result.rows;
-  if (rows.length === 0) return;
+  if (rows.length === 0) {
+    console.log(`[DataPoller] No sensor_readings found for precinct ${precinct.id} — skipping score calc`);
+    return;
+  }
 
   const avg = (field) => {
     const vals = rows.map(r => r[field]).filter(v => v !== null && v !== undefined);
@@ -129,18 +149,29 @@ async function pollAndStore() {
   try {
     readings = await fetchSensorReadings();
     console.log(`[DataPoller] Fetched ${readings.length} readings from CoM API`);
+    if (readings.length > 0) {
+      console.log('[DataPoller] Sample reading keys:', Object.keys(readings[0]));
+      console.log('[DataPoller] Sample device_id:', readings[0].device_id);
+    }
   } catch (err) {
     console.error('[DataPoller] CoM API unavailable, using cached data:', err.message);
   }
 
+  const unmatchedDevices = new Set();
   for (const reading of readings) {
     const precinctId = devicePrecinctMap[reading.device_id];
-    if (!precinctId) continue;
+    if (!precinctId) {
+      unmatchedDevices.add(reading.device_id);
+      continue;
+    }
     try {
       await storeReading(reading, precinctId);
     } catch (err) {
       console.error(`[DataPoller] Failed to store ${reading.device_id}:`, err.message);
     }
+  }
+  if (unmatchedDevices.size > 0) {
+    console.log('[DataPoller] Unmatched device_ids (not in precincts.json):', [...unmatchedDevices]);
   }
 
   for (const precinct of precincts) {

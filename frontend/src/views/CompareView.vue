@@ -22,15 +22,15 @@ const recommendation = computed(() => {
   }
 
   if (first.comfort_label === 'High Risk' && second.comfort_label !== 'High Risk') {
-    return `${second.name} is more comfortable right now 鈥?consider heading there instead.`
+    return `${second.name} is more comfortable right now. Consider heading there instead.`
   }
 
   if (second.comfort_label === 'High Risk' && first.comfort_label !== 'High Risk') {
-    return `${first.name} is more comfortable right now 鈥?consider heading there instead.`
+    return `${first.name} is more comfortable right now. Consider heading there instead.`
   }
 
   if (betterPrecinct.value) {
-    return `${betterPrecinct.value.name} is more comfortable right now 鈥?consider heading there instead.`
+    return `${betterPrecinct.value.name} is more comfortable right now. Consider heading there instead.`
   }
 
   return 'Conditions are similar in both areas right now.'
@@ -46,9 +46,9 @@ function formatUpdated(value) {
 <template>
   <div class="compare-view">
     <div v-if="!precinctStore.isComparing" class="empty-state">
-      <div class="empty-icon">↑</div>
+      <div class="empty-icon">^</div>
       <h3>Select Two Areas</h3>
-      <p>Click map markers to compare comfort levels side by side</p>
+      <p>Open a precinct card and press Compare to compare comfort levels side by side.</p>
     </div>
 
     <div v-else>
@@ -141,6 +141,7 @@ function formatUpdated(value) {
 
 .empty-state p {
   font-size: 13px;
+  line-height: 1.5;
 }
 
 .compare-grid {
@@ -154,8 +155,9 @@ function formatUpdated(value) {
   border: 2px solid #22c55e;
   border-radius: 12px;
   padding: 14px;
-  background: #ffffff;
+  background: linear-gradient(135deg, #ffffff 0%, #f9fafb 100%);
   position: relative;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.08);
 }
 
 .compare-card.label-caution {
@@ -170,11 +172,11 @@ function formatUpdated(value) {
   position: absolute;
   top: -12px;
   right: -8px;
-  background: linear-gradient(135deg, #22c55e, #16a34a);
+  background: linear-gradient(90deg, #22c55e 0%, #10b981 100%);
   color: #ffffff;
   font-size: 11px;
   font-weight: 700;
-  padding: 3px 10px;
+  padding: 4px 10px;
   border-radius: 12px;
   box-shadow: 0 2px 6px rgba(34, 197, 94, 0.35);
 }

@@ -17,7 +17,7 @@ import { RouterView } from 'vue-router'
 
 body {
   font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
-  background: linear-gradient(135deg, #f8fafc 0%, #edf6f9 50%, #f8fafc 100%);
+  background: linear-gradient(135deg, #f5f7fa 0%, #e3f2fd 50%, #f5f7fa 100%);
   min-height: 100vh;
   color: #111827;
 }
