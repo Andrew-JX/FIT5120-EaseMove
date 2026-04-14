@@ -3,6 +3,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import L from 'leaflet'
 import axios from 'axios'
 import PrecinctCard from '@/components/PrecinctCard.vue'
+import WeightSlider from '@/components/WeightSlider.vue'
 import CompareView from '@/views/CompareView.vue'
 import { createPrecinctMarkerIcon } from '@/components/PrecinctMarker'
 import { usePrecinctStore } from '@/stores/precinct'
@@ -18,6 +19,7 @@ const preferencesStore = usePreferencesStore()
 const mapElement = ref(null)
 const facilitiesEnabled = ref(false)
 const facilityError = ref(false)
+const preferencesOpen = ref(false)
 let map = null
 let markerLayer = null
 let facilitiesLayer = null
@@ -109,6 +111,10 @@ async function toggleFacilities() {
   removeFacilitiesLayer()
 }
 
+function togglePreferences() {
+  preferencesOpen.value = !preferencesOpen.value
+}
+
 async function fetchAndRenderPrecincts() {
   await precinctStore.fetchCurrentPrecincts()
   await nextTick()
@@ -159,6 +165,26 @@ watch(() => precinctStore.precincts, renderMarkers, { deep: true })
     <button class="facilities-toggle" type="button" :class="{ active: facilitiesEnabled }" @click="toggleFacilities">
       Street facilities
     </button>
+
+    <button
+      class="settings-toggle"
+      type="button"
+      :aria-expanded="preferencesOpen"
+      aria-controls="comfort-preferences-panel"
+      @click="togglePreferences"
+    >
+      <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
+        <path
+          fill="currentColor"
+          d="M19.4 13.5c.1-.5.1-1 .1-1.5s0-1-.1-1.5l2-1.5-2-3.4-2.4 1a8 8 0 0 0-2.6-1.5L14 2.5h-4l-.4 2.6A8 8 0 0 0 7 6.6l-2.4-1-2 3.4 2 1.5c-.1.5-.1 1-.1 1.5s0 1 .1 1.5l-2 1.5 2 3.4 2.4-1a8 8 0 0 0 2.6 1.5l.4 2.6h4l.4-2.6a8 8 0 0 0 2.6-1.5l2.4 1 2-3.4-2-1.5ZM12 15.5A3.5 3.5 0 1 1 12 8a3.5 3.5 0 0 1 0 7.5Z"
+        />
+      </svg>
+      Settings
+    </button>
+
+    <div v-if="preferencesOpen" id="comfort-preferences-panel" class="preferences-panel">
+      <WeightSlider />
+    </div>
 
     <div v-if="facilityError" class="toast" role="status">
       Street facilities data temporarily unavailable
@@ -226,7 +252,8 @@ watch(() => precinctStore.precincts, renderMarkers, { deep: true })
 
 .error-banner,
 .toast,
-.facilities-toggle {
+.facilities-toggle,
+.settings-toggle {
   position: absolute;
   z-index: 1000;
   border-radius: 8px;
@@ -255,6 +282,27 @@ watch(() => precinctStore.precincts, renderMarkers, { deep: true })
   color: var(--stormy-teal);
   cursor: pointer;
   padding: 0 16px;
+}
+
+.settings-toggle {
+  top: 72px;
+  right: 16px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  border: 1px solid rgba(0, 109, 119, 0.25);
+  background: #ffffff;
+  color: var(--stormy-teal);
+  cursor: pointer;
+  padding: 0 16px;
+}
+
+.preferences-panel {
+  position: absolute;
+  top: 128px;
+  right: 16px;
+  z-index: 1000;
 }
 
 .facilities-toggle.active {
@@ -305,6 +353,16 @@ watch(() => precinctStore.precincts, renderMarkers, { deep: true })
 
   .facilities-toggle {
     top: 12px;
+    right: 12px;
+  }
+
+  .settings-toggle {
+    top: 64px;
+    right: 12px;
+  }
+
+  .preferences-panel {
+    top: 116px;
     right: 12px;
   }
 
