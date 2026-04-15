@@ -1,49 +1,108 @@
-const express = require('express');
-const axios = require('axios');
-const router = express.Router();
+const express   = require('express');
+const axios     = require('axios');
+const router    = express.Router();
 const { query } = require('../db');
-const { getRecommendation, getPreparationAdvice } = require('../scoring/comfortScore');
+const { calculateComfortScore, getRecommendation, getPreparationAdvice } = require('../scoring/comfortScore');
 const precincts = require('../../config/precincts.json');
 
-/** GET /api/health — uptime ping, keeps Render warm */
+const precinctMap = Object.fromEntries(precincts.map(p => [p.id, p]));
+
+function parseWeights(queryParams) {
+  const hasWeights = ['weight_temperature', 'weight_humidity', 'weight_activity']
+    .some(key => queryParams[key] !== undefined);
+  if (!hasWeights) return null;
+
+  const temperature = Number(queryParams.weight_temperature);
+  const humidity = Number(queryParams.weight_humidity);
+  const activity = Number(queryParams.weight_activity);
+  const values = [temperature, humidity, activity];
+  const sum = values.reduce((total, value) => total + value, 0);
+
+  if (values.some(value => !Number.isFinite(value) || value < 0) || sum <= 0) {
+    return null;
+  }
+
+  return {
+    temperature: temperature / sum,
+    humidity: humidity / sum,
+    activity: activity / sum
+  };
+}
+
+function applyResponseWeights(row, weights) {
+  const temperature = row.temperature !== null ? parseFloat(row.temperature) : null;
+  const humidity = row.humidity !== null ? parseFloat(row.humidity) : null;
+  const activityCount = Number(row.activity_count ?? 0);
+
+  if (!weights || temperature === null) {
+    return {
+      comfort_score: row.comfort_score,
+      comfort_label: row.comfort_label,
+      activity_level: row.activity_level
+    };
+  }
+
+  const weighted = calculateComfortScore({
+    temperature,
+    humidity: humidity ?? 50,
+    activityCount
+  }, weights);
+
+  return {
+    comfort_score: weighted.score,
+    comfort_label: weighted.label,
+    activity_level: weighted.activityLevel
+  };
+}
+
+/** GET /api/health */
 router.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-/**
- * GET /api/precincts/current
- * Returns latest comfort score for all precincts.
- * Response: { precincts: PrecinctScore[] }
- */
+/** GET /api/precincts/current — all 12 precincts, latest scores */
 router.get('/precincts/current', async (req, res) => {
   try {
+    const weights = parseWeights(req.query);
     const result = await query(`
-      SELECT DISTINCT ON (precinct_id)
-        precinct_id, precinct_name, comfort_score, comfort_label,
-        temperature, humidity, wind_speed, pm25,
-        activity_count, activity_level, stale_data, calc_timestamp
-      FROM precinct_scores
-      ORDER BY precinct_id, calc_timestamp DESC
+      WITH latest_scores AS (
+        SELECT DISTINCT ON (precinct_id)
+          precinct_id, precinct_name, comfort_score, comfort_label,
+          temperature, humidity, wind_speed, pm25,
+          activity_count, activity_level, stale_data, no_sensor_data, calc_timestamp
+        FROM precinct_scores
+        ORDER BY precinct_id, calc_timestamp DESC
+      ),
+      latest_readings AS (
+        SELECT precinct_id, MAX(received_at) AS latest_sensor_at
+        FROM sensor_readings
+        GROUP BY precinct_id
+      )
+      SELECT latest_scores.*, latest_readings.latest_sensor_at
+      FROM latest_scores
+      LEFT JOIN latest_readings USING (precinct_id)
     `);
 
-    const precinctMap = Object.fromEntries(precincts.map(p => [p.id, p]));
-
-    const data = result.rows.map(row => ({
-      id: row.precinct_id,
-      name: row.precinct_name,
-      comfort_score: row.comfort_score,
-      comfort_label: row.comfort_label,
-      temperature: row.temperature !== null ? parseFloat(row.temperature) : null,
-      humidity: row.humidity !== null ? parseFloat(row.humidity) : null,
-      wind_speed: row.wind_speed !== null ? parseFloat(row.wind_speed) : null,
-      pm25: row.pm25 !== null ? parseFloat(row.pm25) : null,
+    const data = result.rows.map(row => {
+      const weighted = applyResponseWeights(row, weights);
+      return ({
+      id:             row.precinct_id,
+      name:           row.precinct_name,
+      comfort_score:  weighted.comfort_score,
+      comfort_label:  weighted.comfort_label,
+      temperature:    row.temperature    !== null ? parseFloat(row.temperature)    : null,
+      humidity:       row.humidity       !== null ? parseFloat(row.humidity)       : null,
+      wind_speed:     row.wind_speed     !== null ? parseFloat(row.wind_speed)     : null,
+      pm25:           row.pm25           !== null ? parseFloat(row.pm25)           : null,
       activity_count: row.activity_count,
-      activity_level: row.activity_level,
-      stale_data: row.stale_data,
-      last_updated: row.calc_timestamp,
-      lat: precinctMap[row.precinct_id]?.lat ?? null,
-      lng: precinctMap[row.precinct_id]?.lng ?? null
-    }));
+      activity_level: weighted.activity_level,
+      stale_data:     row.stale_data,
+      no_sensor_data: row.no_sensor_data,
+      last_updated:   row.latest_sensor_at ?? row.calc_timestamp,
+      lat:            precinctMap[row.precinct_id]?.lat ?? null,
+      lng:            precinctMap[row.precinct_id]?.lng ?? null
+      });
+    });
 
     res.json({ precincts: data });
   } catch (err) {
@@ -52,140 +111,119 @@ router.get('/precincts/current', async (req, res) => {
   }
 });
 
-/**
- * GET /api/precincts/compare?a=cbd&b=southbank
- * Returns scores for two precincts side by side.
- * Query params: a, b (precinct ids — both required)
- * Response: { precincts: PrecinctScore[] } — array of 2
- */
+/** GET /api/precincts/compare?a=cbd&b=southbank */
 router.get('/precincts/compare', async (req, res) => {
   const { a, b } = req.query;
-  if (!a || !b) {
-    return res.status(400).json({ error: 'Query params a and b are required', code: 400, timestamp: new Date().toISOString() });
-  }
-
+  if (!a || !b) return res.status(400).json({ error: 'Params a and b required', code: 400, timestamp: new Date().toISOString() });
   try {
+    const weights = parseWeights(req.query);
     const result = await query(`
-      SELECT DISTINCT ON (precinct_id)
-        precinct_id, precinct_name, comfort_score, comfort_label,
-        temperature, humidity, wind_speed, pm25,
-        activity_count, activity_level, stale_data, calc_timestamp
-      FROM precinct_scores
-      WHERE precinct_id = ANY($1)
-      ORDER BY precinct_id, calc_timestamp DESC
+      WITH latest_scores AS (
+        SELECT DISTINCT ON (precinct_id)
+          precinct_id, precinct_name, comfort_score, comfort_label,
+          temperature, humidity, wind_speed, pm25,
+          activity_count, activity_level, stale_data, no_sensor_data, calc_timestamp
+        FROM precinct_scores
+        WHERE precinct_id = ANY($1)
+        ORDER BY precinct_id, calc_timestamp DESC
+      ),
+      latest_readings AS (
+        SELECT precinct_id, MAX(received_at) AS latest_sensor_at
+        FROM sensor_readings
+        WHERE precinct_id = ANY($1)
+        GROUP BY precinct_id
+      )
+      SELECT latest_scores.*, latest_readings.latest_sensor_at
+      FROM latest_scores
+      LEFT JOIN latest_readings USING (precinct_id)
     `, [[a, b]]);
 
-    const precinctMap = Object.fromEntries(precincts.map(p => [p.id, p]));
-
-    const data = result.rows.map(row => ({
-      id: row.precinct_id,
-      name: row.precinct_name,
-      comfort_score: row.comfort_score,
-      comfort_label: row.comfort_label,
+    const data = result.rows.map(row => {
+      const weighted = applyResponseWeights(row, weights);
+      return ({
+      id: row.precinct_id, name: row.precinct_name,
+      comfort_score: weighted.comfort_score, comfort_label: weighted.comfort_label,
       temperature: row.temperature !== null ? parseFloat(row.temperature) : null,
       humidity: row.humidity !== null ? parseFloat(row.humidity) : null,
       wind_speed: row.wind_speed !== null ? parseFloat(row.wind_speed) : null,
       pm25: row.pm25 !== null ? parseFloat(row.pm25) : null,
-      activity_count: row.activity_count,
-      activity_level: row.activity_level,
-      stale_data: row.stale_data,
-      last_updated: row.calc_timestamp,
+      activity_count: row.activity_count, activity_level: weighted.activity_level,
+      stale_data: row.stale_data, no_sensor_data: row.no_sensor_data,
+      last_updated: row.latest_sensor_at ?? row.calc_timestamp,
       lat: precinctMap[row.precinct_id]?.lat ?? null,
       lng: precinctMap[row.precinct_id]?.lng ?? null
-    }));
+      });
+    });
 
     res.json({ precincts: data });
   } catch (err) {
-    console.error('[GET /precincts/compare]', err.message);
-    res.status(500).json({ error: 'Failed to fetch comparison', code: 500, timestamp: new Date().toISOString() });
+    res.status(500).json({ error: err.message, code: 500, timestamp: new Date().toISOString() });
   }
 });
 
-/**
- * GET /api/precincts/:id/today
- * Returns time-slot recommendation and preparation advice for one precinct.
- * Response: { precinct_id, date, recommendation, recommendation_basis, preparation_advice }
- */
+/** GET /api/precincts/:id/today */
 router.get('/precincts/:id/today', async (req, res) => {
-  const { id } = req.params;
-
   try {
+    const weights = parseWeights(req.query);
     const result = await query(`
       SELECT DISTINCT ON (precinct_id)
-        precinct_id, comfort_label, temperature, humidity,
-        activity_count, activity_level, pm25, stale_data, calc_timestamp
-      FROM precinct_scores
-      WHERE precinct_id = $1
+        precinct_id, precinct_name, comfort_score, comfort_label,
+        temperature, humidity, pm25, activity_count, activity_level, stale_data
+      FROM precinct_scores WHERE precinct_id=$1
       ORDER BY precinct_id, calc_timestamp DESC
-    `, [id]);
+    `, [req.params.id]);
 
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: `Precinct '${id}' not found`, code: 404, timestamp: new Date().toISOString() });
-    }
+    if (result.rows.length === 0)
+      return res.status(404).json({ error: 'Precinct not found', code: 404, timestamp: new Date().toISOString() });
 
-    const row = result.rows[0];
-    const precinctData = {
-      temperature: row.temperature !== null ? parseFloat(row.temperature) : null,
-      humidity: row.humidity !== null ? parseFloat(row.humidity) : null,
-      comfort_label: row.comfort_label,
-      pm25: row.pm25 !== null ? parseFloat(row.pm25) : null,
-      activity_level: row.activity_level
+    const row  = result.rows[0];
+    const weighted = applyResponseWeights(row, weights);
+    const data = {
+      temperature:    row.temperature !== null ? parseFloat(row.temperature) : null,
+      comfort_label:  weighted.comfort_label,
+      pm25:           row.pm25 !== null ? parseFloat(row.pm25) : 0,
     };
 
     res.json({
-      precinct_id: row.precinct_id,
-      date: new Date().toISOString().split('T')[0],
-      recommendation: getRecommendation(precinctData),
+      precinct_id:          row.precinct_id,
+      date:                 new Date().toISOString().slice(0, 10),
+      recommendation:       getRecommendation(data),
       recommendation_basis: {
-        current_temp: precinctData.temperature,
-        current_humidity: precinctData.humidity,
-        current_activity: precinctData.activity_level
+        current_temp:     data.temperature,
+        current_humidity: row.humidity !== null ? parseFloat(row.humidity) : null,
+        current_activity: row.activity_level
       },
-      preparation_advice: getPreparationAdvice(precinctData)
+      preparation_advice:   getPreparationAdvice(data)
     });
   } catch (err) {
-    console.error(`[GET /precincts/${id}/today]`, err.message);
-    res.status(500).json({ error: 'Failed to fetch today data', code: 500, timestamp: new Date().toISOString() });
+    res.status(500).json({ error: err.message, code: 500, timestamp: new Date().toISOString() });
   }
 });
 
-/**
- * GET /api/furniture?precinct=cbd&type=all
- * Returns GeoJSON of street furniture (drinking fountains + bicycle rails).
- * Falls back to config/furniture.json if CoM API fails.
- * Query params: precinct (required), type ('drinking_fountain'|'bicycle_rail'|'all')
- */
+/** GET /api/furniture?precinct=cbd&type=drinking_fountain */
 router.get('/furniture', async (req, res) => {
-  const { precinct, type = 'all' } = req.query;
-  if (!precinct) {
-    return res.status(400).json({ error: 'Query param precinct is required', code: 400, timestamp: new Date().toISOString() });
-  }
-
+  const { precinct = 'all', type = 'all' } = req.query;
+  if (!precinct) return res.status(400).json({ error: 'precinct param required', code: 400, timestamp: new Date().toISOString() });
   try {
     let typeFilter = '';
-    if (type === 'drinking_fountain') typeFilter = '&refine=asset_type:Drinking+Fountain';
-    else if (type === 'bicycle_rail') typeFilter = '&refine=asset_type:Bicycle+Rail';
+    if (type === 'drinking_fountain') typeFilter = "&refine=asset_type:Drinking+Fountain";
+    else if (type === 'bicycle_rail')  typeFilter = "&refine=asset_type:Bicycle+Rails";
 
-    const url = `https://data.melbourne.vic.gov.au/api/explore/v2.1/catalog/datasets/street-furniture-including-bollards-bicycle-rails-bins-drinking-fountains-horse-/records?limit=100${typeFilter}`;
-    const response = await axios.get(url, { timeout: 8000 });
+    const url = `https://data.melbourne.vic.gov.au/api/explore/v2.1/catalog/datasets/street-furniture-including-bollards-bicycle-rails-bins-drinking-fountains-horse-/records?limit=200${typeFilter}`;
+    const resp = await axios.get(url, { timeout: 10000 });
 
-    const features = (response.data.results || [])
-      .filter(r => r.geo_point_2d)
+    const features = (resp.data.results || [])
+      .filter(r => r.coordinatelocation)
       .map(r => ({
         type: 'Feature',
-        geometry: { type: 'Point', coordinates: [r.geo_point_2d.lon, r.geo_point_2d.lat] },
-        properties: {
-          asset_type: r.asset_type ?? '',
-          location_description: r.location_description ?? '',
-          status: r.status ?? ''
-        }
+        geometry: { type: 'Point', coordinates: [r.coordinatelocation.lon, r.coordinatelocation.lat] },
+        properties: { asset_type: r.asset_type ?? '', location_desc: r.location_desc ?? '', condition_rating: r.condition_rating ?? null }
       }));
 
     res.json({ type: 'FeatureCollection', features });
   } catch (err) {
-    console.error('[GET /furniture] Falling back to static config:', err.message);
-    const fallback = require('../../config/furniture.json');
-    res.json(fallback);
+    console.error('[GET /furniture] Fallback to static:', err.message);
+    res.json(require('../../config/furniture.json'));
   }
 });
 

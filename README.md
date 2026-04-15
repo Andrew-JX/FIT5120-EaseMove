@@ -1,192 +1,188 @@
 # EaseMove Melbourne
 
-**Smart Active Mobility Decision Support for Melbourne's Inner City**
+Smart Active Mobility Decision Support for Melbourne's Inner City.
 
 FIT5120 Industry Experience 2026 S1 | Team TP12 | Group vme50
 
----
+## Product Scope
 
-## What It Is
+EaseMove Melbourne helps young adults aged 18-30 who walk or cycle in Melbourne's inner city compare precinct-level travel comfort before they leave. It combines City of Melbourne microclimate sensor readings, pedestrian activity counts, and user-adjustable comfort weights.
 
-EaseMove Melbourne helps young adults aged 18–30 who walk or cycle in Melbourne's inner city make more comfortable travel decisions. It combines real-time IoT microclimate sensor data with user-adjustable comfort weights to generate a precinct-level travel comfort score — shown as colour-coded markers on an interactive map.
+This is not a route navigation engine, crime-avoidance app, UV app, or general weather dashboard.
 
-**This is not** a UV app, a weather dashboard, or a route navigation tool.
+## Live Services
 
----
-
-## Live Deployment
-
-| Service              | URL                                          |
-| -------------------- | -------------------------------------------- |
-| Frontend (Vercel)    | https://fit-5120-ease-move.vercel.app        |
-| Backend API (Render) | https://easemove-api.onrender.com            |
-| API Health Check     | https://easemove-api.onrender.com/api/health |
-
----
+| Service | URL |
+| --- | --- |
+| Frontend | https://fit-5120-ease-move.vercel.app |
+| Backend API | https://easemove-api.onrender.com |
+| Health check | https://easemove-api.onrender.com/api/health |
 
 ## Tech Stack
 
-| Layer    | Technology                         | Hosting                     |
-| -------- | ---------------------------------- | --------------------------- |
-| Frontend | Vue 3 + Vite + Pinia + Leaflet.js  | Vercel                      |
-| Backend  | Node.js + Express                  | Render (free tier)          |
-| Database | PostgreSQL                         | Neon (free tier, no expiry) |
-| Data     | City of Melbourne Open Data Portal | Public API, no key required |
+| Layer | Technology | Hosting |
+| --- | --- | --- |
+| Frontend | React 18, Vite, Tailwind CSS v4, Shadcn UI, vanilla Leaflet | Vercel |
+| Backend | Node.js, Express | Render |
+| Database | PostgreSQL | Neon |
+| Data | City of Melbourne Open Data APIs | Public, no API key |
 
----
-
-## Open Data Sources
-
-All datasets from [data.melbourne.vic.gov.au](https://data.melbourne.vic.gov.au) under CC BY licence.
-
-| Dataset                                              | API Dataset ID                                                                     | Used in     | Role                                                             |
-| ---------------------------------------------------- | ---------------------------------------------------------------------------------- | ----------- | ---------------------------------------------------------------- |
-| Microclimate Sensors Data                            | `microclimate-sensors-data`                                                        | Iteration 1 | Core: temperature, humidity, wind, PM2.5, PM10 per sensor device |
-| Street Furniture (bicycle rails, drinking fountains) | `street-furniture-including-bollards-bicycle-rails-bins-drinking-fountains-horse-` | Iteration 1 | Street facilities overlay on map                                 |
-| Pedestrian Counting System — Counts Per Hour         | `pedestrian-counting-system-monthly-counts-per-hour`                               | Iteration 2 | Historical patterns for time-slot recommendations                |
-| Urban Forest (tree canopy)                           | `urban-forest-precinct`                                                            | Iteration 2 | Shade & green coverage overlay                                   |
-| Cool Places                                          | `cool-places`                                                                      | Iteration 2 | Shelter and air-conditioned venues layer                         |
-
-### Sensor Coverage Note
-
-City of Melbourne microclimate sensors currently cover 4 inner-city precincts only:
-
-- **Melbourne CBD** — ICTMicroclimate-02, -03, -08
-- **East Melbourne** — ICTMicroclimate-01, -06, -07, -10, -11
-- **Docklands** — ICTMicroclimate-05
-- **Southbank** — ICTMicroclimate-09
-
-Other precincts (Carlton, Fitzroy, etc.) have no sensor coverage and are not shown on the map.
-
----
+Keep the `frontend/` and `backend/` directory names unchanged because deployment projects are bound to them.
 
 ## Repository Structure
 
+```text
+EaseMove/
+  frontend/
+    src/app/App.tsx
+    src/components/LeafletMap.tsx
+    src/hooks/usePrecincts.ts
+    src/lib/api.ts
+    src/app/components/ui/
+  backend/
+    config/precincts.json
+    config/furniture.json
+    src/app.js
+    src/server.js
+    src/routes/precincts.js
+    src/scheduler/dataPoller.js
+    src/scoring/comfortScore.js
+    src/db/
 ```
-FIT5120-EaseMove/
-├── frontend/                  # Vue 3 application
-│   ├── src/
-│   │   ├── views/             # MapView.vue, CompareView.vue
-│   │   ├── components/        # PrecinctCard.vue, WeightSlider.vue, PrecinctMarker.js
-│   │   └── stores/            # precinct.js, preferences.js (Pinia)
-│   └── .env.local             # VITE_API_BASE_URL (not committed)
-├── backend/                   # Node.js + Express API
-│   ├── src/
-│   │   ├── db/                # PostgreSQL pool, migrations
-│   │   ├── scheduler/         # dataPoller.js (hourly CoM API poll)
-│   │   ├── scoring/           # comfortScore.js + tests
-│   │   └── routes/            # precincts.js (API endpoints)
-│   ├── config/
-│   │   ├── precincts.json     # 4 precincts with device assignments
-│   │   └── furniture.json     # Static fallback for street furniture
-│   └── .env                   # DATABASE_URL, CORS_ORIGIN (not committed)
-├── CLAUDE_CODE_REVIEW.md      # AC checklist for Claude Code review
-└── README.md
-```
-
----
-
-## API Endpoints
-
-| Method | Path                                       | Description                                   |
-| ------ | ------------------------------------------ | --------------------------------------------- |
-| GET    | `/api/health`                              | Uptime ping                                   |
-| GET    | `/api/precincts/current`                   | All precincts, current comfort scores         |
-| GET    | `/api/precincts/compare?a=cbd&b=southbank` | Two precincts side by side                    |
-| GET    | `/api/precincts/:id/today`                 | Time-slot recommendation + preparation advice |
-| GET    | `/api/furniture?precinct=cbd&type=all`     | Street furniture GeoJSON                      |
-
----
-
-## Comfort Score
-
-Each precinct's score (0–100) is a weighted composite of three normalised factors:
-
-| Factor           | Default Weight | Data Source                               |
-| ---------------- | -------------- | ----------------------------------------- |
-| Temperature      | 60%            | `airtemperature` from CoM sensors         |
-| Humidity         | 30%            | `relativehumidity` from CoM sensors       |
-| Activity Density | 10%            | Pedestrian + cyclist counts (Iteration 2) |
-
-**Score bands:** 70–100 = Comfortable (green) · 40–69 = Caution (amber) · 0–39 = High Risk (red)
-
-Weights are **user-adjustable** from the UI — stored in browser localStorage only, never transmitted to the server.
-
-**Stale data:** If a reading is more than 30 minutes old, `stale_data: true` is set. The UI dims the comfort label and shows a warning badge.
-
----
-
-## Design Colours
-
-```css
---stormy-teal: #006d77 /* Primary — navbar, headings, buttons */
-  --pearl-aqua: #83c5be /* Secondary — borders, dividers */
-  --alice-blue: #edf6f9 /* Background — cards, panels */ --almond-silk: #ffddd2
-  /* Accent light — hover states */ --tangerine-dream: #e29578
-  /* Accent warm — warnings, highlights */;
-```
-
----
 
 ## Local Development
 
-### Prerequisites
-
-- Node.js 20.x LTS
-- Git
-
-### Backend
+Backend:
 
 ```bash
 cd backend
 npm install
-# Create .env with DATABASE_URL and CORS_ORIGIN
-npm run dev        # Starts on port 3000
-npm run migrate    # Run database migrations (first time only):
-node src/db/migrate.js
-npm test           # Run Jest unit tests
+npm run migrate
+npm run dev
 ```
 
-### Frontend
+Frontend:
 
 ```bash
 cd frontend
 npm install
-# Create .env.local with VITE_API_BASE_URL=http://localhost:3000
-npm run dev        # Starts on port 5173
+npm run dev
 ```
 
----
+Local URLs:
+
+| Service | URL |
+| --- | --- |
+| Backend | http://localhost:3000 |
+| Frontend | http://localhost:5173 |
+
+Frontend `.env.local`:
+
+```text
+VITE_API_BASE_URL=http://localhost:3000
+```
+
+Backend `.env`:
+
+```text
+DATABASE_URL=<neon connection string>
+CORS_ORIGIN=https://fit-5120-ease-move.vercel.app
+PORT=3000
+```
+
+## API Endpoints
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| GET | `/api/health` | Render/UptimeRobot health check |
+| GET | `/api/precincts/current` | Returns all 12 precinct comfort records |
+| GET | `/api/precincts/compare?a=cbd&b=southbank` | Returns two selected precincts |
+| GET | `/api/precincts/:id/today` | Returns recommendation and preparation advice |
+| GET | `/api/furniture?precinct=cbd&type=all` | Returns street furniture GeoJSON |
+
+Comfort weight query parameters are supported by `/current`, `/compare`, and `/:id/today`:
+
+```text
+weight_temperature=60&weight_humidity=30&weight_activity=10
+```
+
+The frontend stores weights in localStorage under `easemove_weights`, sends them to the backend, and refreshes scores without a page reload.
+
+## Data Sources
+
+| Dataset | API ID | Iteration | Role |
+| --- | --- | --- | --- |
+| Microclimate Sensor Readings | `microclimate-sensors-data` | 1 | Temperature, humidity, wind speed, PM2.5 |
+| Pedestrian Counting System hourly counts | `pedestrian-counting-system-monthly-counts-per-hour` | 1 | Activity density |
+| Street Furniture | `street-furniture-including-bollards-bicycle-rails-bins-drinking-fountains-horse-` | 1 | Drinking fountains and bicycle rails |
+| Cool Places | `cool-places` | 2 | Cool-space layer |
+| Urban Forest / canopy | varies by CoM portal dataset | 2 | Shade and green coverage |
+
+Important caveat: as of 15 April 2026, the City of Melbourne microclimate dataset's latest records are from March 2026, so sensor-covered precincts correctly appear as stale. No-sensor precincts such as Carlton still appear on the map with `no_sensor_data: true`, environmental readings as `N/A`, and activity density where available.
+
+## Comfort Score
+
+Default weights:
+
+| Factor | Default |
+| --- | --- |
+| Temperature | 60% |
+| Humidity | 30% |
+| Activity density | 10% |
+
+Normalisation:
+
+```text
+temp_score     = clamp((40 - temperature) / 40 * 100, 0, 100)
+humid_score    = clamp((100 - humidity) / 100 * 100, 0, 100)
+activity_score = clamp((500 - activity_count) / 500 * 100, 0, 100)
+
+comfort_score = round(temp_score*w_temp + humid_score*w_humidity + activity_score*w_activity)
+```
+
+Bands:
+
+| Score | Label | Colour |
+| --- | --- | --- |
+| 70-100 | Comfortable | Green |
+| 40-69 | Caution | Amber |
+| 0-39 | High Risk | Red |
+
+Readings older than 30 minutes set `stale_data: true`; the frontend dims the marker and displays a warning rather than hiding the precinct.
+
+## Current Iteration 1 Status
+
+Implemented:
+
+- React/Vite frontend with Leaflet map and 12 precinct markers.
+- Score card on marker tap with stale/no-sensor warnings.
+- Time-slot recommendation and preparation advice.
+- Comparison tab with better-precinct highlighting.
+- Backend-linked comfort weight sliders with localStorage persistence.
+- Street furniture API endpoint with static fallback.
+- Pedestrian activity polling from the City of Melbourne hourly counts dataset.
+
+Known limitations:
+
+- AC 6 map overlay UI for drinking fountains and bicycle rails still needs frontend toggle rendering.
+- Microclimate source data is stale upstream, so stale grey markers are expected.
+- Some no-sensor precincts cannot show temperature, humidity, wind, or PM2.5 until Iteration 2 fallback/estimation work is added.
+- Backend tests need to be restored after the Vue-to-React rewrite removed the old `comfortScore.test.js`.
 
 ## Branch Strategy
 
-| Branch           | Purpose                                             |
-| ---------------- | --------------------------------------------------- |
-| `main`           | Production — auto-deploys to Vercel + Render        |
-| `dev`            | Integration — all feature branches merge here first |
-| `feature/[name]` | Individual features, PR to dev                      |
+| Branch | Purpose |
+| --- | --- |
+| `main` | Stable production branch |
+| `dev` | Integration branch |
+| `feature/[name]` | Feature work before merging to `dev` |
 
-No direct commits to `main`. All code goes through PR with at least 1 approval.
-
----
-
-## Iteration Plan
-
-| Iteration | Weeks | Must Have Epics                                                            | Innovation                                                        |
-| --------- | ----- | -------------------------------------------------------------------------- | ----------------------------------------------------------------- |
-| 1         | 5–6   | Epic 1: Area Comfort Discovery, Epic 2: Smarter Travel Planning            | Real-time microclimate + user-adjustable comfort weights          |
-| 2         | 7–9   | Epic 3: Personalised Journey Insights, Epic 4: Environmental Quality Layer | Urban Forest canopy overlay + Cool Places + destination amenities |
-| 3         | 9–11  | Epic 5: Comfort Impact Awareness, Epic 6: Community & Alert System         | EPA AQI-linked health guidance + alert system                     |
-
----
+Do not commit directly to `main`.
 
 ## Team
 
-FIT5120 Industry Experience 2026 S1 | Monash University
-Team TP12 | Group vme50 | Urban Living & Smart Cities | SDG 11
-
----
+Monash University FIT5120 Industry Experience 2026 S1 | Team TP12 | Group vme50 | Urban Living & Smart Cities | SDG 11
 
 ## Licence
 
-Open data used under [Creative Commons Attribution (CC BY)](https://creativecommons.org/licenses/by/4.0/) licence. Attribution: City of Melbourne.
+Open data attribution: City of Melbourne Open Data under Creative Commons Attribution.
