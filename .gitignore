@@ -1,15 +1,31 @@
-# 依赖
+# Dependencies
 node_modules/
 
-# 环境变量（绝对不能commit）
+# Environment variables and secrets
 .env
 .env.local
 .env.production
+backend/.env
+frontend/.env.local
+frontend/.env.production
 
-# 系统文件
+# Local AI/editor state
+.claude/
+.history/
+
+# System files
 .DS_Store
 Thumbs.db
 
-# 构建输出
+# Build output
 dist/
 build/
+frontend/dist/
+backend/dist/
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
