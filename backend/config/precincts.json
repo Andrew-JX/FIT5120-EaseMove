@@ -4,27 +4,95 @@
     "name": "Melbourne CBD",
     "lat": -37.8155,
     "lng": 144.9690,
-    "devices": ["ICTMicroclimate-02", "ICTMicroclimate-03", "ICTMicroclimate-08"]
+    "devices": ["ICTMicroclimate-02", "ICTMicroclimate-03", "ICTMicroclimate-08"],
+    "has_sensors": true
   },
   {
     "id": "east-melbourne",
     "name": "East Melbourne",
     "lat": -37.8161,
     "lng": 144.9745,
-    "devices": ["ICTMicroclimate-01", "ICTMicroclimate-06", "ICTMicroclimate-07", "ICTMicroclimate-10", "ICTMicroclimate-11"]
+    "devices": ["ICTMicroclimate-01", "ICTMicroclimate-06", "ICTMicroclimate-07", "ICTMicroclimate-10", "ICTMicroclimate-11"],
+    "has_sensors": true
   },
   {
     "id": "docklands",
     "name": "Docklands",
     "lat": -37.8204,
     "lng": 144.9591,
-    "devices": ["ICTMicroclimate-05"]
+    "devices": ["ICTMicroclimate-05"],
+    "has_sensors": true
   },
   {
     "id": "southbank",
     "name": "Southbank",
     "lat": -37.8223,
     "lng": 144.9522,
-    "devices": ["ICTMicroclimate-09"]
+    "devices": ["ICTMicroclimate-09"],
+    "has_sensors": true
+  },
+  {
+    "id": "carlton",
+    "name": "Carlton",
+    "lat": -37.8010,
+    "lng": 144.9670,
+    "devices": [],
+    "has_sensors": false
+  },
+  {
+    "id": "fitzroy",
+    "name": "Fitzroy",
+    "lat": -37.7990,
+    "lng": 144.9780,
+    "devices": [],
+    "has_sensors": false
+  },
+  {
+    "id": "north-melbourne",
+    "name": "North Melbourne",
+    "lat": -37.8000,
+    "lng": 144.9440,
+    "devices": [],
+    "has_sensors": false
+  },
+  {
+    "id": "west-melbourne",
+    "name": "West Melbourne",
+    "lat": -37.8080,
+    "lng": 144.9430,
+    "devices": [],
+    "has_sensors": false
+  },
+  {
+    "id": "south-yarra",
+    "name": "South Yarra",
+    "lat": -37.8390,
+    "lng": 144.9900,
+    "devices": [],
+    "has_sensors": false
+  },
+  {
+    "id": "south-wharf",
+    "name": "South Wharf",
+    "lat": -37.8260,
+    "lng": 144.9530,
+    "devices": [],
+    "has_sensors": false
+  },
+  {
+    "id": "flemington",
+    "name": "Flemington",
+    "lat": -37.7880,
+    "lng": 144.9240,
+    "devices": [],
+    "has_sensors": false
+  },
+  {
+    "id": "kensington",
+    "name": "Kensington",
+    "lat": -37.7960,
+    "lng": 144.9280,
+    "devices": [],
+    "has_sensors": false
   }
 ]

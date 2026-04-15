@@ -1,44 +1,32 @@
-# .
+# EaseMove Frontend
 
-This template should help get you started developing with Vue 3 in Vite.
+React 18 + Vite frontend for EaseMove Melbourne.
 
-## Recommended IDE Setup
+## Run Locally
 
-[VS Code](https://code.visualstudio.com/) + [Vue (Official)](https://marketplace.visualstudio.com/items?itemName=Vue.volar) (and disable Vetur).
-
-## Recommended Browser Setup
-
-- Chromium-based browsers (Chrome, Edge, Brave, etc.):
-  - [Vue.js devtools](https://chromewebstore.google.com/detail/vuejs-devtools/nhdogjmejiglipccpnnnanhbledajbpd)
-  - [Turn on Custom Object Formatter in Chrome DevTools](http://bit.ly/object-formatters)
-- Firefox:
-  - [Vue.js devtools](https://addons.mozilla.org/en-US/firefox/addon/vue-js-devtools/)
-  - [Turn on Custom Object Formatter in Firefox DevTools](https://fxdx.dev/firefox-devtools-custom-object-formatters/)
-
-## Customize configuration
-
-See [Vite Configuration Reference](https://vite.dev/config/).
-
-## Project Setup
-
-```sh
+```bash
 npm install
-```
-
-### Compile and Hot-Reload for Development
-
-```sh
 npm run dev
 ```
 
-### Compile and Minify for Production
+Create `frontend/.env.local`:
 
-```sh
-npm run build
+```text
+VITE_API_BASE_URL=http://localhost:3000
 ```
 
-### Lint with [ESLint](https://eslint.org/)
+## Key Files
 
-```sh
-npm run lint
-```
+| File | Purpose |
+| --- | --- |
+| `src/app/App.tsx` | Main application UI, tabs, score cards, comparison, comfort preferences |
+| `src/components/LeafletMap.tsx` | Vanilla Leaflet map managed through React refs |
+| `src/hooks/usePrecincts.ts` | Polls the backend every 5 minutes |
+| `src/lib/api.ts` | Backend API client and comfort weight localStorage helpers |
+| `src/app/components/ui/` | Shadcn UI components |
+
+## Notes
+
+- Comfort weights are saved in localStorage with the key `easemove_weights`.
+- The frontend sends comfort weights to the backend using query parameters so returned scores use the selected weighting.
+- No user account, GPS tracking, or personal data is collected.

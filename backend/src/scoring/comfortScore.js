@@ -1,170 +1,80 @@
-const DEFAULT_WEIGHTS = {
-  temperature: 0.60,
-  humidity: 0.30,
-  activity: 0.10
-};
-
+// 30 min: CoM microclimate sensors publish ~15 min intervals; two missed = stale
 const STALE_THRESHOLD_MS = 30 * 60 * 1000;
 
+const DEFAULT_WEIGHTS = { temperature: 0.60, humidity: 0.30, activity: 0.10 };
+
 /**
- * Clamp a numeric value to the comfort score range.
- * @param {number} value - Score value to clamp.
- * @returns {number} Score constrained between 0 and 100.
+ * Normalise temperature to 0–100 score (lower temp = higher score).
+ * 0°C → 100, 40°C → 0, >40°C → 0 (clamped)
  */
-function clampScore(value) {
-  return Math.max(0, Math.min(100, value));
+function normaliseTemperature(t) {
+  return Math.max(0, Math.min(100, (40 - t) / 40 * 100));
+}
+
+function normaliseHumidity(h) {
+  return Math.max(0, Math.min(100, (100 - h) / 100 * 100));
+}
+
+function normaliseActivity(a) {
+  return Math.max(0, Math.min(100, (500 - a) / 500 * 100));
 }
 
 /**
- * Normalise temperature into a 0-100 score.
- * @param {number} temperature - Air temperature in Celsius.
- * @returns {number} Normalised temperature score from 0 to 100.
- */
-function normaliseTemperature(temperature) {
-  return clampScore(((40 - temperature) / 40) * 100);
-}
-
-/**
- * Normalise relative humidity into a 0-100 score.
- * @param {number} humidity - Relative humidity percentage.
- * @returns {number} Normalised humidity score from 0 to 100.
- */
-function normaliseHumidity(humidity) {
-  return clampScore(((100 - humidity) / 100) * 100);
-}
-
-/**
- * Normalise activity count into a 0-100 score.
- * @param {number} activityCount - Count of activity observations.
- * @returns {number} Normalised activity score from 0 to 100.
- */
-function normaliseActivity(activityCount) {
-  return clampScore(((500 - activityCount) / 500) * 100);
-}
-
-/**
- * Calculate the activity level label for a precinct.
- * @param {number} activityCount - Count of activity observations.
- * @returns {'Low' | 'Medium' | 'High'} Activity level label.
- */
-function getActivityLevel(activityCount) {
-  if (activityCount < 100) return 'Low';
-  if (activityCount < 300) return 'Medium';
-  return 'High';
-}
-
-/**
- * Calculate the comfort label for a score.
- * @param {number} score - Comfort score from 0 to 100.
- * @returns {'Comfortable' | 'Caution' | 'High Risk'} Comfort label.
- */
-function getComfortLabel(score) {
-  if (score >= 70) return 'Comfortable';
-  if (score >= 40) return 'Caution';
-  return 'High Risk';
-}
-
-/**
- * Validate scoring weights before calculating the comfort score.
- * @param {{ temperature: number, humidity: number, activity: number }} weights - Scoring weights.
- * @returns {void}
- */
-function validateWeights(weights) {
-  const total = weights.temperature + weights.humidity + weights.activity;
-
-  if (Math.abs(total - 1) > Number.EPSILON) {
-    throw new RangeError('Comfort score weights must sum to 1.0');
-  }
-}
-
-/**
- * Calculate a weighted comfort score, comfort label, and activity level.
- * @param {{ temperature: number, humidity: number, activityCount: number }} readings - Current precinct readings.
- * @param {{ temperature: number, humidity: number, activity: number }} [weights] - Scoring weights that sum to 1.0.
- * @returns {{ score: number, label: 'Comfortable' | 'Caution' | 'High Risk', activityLevel: 'Low' | 'Medium' | 'High' }} Comfort score result.
+ * Calculate weighted comfort score.
+ * @param {{ temperature: number, humidity: number, activityCount: number }} readings
+ * @param {{ temperature: number, humidity: number, activity: number }} [weights]
+ * @returns {{ score: number, label: string, activityLevel: string }}
  */
 function calculateComfortScore(readings, weights = DEFAULT_WEIGHTS) {
-  validateWeights(weights);
+  const { temperature, humidity, activityCount = 0 } = readings;
+  const w = weights;
 
-  const tempScore = normaliseTemperature(readings.temperature);
-  const humidScore = normaliseHumidity(readings.humidity);
-  const activityScore = normaliseActivity(readings.activityCount);
-  const score = Math.round(
-    tempScore * weights.temperature +
-    humidScore * weights.humidity +
-    activityScore * weights.activity
-  );
+  const tempScore     = normaliseTemperature(temperature);
+  const humidScore    = normaliseHumidity(humidity);
+  const actScore      = normaliseActivity(activityCount);
+  const score         = Math.round(tempScore * w.temperature + humidScore * w.humidity + actScore * w.activity);
 
-  return {
-    score,
-    label: getComfortLabel(score),
-    activityLevel: getActivityLevel(readings.activityCount)
-  };
+  const label = score >= 70 ? 'Comfortable' : score >= 40 ? 'Caution' : 'High Risk';
+
+  const activityLevel = activityCount < 100 ? 'Low'
+                      : activityCount < 300 ? 'Medium'
+                      : 'High';
+
+  return { score, label, activityLevel };
 }
 
 /**
- * Determine whether a reading timestamp is stale.
- * @param {number} readingTimestamp - Unix timestamp in milliseconds.
- * @returns {boolean} True when the reading is older than the stale data threshold.
+ * Returns true if the reading timestamp is older than 30 minutes.
+ * @param {number} readingTimestampMs - Unix ms
  */
-function isStale(readingTimestamp) {
-  return Date.now() - readingTimestamp > STALE_THRESHOLD_MS;
+function isStale(readingTimestampMs) {
+  return (Date.now() - readingTimestampMs) > STALE_THRESHOLD_MS;
 }
 
 /**
- * Build a recommendation string for current precinct conditions.
- * @param {{ temperature: number, comfort_label: 'Comfortable' | 'Caution' | 'High Risk' }} precinctData - Precinct weather and comfort data.
- * @returns {string} Travel recommendation.
+ * Plain-English travel recommendation based on current conditions.
  */
-function getRecommendation(precinctData) {
-  if (precinctData.temperature > 36) {
-    return 'High heat risk — consider delaying your trip or choosing alternative transport.';
-  }
-
-  if (precinctData.comfort_label === 'Comfortable') {
-    return 'Good time to travel. Conditions are comfortable right now.';
-  }
-
-  if (precinctData.comfort_label === 'Caution') {
-    return 'Conditions are elevated. Consider travelling before 10am or after 5pm.';
-  }
-
-  if (precinctData.comfort_label === 'High Risk') {
-    return 'High risk conditions. Consider waiting or using alternative transport.';
-  }
-
-  return '';
+function getRecommendation(data) {
+  if (data.temperature > 36) return 'High heat risk — consider delaying your trip or choosing alternative transport.';
+  if (data.comfort_label === 'Comfortable') return 'Good time to travel. Conditions are comfortable right now.';
+  if (data.comfort_label === 'Caution') return 'Conditions are elevated. Consider travelling before 10am or after 5pm.';
+  return 'High risk conditions. Consider waiting or using alternative transport.';
 }
 
 /**
- * Build practical preparation advice from current precinct conditions.
- * @param {{ temperature: number, pm25: number | null }} precinctData - Precinct weather and air-quality data.
- * @returns {string[]} Preparation advice messages.
+ * Preparation tips based on sensor readings.
+ * @returns {string[]}
  */
-function getPreparationAdvice(precinctData) {
-  const advice = [];
-
-  if (precinctData.temperature > 30) {
-    advice.push(`Wear lightweight, breathable clothing and carry a water bottle. (Based on current temperature: ${precinctData.temperature}°C)`);
-  }
-
-  if (precinctData.pm25 > 25) {
-    advice.push(`Air quality is currently poor — consider wearing a mask during strenuous outdoor activity. (Based on PM2.5: ${precinctData.pm25} µg/m³)`);
-  }
-
-  if (precinctData.temperature < 28 && (precinctData.pm25 === null || precinctData.pm25 <= 25)) {
-    return ['Conditions are comfortable — great time for a walk or ride!'];
-  }
-
-  return advice;
+function getPreparationAdvice(data) {
+  const tips = [];
+  if (data.temperature > 30) tips.push(`Wear lightweight, breathable clothing and carry a water bottle. (Based on current temperature: ${data.temperature}°C)`);
+  if (data.pm25 > 25) tips.push(`Air quality is currently poor — consider wearing a mask during strenuous outdoor activity. (Based on PM2.5: ${data.pm25} µg/m³)`);
+  if (tips.length === 0) tips.push('Conditions are comfortable — great time for a walk or ride!');
+  return tips;
 }
 
 module.exports = {
-  normaliseTemperature,
-  normaliseHumidity,
-  normaliseActivity,
-  calculateComfortScore,
-  isStale,
-  getRecommendation,
-  getPreparationAdvice
+  normaliseTemperature, normaliseHumidity, normaliseActivity,
+  calculateComfortScore, isStale, getRecommendation, getPreparationAdvice,
+  DEFAULT_WEIGHTS, STALE_THRESHOLD_MS
 };
