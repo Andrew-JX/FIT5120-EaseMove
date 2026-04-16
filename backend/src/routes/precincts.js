@@ -14,6 +14,15 @@ const MELBOURNE_CENTRAL_WEATHER = {
   lng: 144.9631
 };
 const weatherCache = new Map();
+// Deduplicates concurrent requests for the same location so we never fire two Open-Meteo
+// calls in parallel for the same precinct (thundering-herd protection on cold cache).
+const weatherFetchInFlight = new Map();
+// Static last-resort used when the API is rate-limited AND no cached data exists at all.
+const STATIC_MELBOURNE_WEATHER = {
+  temperature: 18.0,
+  humidity: 60,
+  wind_speed: 15,
+};
 const FALLBACK_SENSOR_DATA = {
   cbd: { temperature: 23.5, humidity: 52, wind_speed: 4.1, pm25: 11, activity_count: 140 },
   'east-melbourne': { temperature: 22.8, humidity: 49, wind_speed: 3.8, pm25: 10, activity_count: 95 },
@@ -97,7 +106,12 @@ async function fetchCurrentWeather(precinct) {
     return cached.data;
   }
 
-  const response = await axios.get(OPEN_METEO_URL, {
+  // Reuse an in-flight request for the same precinct instead of firing a duplicate.
+  if (weatherFetchInFlight.has(cacheKey)) {
+    return weatherFetchInFlight.get(cacheKey);
+  }
+
+  const fetchPromise = axios.get(OPEN_METEO_URL, {
     params: {
       latitude: precinct.lat,
       longitude: precinct.lng,
@@ -105,20 +119,33 @@ async function fetchCurrentWeather(precinct) {
       timezone: 'Australia/Sydney',
     },
     timeout: 10000,
-  });
+  })
+    .then(response => {
+      const current = response.data?.current;
+      if (!current) return null;
+      const data = {
+        temperature: current.temperature_2m ?? null,
+        humidity: current.relative_humidity_2m ?? null,
+        wind_speed: current.wind_speed_10m ?? null,
+        last_updated: current.time ? new Date(current.time).toISOString() : new Date().toISOString(),
+      };
+      weatherCache.set(cacheKey, { data, fetchedAt: Date.now() });
+      return data;
+    })
+    .catch(err => {
+      // On rate-limit (429), serve stale cached data rather than failing completely.
+      if (err?.response?.status === 429 && cached) {
+        console.warn(`[Weather] 429 for ${precinct.id ?? cacheKey} — serving stale cache`);
+        return cached.data;
+      }
+      throw err;
+    })
+    .finally(() => {
+      weatherFetchInFlight.delete(cacheKey);
+    });
 
-  const current = response.data?.current;
-  if (!current) return null;
-
-  const data = {
-    temperature: current.temperature_2m ?? null,
-    humidity: current.relative_humidity_2m ?? null,
-    wind_speed: current.wind_speed_10m ?? null,
-    last_updated: current.time ? new Date(current.time).toISOString() : new Date().toISOString(),
-  };
-
-  weatherCache.set(cacheKey, { data, fetchedAt: Date.now() });
-  return data;
+  weatherFetchInFlight.set(cacheKey, fetchPromise);
+  return fetchPromise;
 }
 
 async function fetchDefaultMelbourneWeather() {
@@ -163,7 +190,7 @@ async function enrichPrecinctWithWeather(precinctData, weights) {
     console.error(`[Weather Fallback] ${precinctData.id}:`, err?.message || err);
     try {
       const weather = await fetchDefaultMelbourneWeather();
-      if (!weather || weather.temperature === null) return precinctData;
+      if (!weather || weather.temperature === null) throw new Error('no Melbourne weather');
 
       const humidity = weather.humidity ?? precinctData.humidity ?? 55;
       const activityCount = Number(precinctData.activity_count ?? 0);
@@ -185,7 +212,24 @@ async function enrichPrecinctWithWeather(precinctData, weights) {
         stale_data: false,
       };
     } catch {
-      return precinctData;
+      // All API calls failed (e.g. rate-limited with no cached data). Use static values so
+      // non-sensor precincts never show N/A for temperature/humidity.
+      console.warn(`[Weather Fallback] ${precinctData.id}: using static Melbourne fallback`);
+      const temperature = STATIC_MELBOURNE_WEATHER.temperature;
+      const humidity = precinctData.humidity ?? STATIC_MELBOURNE_WEATHER.humidity;
+      const activityCount = Number(precinctData.activity_count ?? 0);
+      const weighted = calculateComfortScore({ temperature, humidity, activityCount }, weights ?? undefined);
+      return {
+        ...precinctData,
+        comfort_score: weighted.score,
+        comfort_label: weighted.label,
+        activity_level: weighted.activityLevel,
+        temperature,
+        humidity,
+        wind_speed: precinctData.wind_speed ?? STATIC_MELBOURNE_WEATHER.wind_speed,
+        last_updated: new Date().toISOString(),
+        stale_data: true,
+      };
     }
   }
 }
