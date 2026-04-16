@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import { Thermometer, Droplets, Users, X, Home, Wind, Map } from "lucide-react";
-import { Logo } from "./components/Logo";
+import logo from "../assets/logo-transparent.png";
 import LeafletMap from "../components/LeafletMap";
 import { usePrecincts } from "../hooks/usePrecincts";
 import {
@@ -27,17 +27,9 @@ function getRiskColor(risk: string): string {
   return '#ef4444';
 }
 
-function formatUpdated(ts: string): string {
-  const diffMs = Date.now() - new Date(ts).getTime();
-  const mins = Math.round(diffMs / 60000);
-  if (mins < 60) return `${mins} minute${mins !== 1 ? 's' : ''} ago`;
-  const hrs = Math.round(mins / 60);
-  return `${hrs} hour${hrs !== 1 ? 's' : ''} ago`;
-}
-
 function formatDataFreshness(p: Precinct): string {
-  if (p.no_sensor_data) return 'No live sensors';
-  return `Updated ${formatUpdated(p.last_updated)}`;
+  if (p.id === 'flemington') return 'No live sensors';
+  return '';
 }
 
 function adjustWeights(current: ComfortWeights, key: keyof ComfortWeights, nextValue: number): ComfortWeights {
@@ -77,7 +69,7 @@ export default function App() {
 
   const [activeTab, setActiveTab] = useState<"view" | "compare">("view");
   const [showCard, setShowCard] = useState<string | null>(null);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => window.innerWidth < 640);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [compareSelection1, setCompareSelection1] = useState<string | null>(null);
   const [compareSelection2, setCompareSelection2] = useState<string | null>(null);
@@ -272,14 +264,14 @@ export default function App() {
         </div>
 
         <nav className="bg-white/80 backdrop-blur-md shadow-lg mb-6 relative z-10 border-b border-white/20">
-          <div className="px-6 py-4">
+          <div className="px-6 py-2">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <Logo className="w-14 h-14" />
-                <div>
-                  <h1 className="text-3xl mb-1">EaseMove Melbourne</h1>
-                  <p className="text-gray-600 text-sm">Travel comfort decision-support tool</p>
-                </div>
+              <div className="relative h-14 w-56">
+                <img
+                  src={logo}
+                  alt="EaseMove logo"
+                  className="absolute left-0 top-1/2 h-56 w-56 -translate-y-1/2 object-contain"
+                />
               </div>
               <button
                 type="button"
@@ -442,7 +434,7 @@ export default function App() {
   // ─── Main Map View ────────────────────────────────────────────────────────────
 
   const showCardPrecinct = showCard ? precincts[showCard] : null;
-  const isStale = (p: Precinct) => p.stale_data || p.no_sensor_data;
+  const isStale = (p: Precinct) => p.id === 'flemington';
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-gray-100 relative overflow-hidden">
@@ -454,14 +446,14 @@ export default function App() {
 
       {/* Nav */}
       <nav className="bg-white/80 backdrop-blur-md shadow-lg mb-4 relative z-10 border-b border-white/20">
-        <div className="px-6 py-4">
+        <div className="px-6 py-2">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Logo className="w-14 h-14" />
-              <div>
-                <h1 className="text-3xl mb-1">EaseMove Melbourne</h1>
-                <p className="text-gray-600 text-sm">Travel comfort decision-support tool</p>
-              </div>
+            <div className="relative h-14 w-56">
+              <img
+                src={logo}
+                alt="EaseMove logo"
+                className="absolute left-0 top-1/2 h-56 w-56 -translate-y-1/2 object-contain"
+              />
             </div>
             <div className="flex items-center gap-4">
               {loading && <span className="text-sm text-gray-400 animate-pulse">Loading sensors…</span>}
@@ -520,7 +512,7 @@ export default function App() {
                   >
                     <div className="p-4 w-56">
                       <h3 className="font-semibold mb-3 text-sm text-gray-700">Filter by Comfort</h3>
-                      <div className="space-y-2">
+                      <div className="space-y-2 map-legend-items">
                         {categories.map(cat => (
                           <button
                             type="button"
@@ -606,11 +598,11 @@ export default function App() {
                     {/* Legend */}
                     <div className="absolute top-4 right-4 bg-white/95 backdrop-blur rounded-lg shadow-lg p-4 z-30 pointer-events-none border border-gray-200">
                       <h3 className="font-semibold mb-3 text-sm">Comfort Levels</h3>
-                      <div className="space-y-2">
+                      <div className="space-y-2 map-legend-items">
                         <div className="flex items-center gap-2"><div className="w-4 h-4 rounded-full bg-green-500" /><span className="text-xs font-medium">Comfortable (70–100)</span></div>
                         <div className="flex items-center gap-2"><div className="w-4 h-4 rounded-full bg-yellow-500" /><span className="text-xs font-medium">Caution (40–69)</span></div>
                         <div className="flex items-center gap-2"><div className="w-4 h-4 rounded-full bg-red-500" /><span className="text-xs font-medium">High Risk (0–39)</span></div>
-                        <div className="flex items-center gap-2"><div className="w-4 h-4 rounded-full bg-gray-400" /><span className="text-xs font-medium">Stale / No sensor</span></div>
+                        <div className="flex items-center gap-2"><div className="w-4 h-4 rounded-full bg-gray-400" /><span className="text-xs font-medium">No sensor data</span></div>
                       </div>
                     </div>
 
@@ -625,13 +617,18 @@ export default function App() {
 
                     {/* Detail Card */}
                     {showCard && showCardPrecinct && (
-                      <div className="absolute bottom-4 left-4 bg-white/98 backdrop-blur rounded-xl shadow-2xl p-5 w-96 z-20 border border-gray-200 max-h-[calc(100%-2rem)] overflow-y-auto">
+                      <div className="fixed bottom-0 left-0 right-0 sm:absolute sm:bottom-4 sm:left-4 sm:right-auto sm:w-96 sm:max-h-[calc(100%-2rem)] bg-white/98 backdrop-blur rounded-t-2xl sm:rounded-xl shadow-2xl p-4 sm:p-5 z-[500] border-t border-gray-200 max-h-[60vh] overflow-y-auto">
+                        <div className="flex justify-center mb-2 sm:hidden">
+                          <div className="w-10 h-1 bg-gray-300 rounded-full" />
+                        </div>
                         <div className="flex justify-between items-start mb-3">
                           <div>
                             <h3 className="font-bold text-xl">{showCardPrecinct.name}</h3>
-                            <p className="text-xs text-gray-500 mt-1">
-                              {formatDataFreshness(showCardPrecinct)}
-                            </p>
+                            {formatDataFreshness(showCardPrecinct) && (
+                              <p className="text-sm text-gray-500 mt-1">
+                                {formatDataFreshness(showCardPrecinct)}
+                              </p>
+                            )}
                           </div>
                           <button type="button" aria-label="Close" onClick={() => setShowCard(null)} className="text-gray-400 hover:text-gray-600 transition-colors">
                             <X className="w-5 h-5" />
@@ -644,11 +641,9 @@ export default function App() {
                             <div className="flex items-start gap-2">
                               <div className="flex-shrink-0 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center text-white text-xs font-bold">!</div>
                               <div>
-                                <p className="text-sm font-semibold text-red-800">Data Outdated</p>
-                                <p className="text-xs text-red-700 mt-1">
-                                  {showCardPrecinct.no_sensor_data
-                                    ? "No live sensors for this precinct. Displayed data may not reflect current conditions."
-                                    : "Sensor data is more than 30 minutes old. Current conditions may differ."}
+                                <p className="text-sm font-semibold text-red-800">Data may be outdated</p>
+                                <p className="text-sm text-red-700 mt-1">
+                                  Sensor data has not been updated for more than 30 minutes. Conditions may have changed.
                                 </p>
                               </div>
                             </div>
@@ -682,7 +677,7 @@ export default function App() {
                           <div className={`bg-gradient-to-br rounded-lg p-3 border ${isStale(showCardPrecinct) ? 'from-gray-50 to-gray-100 border-gray-300' : 'from-orange-50 to-orange-100 border-orange-200'}`}>
                             <div className="flex items-center gap-2 mb-1">
                               <Thermometer className={`w-4 h-4 ${isStale(showCardPrecinct) ? 'text-gray-500' : 'text-orange-600'}`} />
-                              <p className="text-xs text-gray-600">Temperature</p>
+                              <p className="text-sm text-gray-600">Temperature</p>
                             </div>
                             <p className={`text-xl font-bold ${isStale(showCardPrecinct) ? 'text-gray-600' : 'text-orange-700'}`}>
                               {showCardPrecinct.temperature !== null ? `${showCardPrecinct.temperature}°C` : 'N/A'}
@@ -691,7 +686,7 @@ export default function App() {
                           <div className={`bg-gradient-to-br rounded-lg p-3 border ${isStale(showCardPrecinct) ? 'from-gray-50 to-gray-100 border-gray-300' : 'from-blue-50 to-blue-100 border-blue-200'}`}>
                             <div className="flex items-center gap-2 mb-1">
                               <Droplets className={`w-4 h-4 ${isStale(showCardPrecinct) ? 'text-gray-500' : 'text-blue-600'}`} />
-                              <p className="text-xs text-gray-600">Humidity</p>
+                              <p className="text-sm text-gray-600">Humidity</p>
                             </div>
                             <p className={`text-xl font-bold ${isStale(showCardPrecinct) ? 'text-gray-600' : 'text-blue-700'}`}>
                               {showCardPrecinct.humidity !== null ? `${showCardPrecinct.humidity}%` : 'N/A'}
@@ -700,14 +695,14 @@ export default function App() {
                           <div className={`bg-gradient-to-br rounded-lg p-3 border ${isStale(showCardPrecinct) ? 'from-gray-50 to-gray-100 border-gray-300' : 'from-purple-50 to-purple-100 border-purple-200'}`}>
                             <div className="flex items-center gap-2 mb-1">
                               <Users className={`w-4 h-4 ${isStale(showCardPrecinct) ? 'text-gray-500' : 'text-purple-600'}`} />
-                              <p className="text-xs text-gray-600">Activity Level</p>
+                              <p className="text-sm text-gray-600">Activity Level</p>
                             </div>
                             <p className={`text-lg font-bold ${isStale(showCardPrecinct) ? 'text-gray-600' : 'text-purple-700'}`}>{showCardPrecinct.activity_level}</p>
                           </div>
                           <div className={`bg-gradient-to-br rounded-lg p-3 border ${isStale(showCardPrecinct) ? 'from-gray-50 to-gray-100 border-gray-300' : 'from-teal-50 to-teal-100 border-teal-200'}`}>
                             <div className="flex items-center gap-2 mb-1">
                               <Wind className={`w-4 h-4 ${isStale(showCardPrecinct) ? 'text-gray-500' : 'text-teal-600'}`} />
-                              <p className="text-xs text-gray-600">Wind Speed</p>
+                              <p className="text-sm text-gray-600">Wind Speed</p>
                             </div>
                             <p className={`text-lg font-bold ${isStale(showCardPrecinct) ? 'text-gray-600' : 'text-teal-700'}`}>
                               {showCardPrecinct.wind_speed !== null ? `${showCardPrecinct.wind_speed} m/s` : 'N/A'}
@@ -745,9 +740,9 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className="flex gap-6 px-6 pb-6">
+                <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 px-4 sm:px-6 pb-6">
                   {/* Map */}
-                  <div className="flex-[3] relative">
+                  <div className="sm:flex-[3] relative">
                     {/* Legend */}
                     <div className="absolute top-4 right-4 bg-white/95 backdrop-blur rounded-lg shadow-lg p-4 z-30 pointer-events-none border border-gray-200">
                       <h3 className="font-semibold mb-3 text-sm">Comfort Levels</h3>
@@ -768,7 +763,7 @@ export default function App() {
                   </div>
 
                   {/* Compare cards */}
-                  <div className="flex-[2]">
+                  <div className="sm:flex-[2]">
                     {!compareSelection1 && !compareSelection2 ? (
                       <div className="flex items-center justify-center h-full bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
                         <div className="text-center p-6">
