@@ -43,6 +43,24 @@ export interface TodayRecommendation {
   preparation_advice: string[];
 }
 
+export interface FurnitureFeature {
+  type: 'Feature';
+  geometry: {
+    type: 'Point';
+    coordinates: [number, number];
+  };
+  properties: {
+    asset_type: string;
+    location_desc: string;
+    condition_rating: string | number | null;
+  };
+}
+
+export interface FurnitureFeatureCollection {
+  type: 'FeatureCollection';
+  features: FurnitureFeature[];
+}
+
 function weightsQuery(weights?: ComfortWeights): string {
   if (!weights) return '';
   const params = new URLSearchParams({
@@ -103,4 +121,15 @@ export async function fetchCompare(a: string, b: string, weights?: ComfortWeight
   if (!res.ok) throw new Error(`API error: ${res.status}`);
   const data = await res.json();
   return data.precincts;
+}
+
+export async function fetchFurniture(
+  precinct: string = 'all',
+  type: 'all' | 'drinking_fountain' | 'bicycle_rail' = 'all',
+  limit: number = 20
+): Promise<FurnitureFeatureCollection> {
+  const query = new URLSearchParams({ precinct, type, limit: String(limit) });
+  const res = await fetch(`${BASE}/api/furniture?${query.toString()}`);
+  if (!res.ok) throw new Error(`Furniture API error: ${res.status}`);
+  return res.json();
 }
