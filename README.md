@@ -161,6 +161,7 @@ Implemented:
 - Backend-linked comfort weight sliders with localStorage persistence.
 - Street furniture API endpoint with static fallback.
 - Pedestrian activity polling from the City of Melbourne hourly counts dataset.
+- Mobile bottom-sheet detail card, collapsible legend, 800 ms debounce on weight sliders
 
 Known limitations:
 
