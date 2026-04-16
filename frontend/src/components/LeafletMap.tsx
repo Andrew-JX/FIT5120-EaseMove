@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import type { Precinct } from '../lib/api';
+import { fetchFurniture, type FurnitureFeature, type Precinct } from '../lib/api';
 
 interface LeafletMapProps {
   precincts: Precinct[];
@@ -25,6 +25,33 @@ function riskLevel(label: string): 'low' | 'caution' | 'high' {
   return 'high';
 }
 
+function furnitureStyle(assetType: string): { label: string; color: string; radius: number } {
+  const type = assetType.toLowerCase();
+  if (type.includes('bicycle')) return { label: 'Bicycle Racks', color: '#2563eb', radius: 4 };
+  if (type.includes('drinking')) return { label: 'Drinking Fountain', color: '#06b6d4', radius: 4 };
+  if (type.includes('bin')) return { label: 'Bins', color: '#f97316', radius: 4 };
+  if (type.includes('barbecue')) return { label: 'Barbecue', color: '#ef4444', radius: 4 };
+  if (type.includes('seat')) return { label: 'Seats', color: '#a855f7', radius: 4 };
+  if (type.includes('bollard')) return { label: 'Bollards', color: '#7c3aed', radius: 4 };
+  if (type.includes('horse')) return { label: 'Horse Troughs', color: '#a16207', radius: 4 };
+  if (type.includes('planter')) return { label: 'Planter Boxes', color: '#84cc16', radius: 4 };
+  return { label: assetType || 'Street Furniture', color: '#0f172a', radius: 4 };
+}
+
+function keepFurnitureType(assetType: string): boolean {
+  const type = assetType.toLowerCase();
+  return (
+    type.includes('bicycle') ||
+    type.includes('drinking') ||
+    type.includes('seat') ||
+    type.includes('bin')
+  );
+}
+
+function hasValidCoords(lat: number | null | undefined, lng: number | null | undefined): boolean {
+  return Number.isFinite(lat) && Number.isFinite(lng);
+}
+
 export default function LeafletMap({
   precincts,
   selectedCategory,
@@ -35,6 +62,11 @@ export default function LeafletMap({
 }: LeafletMapProps) {
   const mapRef = useRef<L.Map | null>(null);
   const markersRef = useRef<L.Marker[]>([]);
+  const poiRef = useRef<L.Layer[]>([]);
+  const boundaryRef = useRef<L.GeoJSON | null>(null);
+  const shoppingLayerRef = useRef<L.GeoJSON | null>(null);
+  const waterLayerRef = useRef<L.GeoJSON | null>(null);
+  const parksLayerRef = useRef<L.GeoJSON | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Init map once
@@ -46,13 +78,162 @@ export default function LeafletMap({
       zoom: 14,
       zoomControl: true,
     });
+    mapRef.current.createPane('areaPane');
+    mapRef.current.getPane('areaPane')!.style.zIndex = '350';
+    mapRef.current.createPane('furniturePane');
+    mapRef.current.getPane('furniturePane')!.style.zIndex = '625';
+    mapRef.current.createPane('precinctPane');
+    mapRef.current.getPane('precinctPane')!.style.zIndex = '650';
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-      maxZoom: 19,
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+      attribution:
+        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+      subdomains: 'abcd',
+      maxZoom: 20,
     }).addTo(mapRef.current);
 
+    fetch('/geoscape/municipal-boundary.geojson')
+      .then(res => (res.ok ? res.json() : null))
+      .then(data => {
+        if (!data || !mapRef.current) return;
+        boundaryRef.current?.remove();
+        boundaryRef.current = L.geoJSON(data, {
+          style: {
+            color: '#111111',
+            weight: 2,
+            fill: false,
+            opacity: 1,
+          },
+          pane: 'areaPane',
+          interactive: false,
+        }).addTo(mapRef.current);
+      })
+      .catch((err: unknown) => {
+        console.error('[LeafletMap] failed to load municipal boundary', err);
+      });
+
+    fetch('/geoscape/shopping-facilities.geojson')
+      .then(res => (res.ok ? res.json() : null))
+      .then(data => {
+        if (!data || !mapRef.current) return;
+        shoppingLayerRef.current?.remove();
+        shoppingLayerRef.current = L.geoJSON(data, {
+          style: {
+            color: '#c2410c',
+            weight: 1.2,
+            fillColor: '#fb923c',
+            fillOpacity: 0.12,
+            opacity: 0.9,
+          },
+          pane: 'areaPane',
+          interactive: true,
+          onEachFeature(feature, layer) {
+            const name = String(feature?.properties?.NAME_LABEL || feature?.properties?.NAME || '').trim();
+            if (name) layer.bindTooltip(`<strong>Shopping</strong><br/>${name}`, { direction: 'top' });
+          },
+        }).addTo(mapRef.current);
+      })
+      .catch((err: unknown) => {
+        console.error('[LeafletMap] failed to load shopping layer', err);
+      });
+
+    fetch('/geoscape/waterbodies.geojson')
+      .then(res => (res.ok ? res.json() : null))
+      .then(data => {
+        if (!data || !mapRef.current) return;
+        waterLayerRef.current?.remove();
+        waterLayerRef.current = L.geoJSON(data, {
+          style: {
+            color: '#0e7490',
+            weight: 1.2,
+            fillColor: '#22d3ee',
+            fillOpacity: 0.18,
+            opacity: 0.9,
+          },
+          pane: 'areaPane',
+          interactive: true,
+          onEachFeature(feature, layer) {
+            const name = String(feature?.properties?.NAME_LABEL || feature?.properties?.NAME || '').trim();
+            if (name) layer.bindTooltip(`<strong>Waterbody</strong><br/>${name}`, { direction: 'top' });
+          },
+        }).addTo(mapRef.current);
+      })
+      .catch((err: unknown) => {
+        console.error('[LeafletMap] failed to load waterbody layer', err);
+      });
+
+    fetch('/geoscape/parks.geojson')
+      .then(res => (res.ok ? res.json() : null))
+      .then(data => {
+        if (!data || !mapRef.current) return;
+        parksLayerRef.current?.remove();
+        parksLayerRef.current = L.geoJSON(data, {
+          style: {
+            color: '#166534',
+            weight: 1,
+            fillColor: '#4ade80',
+            fillOpacity: 0.08,
+            opacity: 0.85,
+          },
+          pane: 'areaPane',
+          interactive: true,
+          onEachFeature(feature, layer) {
+            const name = String(feature?.properties?.NAME_LABEL || feature?.properties?.NAME || '').trim();
+            if (name) layer.bindTooltip(`<strong>Park</strong><br/>${name}`, { direction: 'top' });
+          },
+        }).addTo(mapRef.current);
+      })
+      .catch((err: unknown) => {
+        console.error('[LeafletMap] failed to load parks layer', err);
+      });
+
+    const drawFurniture = (data: { features: FurnitureFeature[] }) => {
+      if (!mapRef.current) return;
+      data.features.forEach((feature: FurnitureFeature) => {
+        if (!keepFurnitureType(feature.properties.asset_type || '')) return;
+        const style = furnitureStyle(feature.properties.asset_type || '');
+        const [lng, lat] = feature.geometry.coordinates;
+        if (!hasValidCoords(lat, lng)) return;
+        const marker = L.circleMarker([lat, lng], {
+          pane: 'furniturePane',
+          radius: style.radius,
+          color: '#111827',
+          weight: 1,
+          fillColor: style.color,
+          fillOpacity: 0.9,
+        })
+          .addTo(mapRef.current!)
+          .bindTooltip(
+            `<strong>${style.label}</strong><br/>${feature.properties.location_desc || 'No location description'}`,
+            { direction: 'top', offset: [0, -6] }
+          );
+
+        poiRef.current.push(marker);
+      });
+    };
+
+    fetchFurniture('all', 'all', 1000)
+      .then(data => {
+        if (!data.features?.length) {
+          return fetchFurniture('all', 'all', 200).then(drawFurniture);
+        }
+        drawFurniture(data);
+      })
+      .catch((err: unknown) => {
+        console.error('[LeafletMap] failed to load street furniture points', err);
+      });
+
     return () => {
+      shoppingLayerRef.current?.remove();
+      shoppingLayerRef.current = null;
+      waterLayerRef.current?.remove();
+      waterLayerRef.current = null;
+      parksLayerRef.current?.remove();
+      parksLayerRef.current = null;
+      boundaryRef.current?.remove();
+      boundaryRef.current = null;
+      poiRef.current.forEach(layer => layer.remove());
+      poiRef.current = [];
       mapRef.current?.remove();
       mapRef.current = null;
     };
@@ -71,7 +252,12 @@ export default function LeafletMap({
       return riskLevel(p.comfort_label) === selectedCategory;
     });
 
-    filtered.forEach(p => {
+    const validPrecincts = filtered.filter(p => hasValidCoords(p.lat, p.lng));
+    if (filtered.length > 0 && validPrecincts.length === 0) {
+      console.warn('[LeafletMap] no precinct markers rendered: all precinct coordinates invalid');
+    }
+
+    validPrecincts.forEach(p => {
       const color = comfortColor(p.comfort_label, p.stale_data, p.no_sensor_data);
       const isCompared = p.id === compareSelection1 || p.id === compareSelection2;
 
@@ -112,7 +298,7 @@ export default function LeafletMap({
         popupAnchor: [0, -50],
       });
 
-      const marker = L.marker([p.lat, p.lng], { icon })
+      const marker = L.marker([p.lat, p.lng], { icon, pane: 'precinctPane' })
         .addTo(mapRef.current!)
         .bindTooltip(
           `<strong>${p.name}</strong><br/>Comfort: ${p.comfort_score}/100${p.stale_data || p.no_sensor_data ? '<br/><span style="color:#ef4444">⚠ Stale data</span>' : ''}`,

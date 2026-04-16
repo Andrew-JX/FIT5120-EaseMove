@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import { Thermometer, Droplets, Users, X, Home, Wind, Map } from "lucide-react";
-import { Logo } from "./components/Logo";
+import logo from "../assets/logo-transparent.png";
 import LeafletMap from "../components/LeafletMap";
 import { usePrecincts } from "../hooks/usePrecincts";
 import {
@@ -272,14 +272,14 @@ export default function App() {
         </div>
 
         <nav className="bg-white/80 backdrop-blur-md shadow-lg mb-6 relative z-10 border-b border-white/20">
-          <div className="px-6 py-4">
+          <div className="px-6 py-2">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <Logo className="w-14 h-14" />
-                <div>
-                  <h1 className="text-3xl mb-1">EaseMove Melbourne</h1>
-                  <p className="text-gray-600 text-sm">Travel comfort decision-support tool</p>
-                </div>
+              <div className="relative h-14 w-56">
+                <img
+                  src={logo}
+                  alt="EaseMove logo"
+                  className="absolute left-0 top-1/2 h-56 w-56 -translate-y-1/2 object-contain"
+                />
               </div>
               <button
                 type="button"
@@ -454,14 +454,14 @@ export default function App() {
 
       {/* Nav */}
       <nav className="bg-white/80 backdrop-blur-md shadow-lg mb-4 relative z-10 border-b border-white/20">
-        <div className="px-6 py-4">
+        <div className="px-6 py-2">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Logo className="w-14 h-14" />
-              <div>
-                <h1 className="text-3xl mb-1">EaseMove Melbourne</h1>
-                <p className="text-gray-600 text-sm">Travel comfort decision-support tool</p>
-              </div>
+            <div className="relative h-14 w-56">
+              <img
+                src={logo}
+                alt="EaseMove logo"
+                className="absolute left-0 top-1/2 h-56 w-56 -translate-y-1/2 object-contain"
+              />
             </div>
             <div className="flex items-center gap-4">
               {loading && <span className="text-sm text-gray-400 animate-pulse">Loading sensors…</span>}
