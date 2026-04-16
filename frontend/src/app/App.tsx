@@ -60,7 +60,10 @@ function adjustWeights(current: ComfortWeights, key: keyof ComfortWeights, nextV
 
 export default function App() {
   const [weights, setWeights] = useState<ComfortWeights>(() => loadWeights());
-  const { precincts: precinctList, loading, error } = usePrecincts(weights);
+  // debouncedWeights is the value actually sent to the API — only updates 800ms after
+  // the user stops moving a slider, preventing rapid-fire requests and 429 rate limits.
+  const [debouncedWeights, setDebouncedWeights] = useState<ComfortWeights>(weights);
+  const { precincts: precinctList, loading, error } = usePrecincts(debouncedWeights);
 
   // Index by ID for O(1) lookup
   const precincts: Record<string, Precinct> = Object.fromEntries(
@@ -70,6 +73,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<"view" | "compare">("view");
   const [showCard, setShowCard] = useState<string | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => window.innerWidth < 640);
+  const [legendCollapsed, setLegendCollapsed] = useState<boolean>(false);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [compareSelection1, setCompareSelection1] = useState<string | null>(null);
   const [compareSelection2, setCompareSelection2] = useState<string | null>(null);
@@ -88,6 +92,12 @@ export default function App() {
 
   useEffect(() => {
     saveWeights(weights);
+  }, [weights]);
+
+  // Debounce weights → API: fire fetch only 800ms after slider stops moving
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedWeights(weights), 800);
+    return () => clearTimeout(timer);
   }, [weights]);
 
   // ─── Handlers ───────────────────────────────────────────────────────────────
@@ -596,13 +606,26 @@ export default function App() {
                     </button>
 
                     {/* Legend */}
-                    <div className="absolute top-4 right-4 bg-white/95 backdrop-blur rounded-lg shadow-lg p-4 z-30 pointer-events-none border border-gray-200">
-                      <h3 className="font-semibold mb-3 text-sm">Comfort Levels</h3>
-                      <div className="space-y-2 map-legend-items">
-                        <div className="flex items-center gap-2"><div className="w-4 h-4 rounded-full bg-green-500" /><span className="text-xs font-medium">Comfortable (70–100)</span></div>
-                        <div className="flex items-center gap-2"><div className="w-4 h-4 rounded-full bg-yellow-500" /><span className="text-xs font-medium">Caution (40–69)</span></div>
-                        <div className="flex items-center gap-2"><div className="w-4 h-4 rounded-full bg-red-500" /><span className="text-xs font-medium">High Risk (0–39)</span></div>
-                        <div className="flex items-center gap-2"><div className="w-4 h-4 rounded-full bg-gray-400" /><span className="text-xs font-medium">No sensor data</span></div>
+                    <div className="absolute top-4 right-4 z-30 pointer-events-none">
+                      <div className="bg-white/95 backdrop-blur rounded-lg shadow-lg border border-gray-200 pointer-events-auto">
+                        <button
+                          type="button"
+                          onClick={() => setLegendCollapsed(c => !c)}
+                          className="flex items-center justify-between w-full px-3 py-2 gap-4"
+                        >
+                          <h3 className="font-semibold text-sm">Comfort Levels</h3>
+                          <svg className="w-4 h-4 text-gray-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={legendCollapsed ? "M19 9l-7 7-7 7" : "M5 15l7-7 7 7"} />
+                          </svg>
+                        </button>
+                        {!legendCollapsed && (
+                          <div className="px-3 pb-3 space-y-2 map-legend-items pointer-events-none">
+                            <div className="flex items-center gap-2"><div className="w-4 h-4 rounded-full bg-green-500 flex-shrink-0" /><span className="text-xs font-medium">Comfortable (70–100)</span></div>
+                            <div className="flex items-center gap-2"><div className="w-4 h-4 rounded-full bg-yellow-500 flex-shrink-0" /><span className="text-xs font-medium">Caution (40–69)</span></div>
+                            <div className="flex items-center gap-2"><div className="w-4 h-4 rounded-full bg-red-500 flex-shrink-0" /><span className="text-xs font-medium">High Risk (0–39)</span></div>
+                            <div className="flex items-center gap-2"><div className="w-4 h-4 rounded-full bg-gray-400 flex-shrink-0" /><span className="text-xs font-medium">No sensor data</span></div>
+                          </div>
+                        )}
                       </div>
                     </div>
 
