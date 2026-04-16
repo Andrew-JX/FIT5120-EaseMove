@@ -2,12 +2,3 @@
 @import './tailwind.css';
 @import './theme.css';
 
-.map-legend-items > div:nth-child(4) span {
-  font-size: 0;
-}
-
-.map-legend-items > div:nth-child(4) span::after {
-  content: "No sensor data";
-  font-size: 0.75rem;
-  line-height: 1rem;
-}

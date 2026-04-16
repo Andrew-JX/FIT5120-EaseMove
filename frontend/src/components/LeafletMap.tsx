@@ -254,9 +254,10 @@ export default function LeafletMap({
         }
   
         validPrecincts.forEach((precinct) => {
-          const color = comfortColor(precinct.comfort_label, precinct.stale_data);
+          const isStalePrecinct = precinct.stale_data || precinct.id === 'flemington';
+          const color = comfortColor(precinct.comfort_label, isStalePrecinct);
           const isCompared = precinct.id === compareSelection1 || precinct.id === compareSelection2;
-          const staleBadge = precinct.stale_data
+          const staleBadge = isStalePrecinct
             ? `
                 <div style="
                   position:absolute;top:-4px;right:-4px;
@@ -267,7 +268,7 @@ export default function LeafletMap({
                   font-size:8px;color:white;font-weight:bold;
                 ">!</div>`
             : '';
-          const staleMessage = precinct.stale_data
+          const staleMessage = isStalePrecinct
             ? '<br/><span style="color:#ef4444">Data outdated</span>'
             : '';
 
