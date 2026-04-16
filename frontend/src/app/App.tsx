@@ -442,7 +442,7 @@ export default function App() {
   // ─── Main Map View ────────────────────────────────────────────────────────────
 
   const showCardPrecinct = showCard ? precincts[showCard] : null;
-  const isStale = (p: Precinct) => p.stale_data || p.no_sensor_data;
+  const isStale = (p: Precinct) => p.stale_data;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-gray-100 relative overflow-hidden">
@@ -520,7 +520,7 @@ export default function App() {
                   >
                     <div className="p-4 w-56">
                       <h3 className="font-semibold mb-3 text-sm text-gray-700">Filter by Comfort</h3>
-                      <div className="space-y-2">
+                      <div className="space-y-2 map-legend-items">
                         {categories.map(cat => (
                           <button
                             type="button"
@@ -606,11 +606,11 @@ export default function App() {
                     {/* Legend */}
                     <div className="absolute top-4 right-4 bg-white/95 backdrop-blur rounded-lg shadow-lg p-4 z-30 pointer-events-none border border-gray-200">
                       <h3 className="font-semibold mb-3 text-sm">Comfort Levels</h3>
-                      <div className="space-y-2">
+                      <div className="space-y-2 map-legend-items">
                         <div className="flex items-center gap-2"><div className="w-4 h-4 rounded-full bg-green-500" /><span className="text-xs font-medium">Comfortable (70–100)</span></div>
                         <div className="flex items-center gap-2"><div className="w-4 h-4 rounded-full bg-yellow-500" /><span className="text-xs font-medium">Caution (40–69)</span></div>
                         <div className="flex items-center gap-2"><div className="w-4 h-4 rounded-full bg-red-500" /><span className="text-xs font-medium">High Risk (0–39)</span></div>
-                        <div className="flex items-center gap-2"><div className="w-4 h-4 rounded-full bg-gray-400" /><span className="text-xs font-medium">Stale / No sensor</span></div>
+                        <div className="flex items-center gap-2"><div className="w-4 h-4 rounded-full bg-gray-400" /><span className="text-xs font-medium">数据尚未更新</span></div>
                       </div>
                     </div>
 
@@ -644,11 +644,9 @@ export default function App() {
                             <div className="flex items-start gap-2">
                               <div className="flex-shrink-0 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center text-white text-xs font-bold">!</div>
                               <div>
-                                <p className="text-sm font-semibold text-red-800">Data Outdated</p>
+                                <p className="text-sm font-semibold text-red-800">数据尚未更新</p>
                                 <p className="text-xs text-red-700 mt-1">
-                                  {showCardPrecinct.no_sensor_data
-                                    ? "No live sensors for this precinct. Displayed data may not reflect current conditions."
-                                    : "Sensor data is more than 30 minutes old. Current conditions may differ."}
+                                  当前数据尚未更新，显示结果可能与实时情况存在差异。
                                 </p>
                               </div>
                             </div>
