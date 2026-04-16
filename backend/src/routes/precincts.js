@@ -202,23 +202,59 @@ router.get('/precincts/:id/today', async (req, res) => {
 
 /** GET /api/furniture?precinct=cbd&type=drinking_fountain */
 router.get('/furniture', async (req, res) => {
-  const { precinct = 'all', type = 'all' } = req.query;
+  const { precinct = 'all', type = 'all', limit = '200' } = req.query;
   if (!precinct) return res.status(400).json({ error: 'precinct param required', code: 400, timestamp: new Date().toISOString() });
   try {
+    const parsedLimit = Number(limit);
+    const safeLimit = Number.isFinite(parsedLimit) && parsedLimit > 0
+      ? Math.min(Math.floor(parsedLimit), 1000)
+      : 200;
+
     let typeFilter = '';
     if (type === 'drinking_fountain') typeFilter = "&refine=asset_type:Drinking+Fountain";
     else if (type === 'bicycle_rail')  typeFilter = "&refine=asset_type:Bicycle+Rails";
 
-    const url = `https://data.melbourne.vic.gov.au/api/explore/v2.1/catalog/datasets/street-furniture-including-bollards-bicycle-rails-bins-drinking-fountains-horse-/records?limit=200${typeFilter}`;
-    const resp = await axios.get(url, { timeout: 10000 });
+    const pageSize = 100;
+    const records = [];
+    let offset = 0;
 
-    const features = (resp.data.results || [])
-      .filter(r => r.coordinatelocation)
-      .map(r => ({
-        type: 'Feature',
-        geometry: { type: 'Point', coordinates: [r.coordinatelocation.lon, r.coordinatelocation.lat] },
-        properties: { asset_type: r.asset_type ?? '', location_desc: r.location_desc ?? '', condition_rating: r.condition_rating ?? null }
-      }));
+    while (records.length < safeLimit) {
+      const remaining = safeLimit - records.length;
+      const currentLimit = Math.min(pageSize, remaining);
+      const url = `https://data.melbourne.vic.gov.au/api/explore/v2.1/catalog/datasets/street-furniture-including-bollards-bicycle-rails-bins-drinking-fountains-horse-/records?limit=${currentLimit}&offset=${offset}${typeFilter}`;
+      const resp = await axios.get(url, { timeout: 10000 });
+      const batch = resp.data.results || [];
+
+      records.push(...batch);
+      if (batch.length < currentLimit) break;
+      offset += batch.length;
+    }
+
+    const readCoords = (record) => {
+      if (record?.coordinatelocation && Number.isFinite(record.coordinatelocation.lon) && Number.isFinite(record.coordinatelocation.lat)) {
+        return [record.coordinatelocation.lon, record.coordinatelocation.lat];
+      }
+      if (record?.geo_point_2d && Number.isFinite(record.geo_point_2d.lon) && Number.isFinite(record.geo_point_2d.lat)) {
+        return [record.geo_point_2d.lon, record.geo_point_2d.lat];
+      }
+      if (record?.location && Array.isArray(record.location.coordinates) && record.location.coordinates.length === 2) {
+        const [lon, lat] = record.location.coordinates;
+        if (Number.isFinite(lon) && Number.isFinite(lat)) return [lon, lat];
+      }
+      return null;
+    };
+
+    const features = records
+      .map(r => {
+        const coords = readCoords(r);
+        if (!coords) return null;
+        return {
+          type: 'Feature',
+          geometry: { type: 'Point', coordinates: coords },
+          properties: { asset_type: r.asset_type ?? '', location_desc: r.location_desc ?? '', condition_rating: r.condition_rating ?? null }
+        };
+      })
+      .filter(Boolean);
 
     res.json({ type: 'FeatureCollection', features });
   } catch (err) {
