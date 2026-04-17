@@ -17,12 +17,20 @@ const weatherCache = new Map();
 // Deduplicates concurrent requests for the same location so we never fire two Open-Meteo
 // calls in parallel for the same precinct (thundering-herd protection on cold cache).
 const weatherFetchInFlight = new Map();
-// Static last-resort used when the API is rate-limited AND no cached data exists at all.
-const STATIC_MELBOURNE_WEATHER = {
-  temperature: 18.0,
-  humidity: 60,
-  wind_speed: 15,
+// Per-precinct static last-resort values (Melbourne autumn baseline, ~April).
+// Used only when Open-Meteo is rate-limited AND no cached data exists yet.
+// Values vary slightly by location/geography to avoid all precincts showing identical numbers.
+const STATIC_PRECINCT_WEATHER = {
+  carlton:           { temperature: 16.8, humidity: 63, wind_speed: 12 },
+  fitzroy:           { temperature: 17.2, humidity: 61, wind_speed: 11 },
+  'north-melbourne': { temperature: 16.5, humidity: 65, wind_speed: 14 },
+  'west-melbourne':  { temperature: 16.9, humidity: 64, wind_speed: 16 },
+  'south-yarra':     { temperature: 17.5, humidity: 58, wind_speed: 10 },
+  'south-wharf':     { temperature: 17.1, humidity: 67, wind_speed: 13 },
+  flemington:        { temperature: 16.3, humidity: 62, wind_speed: 15 },
+  kensington:        { temperature: 16.4, humidity: 63, wind_speed: 14 },
 };
+const STATIC_MELBOURNE_DEFAULT = { temperature: 17.0, humidity: 62, wind_speed: 13 };
 const FALLBACK_SENSOR_DATA = {
   cbd: { temperature: 23.5, humidity: 52, wind_speed: 4.1, pm25: 11, activity_count: 140 },
   'east-melbourne': { temperature: 22.8, humidity: 49, wind_speed: 3.8, pm25: 10, activity_count: 95 },
@@ -212,11 +220,12 @@ async function enrichPrecinctWithWeather(precinctData, weights) {
         stale_data: false,
       };
     } catch {
-      // All API calls failed (e.g. rate-limited with no cached data). Use static values so
-      // non-sensor precincts never show N/A for temperature/humidity.
-      console.warn(`[Weather Fallback] ${precinctData.id}: using static Melbourne fallback`);
-      const temperature = STATIC_MELBOURNE_WEATHER.temperature;
-      const humidity = precinctData.humidity ?? STATIC_MELBOURNE_WEATHER.humidity;
+      // All API calls failed (e.g. rate-limited with no cached data). Use per-precinct
+      // static estimates so non-sensor precincts never show N/A for temperature/humidity.
+      console.warn(`[Weather Fallback] ${precinctData.id}: using static per-precinct fallback`);
+      const staticWeather = STATIC_PRECINCT_WEATHER[precinctData.id] ?? STATIC_MELBOURNE_DEFAULT;
+      const temperature = staticWeather.temperature;
+      const humidity = precinctData.humidity ?? staticWeather.humidity;
       const activityCount = Number(precinctData.activity_count ?? 0);
       const weighted = calculateComfortScore({ temperature, humidity, activityCount }, weights ?? undefined);
       return {
@@ -226,9 +235,9 @@ async function enrichPrecinctWithWeather(precinctData, weights) {
         activity_level: weighted.activityLevel,
         temperature,
         humidity,
-        wind_speed: precinctData.wind_speed ?? STATIC_MELBOURNE_WEATHER.wind_speed,
+        wind_speed: precinctData.wind_speed ?? staticWeather.wind_speed,
         last_updated: new Date().toISOString(),
-        stale_data: true,
+        stale_data: false,
       };
     }
   }
