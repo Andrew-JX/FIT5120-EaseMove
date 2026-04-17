@@ -1,0 +1,426 @@
+/* ─── Map Sidebar Controls (right-side vertical button strip) ─── */
+.map-sidebar-controls {
+  position: absolute;
+  right: 12px;
+  top: 12px;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: auto;
+}
+
+.map-ctrl-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 4px;
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #666;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.map-ctrl-btn:hover {
+  background: #f5f5f5;
+}
+
+.map-ctrl-btn.active {
+  border: 2px solid #007bff;
+  color: #007bff;
+  background: rgba(0, 123, 255, 0.06);
+}
+
+.map-ctrl-sep {
+  height: 1px;
+  background: rgba(0, 0, 0, 0.08);
+  margin: 0;
+}
+
+/* ─── Right-side Floating Panel (legend / layer switcher) ────── */
+.map-right-panel {
+  position: absolute;
+  right: 60px;
+  top: 12px;
+  z-index: 999;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.14);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  min-width: 200px;
+  overflow: hidden;
+}
+
+.map-panel-header {
+  padding: 8px 14px 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+/* ─── Layer Switcher Items ───────────────────────────────────── */
+.layer-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  cursor: pointer;
+  transition: background 0.12s;
+  font-size: 13px;
+  font-weight: 500;
+  color: #333;
+  border: none;
+  background: none;
+  width: 100%;
+  text-align: left;
+}
+
+.layer-item:hover {
+  background: #f5f5f5;
+}
+
+.layer-item.active {
+  background: rgba(0, 109, 119, 0.08);
+  color: var(--stormy-teal, #006d77);
+  font-weight: 600;
+}
+
+.layer-radio {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid #ccc;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: border-color 0.12s;
+}
+
+.layer-radio.checked {
+  border-color: var(--stormy-teal, #006d77);
+}
+
+.layer-radio.checked::after {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--stormy-teal, #006d77);
+}
+
+/* ─── Legend Items ───────────────────────────────────────────── */
+.legend-body {
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.legend-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: #444;
+}
+
+/* Cool Places concentric circle dots (CSS-only, no extra DOM) */
+.cp-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.cp-dot-arts {
+  background: #5b5b9b;
+  box-shadow: 0 0 0 5px rgba(91, 91, 155, 0.25);
+}
+
+.cp-dot-recreation {
+  background: #00a859;
+  box-shadow: 0 0 0 5px rgba(0, 168, 89, 0.25);
+}
+
+.cp-dot-shopping {
+  background: #e197b9;
+  box-shadow: 0 0 0 5px rgba(225, 151, 185, 0.25);
+}
+
+.comfort-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* Comfort level colours */
+.comfort-dot-comfortable { background: #22c55e; }
+.comfort-dot-caution     { background: #eab308; }
+.comfort-dot-high        { background: #ef4444; }
+.comfort-dot-no-data     { background: #9ca3af; }
+
+/* Street furniture dot colours */
+.furniture-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.furniture-dot-bin   { background: #f97316; }
+.furniture-dot-bike  { background: #2563eb; }
+.furniture-dot-seat  { background: #a855f7; }
+
+/* Legend section divider */
+.legend-divider {
+  height: 1px;
+  background: #f0f0f0;
+  margin: 8px 0;
+}
+
+.legend-section-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: #aaa;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 6px;
+}
+
+/* ─── Unified Furniture Tooltip ──────────────────────────────── */
+.leaflet-tooltip.furniture-tip {
+  background: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 8px 12px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.14);
+  min-width: 150px;
+  pointer-events: none;
+}
+
+.leaflet-tooltip.furniture-tip.leaflet-tooltip-top::before {
+  border-top-color: #fff !important;
+}
+
+.furniture-tip-label {
+  font-weight: 700;
+  font-size: 13px;
+  color: #111;
+  display: block;
+  margin-bottom: 3px;
+}
+
+.furniture-tip-location {
+  font-size: 11px;
+  color: #666;
+  display: block;
+  max-width: 200px;
+  white-space: normal;
+  line-height: 1.4;
+}
+
+/* ─── Ease Places Popup ──────────────────────────────────────── */
+/* Desktop: top/left set via inline style (anchored below marker)  */
+/* Mobile:  overridden to fixed bottom-left, clear of controls     */
+.ease-places-popup {
+  position: absolute;
+  width: 300px;
+  max-height: calc(100% - 32px);
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.16);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  z-index: 1100;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+@media (max-width: 640px) {
+  .ease-places-popup {
+    position: fixed !important;
+    bottom: 16px !important;
+    left: 8px !important;
+    right: 68px !important;
+    top: auto !important;
+    width: auto !important;
+    transform: none !important;
+  }
+}
+
+.cpp-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  background: var(--stormy-teal, #006d77);
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.cpp-header-title {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.cpp-header-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.cpp-icon-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.12s;
+  padding: 0;
+}
+
+.cpp-icon-btn:hover {
+  background: rgba(255, 255, 255, 0.32);
+}
+
+.cpp-body {
+  overflow-y: auto;
+  padding: 14px 16px;
+  flex: 1;
+}
+
+.cpp-category-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+
+.cpp-category-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: #555;
+}
+
+.cpp-sub-type {
+  font-size: 11px;
+  color: #aaa;
+  margin-bottom: 6px;
+  padding-left: 20px;
+}
+
+.cpp-place-name {
+  font-size: 18px;
+  font-weight: 700;
+  color: #111;
+  margin-bottom: 12px;
+  line-height: 1.25;
+}
+
+.cpp-feature-icons {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.cpp-feature-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: #2d2d2d;
+  color: #fff;
+  border: none;
+  cursor: default;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  position: relative;
+}
+
+.cpp-feature-btn:hover .cpp-tip {
+  opacity: 1;
+  transform: translateX(-50%) translateY(-2px);
+}
+
+.cpp-tip {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%) translateY(0);
+  background: #222;
+  color: #fff;
+  font-size: 11px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s, transform 0.15s;
+  z-index: 10;
+}
+
+.cpp-details {
+  border-top: 1px solid #eee;
+  padding-top: 12px;
+}
+
+.cpp-detail-row {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.cpp-detail-row:last-child {
+  margin-bottom: 0;
+}
+
+.cpp-detail-label {
+  font-size: 11px;
+  color: #aaa;
+  min-width: 90px;
+  flex-shrink: 0;
+  padding-top: 1px;
+}
+
+.cpp-detail-value {
+  font-size: 12px;
+  color: #111;
+  font-weight: 500;
+  flex: 1;
+  line-height: 1.4;
+}
+
+/* ─── Cool Places Marker Tooltip ────────────────────────────── */
+.leaflet-tooltip.cp-marker-tip {
+  background: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 10px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.14);
+  font-size: 12px;
+  font-weight: 600;
+  color: #111;
+  pointer-events: none;
+}
+
+.leaflet-tooltip.cp-marker-tip.leaflet-tooltip-top::before {
+  border-top-color: #fff !important;
+}
