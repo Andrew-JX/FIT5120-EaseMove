@@ -2,6 +2,11 @@
 
 :root {
   --font-size: 16px;
+  --stormy-teal: #006d77;
+  --pearl-aqua: #83c5be;
+  --alice-blue: #edf6f9;
+  --almond-silk: #ffddd2;
+  --tangerine-dream: #e29578;
   --background: #ffffff;
   --foreground: oklch(0.145 0 0);
   --card: #ffffff;
