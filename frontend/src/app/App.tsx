@@ -37,6 +37,11 @@ function formatDataFreshness(p: Precinct): string {
   return '';
 }
 
+function formatDetailSensorStatus(p: Precinct): string {
+  if (p.id === 'flemington') return 'No live sensors';
+  return '✅ Live Sensors';
+}
+
 function adjustWeights(current: ComfortWeights, key: keyof ComfortWeights, nextValue: number): ComfortWeights {
   const clamped = Math.max(0, Math.min(100, Math.round(nextValue)));
   const otherKeys = (['temperature', 'humidity', 'activity'] as const).filter(item => item !== key);
@@ -406,8 +411,19 @@ export default function App() {
 
   // ─── Compare helpers ─────────────────────────────────────────────────────────
 
+  const isFlemingtonOutdatedComparison = () => {
+    if (!compareSelection1 || !compareSelection2) return false;
+    const p1 = precincts[compareSelection1];
+    const p2 = precincts[compareSelection2];
+    if (!p1 || !p2) return false;
+    if (p1.id === 'flemington' && p2.comfort_score < p1.comfort_score) return true;
+    if (p2.id === 'flemington' && p1.comfort_score < p2.comfort_score) return true;
+    return false;
+  };
+
   const getBetterPrecinct = () => {
     if (!compareSelection1 || !compareSelection2) return null;
+    if (isFlemingtonOutdatedComparison()) return null;
     const p1 = precincts[compareSelection1];
     const p2 = precincts[compareSelection2];
     if (!p1 || !p2) return null;
@@ -421,6 +437,9 @@ export default function App() {
     const p1 = precincts[compareSelection1];
     const p2 = precincts[compareSelection2];
     if (!p1 || !p2) return null;
+    if (isFlemingtonOutdatedComparison()) {
+      return 'Flemington is not recommended at the moment because its data may be outdated. Please try another area or redo your selection.';
+    }
     const riskPriority = { low: 3, caution: 2, high: 1 };
     const r1 = riskLevel(p1.comfort_label);
     const r2 = riskLevel(p2.comfort_label);
@@ -826,9 +845,7 @@ export default function App() {
                         <div className="flex justify-between items-start mb-3">
                           <div>
                             <h3 className="font-bold text-xl">{showCardPrecinct.name}</h3>
-                            {formatDataFreshness(showCardPrecinct) && (
-                              <p className="text-sm text-gray-500 mt-1">{formatDataFreshness(showCardPrecinct)}</p>
-                            )}
+                            <p className="text-sm text-gray-500 mt-1">{formatDetailSensorStatus(showCardPrecinct)}</p>
                           </div>
                           <button type="button" aria-label="Close" onClick={() => setShowCard(null)} className="text-gray-400 hover:text-gray-600 transition-colors">
                             <X className="w-5 h-5" />
@@ -842,6 +859,18 @@ export default function App() {
                               <div>
                                 <p className="text-sm font-semibold text-red-800">Data may be outdated</p>
                                 <p className="text-sm text-red-700 mt-1">Sensor data has not been updated for more than 30 minutes. Conditions may have changed.</p>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {!isStale(showCardPrecinct) && (
+                          <div className="mb-4 p-3 bg-green-50 border-2 border-green-300 rounded-lg">
+                            <div className="flex items-start gap-2">
+                              <div className="flex-shrink-0 w-5 h-5 bg-green-500 rounded-full flex items-center justify-center text-white text-xs font-bold">✓</div>
+                              <div>
+                                <p className="text-sm font-semibold text-green-800">Data is up to date</p>
+                                <p className="text-sm text-green-700 mt-1">Sensor data has been updated within the last 30 minutes.</p>
                               </div>
                             </div>
                           </div>
@@ -982,7 +1011,7 @@ export default function App() {
                                     <div className={`w-6 h-6 rounded-full bg-${color}-500 flex items-center justify-center text-white text-xs font-bold`}>{num}</div>
                                     <h3 className="font-bold text-sm truncate">{p.name}</h3>
                                   </div>
-                                  <p className={`text-[10px] ml-8 ${stale ? 'text-red-500 font-semibold' : 'text-gray-500'}`}>{formatDataFreshness(p)}</p>
+                                  <p className="text-sm text-gray-500 mt-1 ml-8">{formatDetailSensorStatus(p)}</p>
                                 </div>
                                 <div className={`mb-3 p-3 rounded-lg border ${stale ? 'bg-gray-50' : 'bg-white'}`}>
                                   <p className="text-xs text-gray-600 mb-1">Comfort Score</p>
