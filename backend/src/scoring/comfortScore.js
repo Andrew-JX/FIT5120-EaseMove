@@ -1,4 +1,4 @@
-// Treat any reading within the last two years as fresh for UI display purposes.
+
 const STALE_THRESHOLD_MS = 2 * 365 * 24 * 60 * 60 * 1000;
 
 const DEFAULT_WEIGHTS = { temperature: 0.60, humidity: 0.30, activity: 0.10 };
@@ -44,7 +44,7 @@ function calculateComfortScore(readings, weights = DEFAULT_WEIGHTS) {
 }
 
 /**
- * Returns true if the reading timestamp is older than two years.
+
  * @param {number} readingTimestampMs - Unix ms
  */
 function isStale(readingTimestampMs) {
