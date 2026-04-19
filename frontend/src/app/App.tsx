@@ -64,8 +64,11 @@ function cpDotClass(category: string): string {
   return 'cp-dot cp-dot-shopping';
 }
 
-function ComfortScoreInfo() {
+function ComfortScoreInfo({ placement = 'bottom' }: { placement?: 'bottom' | 'right' }) {
   const [open, setOpen] = useState(false);
+  const panelClass = placement === 'right'
+    ? "absolute left-full ml-2 top-1/2 -translate-y-1/2 z-[700] w-52 max-w-[calc(100vw-2rem)] sm:w-56 max-h-40 overflow-y-auto rounded-lg border border-gray-200 bg-white p-3 text-xs leading-5 text-gray-700 shadow-xl whitespace-normal break-words max-sm:left-auto max-sm:right-0 max-sm:top-7 max-sm:ml-0 max-sm:translate-y-0"
+    : "absolute right-0 top-7 z-[700] w-52 max-w-[calc(100vw-2rem)] sm:w-56 max-h-40 overflow-y-auto rounded-lg border border-gray-200 bg-white p-3 text-xs leading-5 text-gray-700 shadow-xl whitespace-normal break-words";
   return (
     <div className="relative inline-flex items-center">
       <button
@@ -77,7 +80,7 @@ function ComfortScoreInfo() {
         <img src={questionMarkIcon} alt="" className="h-4 w-4 object-contain" aria-hidden="true" />
       </button>
       {open && (
-        <div className="absolute right-0 top-7 z-[700] w-56 max-w-[calc(100vw-2rem)] sm:w-64 rounded-lg border border-gray-200 bg-white p-3 text-xs leading-5 text-gray-700 shadow-xl whitespace-normal break-words">
+        <div className={panelClass}>
           <p className="font-semibold text-gray-900 mb-1">How we calculate it</p>
           <p>This score is based on 3 things:</p>
           <p className="mt-1">Temperature, Humidity, and Crowd Level.</p>
@@ -1163,7 +1166,7 @@ export default function App() {
                                 <div className={`mb-3 p-3 rounded-lg border ${stale ? 'bg-gray-50' : 'bg-white'}`}>
                                   <div className="mb-1 flex items-center">
                                     <p className="text-xs text-gray-600">Comfort Score</p>
-                                    <ComfortScoreInfo />
+                                    <ComfortScoreInfo placement="right" />
                                   </div>
                                   <p className={`text-3xl font-bold ${stale ? 'text-gray-400' : ''}`} style={{ color: stale ? undefined : getRiskColor(risk) }}>{p.comfort_score}</p>
                                 </div>
