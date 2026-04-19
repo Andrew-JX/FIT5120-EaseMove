@@ -17,6 +17,7 @@ import {
   type Precinct,
   type TodayRecommendation,
 } from "../lib/api";
+import { navigateTo } from "../lib/navigation";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -320,6 +321,10 @@ export default function App() {
     mapInstanceRef.current = map;
   }, []);
 
+  const handleBrandClick = useCallback(() => {
+    navigateTo("/");
+  }, []);
+
   const categories = [
     { name: "Comfortable", level: "low",     color: "#22c55e", bgColor: "bg-green-100",  textColor: "text-green-800" },
     { name: "Caution",     level: "caution", color: "#eab308", bgColor: "bg-yellow-100", textColor: "text-yellow-800" },
@@ -475,9 +480,14 @@ export default function App() {
         <nav className="bg-white/80 backdrop-blur-md shadow-lg mb-6 relative z-10 border-b border-white/20">
           <div className="px-6 py-2">
             <div className="flex items-center justify-between">
-              <div className="relative h-14 w-56">
+              <button
+                type="button"
+                className="relative h-14 w-56 cursor-pointer border-0 bg-transparent p-0"
+                onClick={handleBrandClick}
+                aria-label="Return to EaseMove landing"
+              >
                 <img src={logo} alt="EaseMove logo" className="absolute left-0 top-1/2 h-56 w-56 -translate-y-1/2 object-contain" />
-              </div>
+              </button>
               <button
                 type="button"
                 onClick={() => { setShowTimeRecommendation(false); setSelectedDestId(null); setTodayData(null); }}
@@ -626,9 +636,14 @@ export default function App() {
       <nav className="bg-white/80 backdrop-blur-md shadow-lg mb-4 relative z-10 border-b border-white/20">
         <div className="px-6 py-2">
           <div className="flex items-center justify-between">
-            <div className="relative h-14 w-56">
+            <button
+              type="button"
+              className="relative h-14 w-56 cursor-pointer border-0 bg-transparent p-0"
+              onClick={handleBrandClick}
+              aria-label="Return to EaseMove landing"
+            >
               <img src={logo} alt="EaseMove logo" className="absolute left-0 top-1/2 h-56 w-56 -translate-y-1/2 object-contain" />
-            </div>
+            </button>
             <div className="flex items-center gap-4">
               {loading && <span className="text-sm text-gray-400 animate-pulse">Loading sensors…</span>}
               {error && <span className="text-sm text-red-500">⚠ {error}</span>}

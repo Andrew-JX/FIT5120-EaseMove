@@ -2,15 +2,24 @@ import { useEffect, useLayoutEffect } from "react";
 import HeroSplitScene from "./HeroSplitScene";
 import HowToUseScene from "./HowToUseScene";
 import MissionGalleryScene from "./MissionGalleryScene";
+import StartUsingScene from "./StartUsingScene";
 import { resetLandingSceneController } from "./landingSceneController";
 import "./landing.css";
 
+function resetLandingEntryState() {
+  resetLandingSceneController();
+  document.documentElement.style.overflow = "";
+  document.body.style.overflow = "";
+}
+
 export default function HomePage({ entryId }: { entryId: number }) {
   useLayoutEffect(() => {
-    resetLandingSceneController();
-    document.documentElement.style.overflow = "";
-    document.body.style.overflow = "";
+    resetLandingEntryState();
     window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+
+    return () => {
+      resetLandingEntryState();
+    };
   }, [entryId]);
 
   useEffect(() => {
@@ -33,6 +42,7 @@ export default function HomePage({ entryId }: { entryId: number }) {
       <HeroSplitScene />
       <MissionGalleryScene />
       <HowToUseScene />
+      <StartUsingScene />
     </main>
   );
 }

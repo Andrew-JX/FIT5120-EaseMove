@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { motion, useMotionValue, useSpring, useTransform } from "framer-motion";
 import IconMarquee from "./IconMarquee";
 import {
@@ -41,6 +41,40 @@ export default function HeroSplitScene() {
   const reentryTouchYRef = useRef<number | null>(null);
   const completedRef = useRef(false);
   const latestRawInputDeltaRef = useRef(0);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+
+  useLayoutEffect(() => {
+    completedRef.current = false;
+    latestRawInputDeltaRef.current = 0;
+    touchYRef.current = null;
+    reentryTouchYRef.current = null;
+    targetProgress.set(0);
+
+    const video = videoRef.current;
+    if (!video) return;
+
+    const restartPlayback = () => {
+      const playPromise = video.play();
+      if (playPromise) {
+        playPromise.catch(() => {
+          if (video.readyState === 0) {
+            video.load();
+            void video.play().catch(() => undefined);
+          }
+        });
+      }
+    };
+
+    video.pause();
+
+    try {
+      video.currentTime = 0;
+      restartPlayback();
+    } catch {
+      video.load();
+      restartPlayback();
+    }
+  }, [targetProgress]);
 
   useEffect(() => {
     completedRef.current = completed;
@@ -268,6 +302,7 @@ export default function HeroSplitScene() {
         >
           {canPlayVideo ? (
             <video
+              ref={videoRef}
               className="landing-video"
               src={melVideoUrl}
               autoPlay

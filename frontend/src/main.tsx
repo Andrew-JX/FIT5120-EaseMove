@@ -2,36 +2,32 @@ import { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import App from "./app/App.tsx";
 import HomePage from "./components/landing/HomePage.tsx";
+import { normalizeAppPath } from "./lib/navigation.ts";
 import "./styles/index.css";
 
 function isMapPath(pathname: string) {
-  return pathname === "/map" || pathname === "/map/";
-}
-
-function isLandingPath(pathname: string) {
-  return !isMapPath(pathname);
+  return normalizeAppPath(pathname) === "/map";
 }
 
 function RootRouter() {
-  const [pathname, setPathname] = useState(() => window.location.pathname);
+  const [pathname, setPathname] = useState(() => normalizeAppPath(window.location.pathname));
   const [landingEntryId, setLandingEntryId] = useState(0);
-  const previousIsLandingRef = useRef(isLandingPath(window.location.pathname));
+  const previousPathRef = useRef(normalizeAppPath(window.location.pathname));
 
   useEffect(() => {
     const syncPathname = () => {
-      setPathname(window.location.pathname);
+      setPathname(normalizeAppPath(window.location.pathname));
     };
 
     const handlePageShow = (event: PageTransitionEvent) => {
       if (!event.persisted) return;
 
-      const nextPathname = window.location.pathname;
-      const nextIsLanding = isLandingPath(nextPathname);
+      const nextPathname = normalizeAppPath(window.location.pathname);
 
       setPathname(nextPathname);
-      previousIsLandingRef.current = nextIsLanding;
+      previousPathRef.current = nextPathname;
 
-      if (nextIsLanding) {
+      if (nextPathname === "/") {
         setLandingEntryId((id) => id + 1);
       }
     };
@@ -46,13 +42,13 @@ function RootRouter() {
   }, []);
 
   useEffect(() => {
-    const nextIsLanding = isLandingPath(pathname);
+    const previousPath = previousPathRef.current;
 
-    if (!previousIsLandingRef.current && nextIsLanding) {
+    if (previousPath !== "/" && pathname === "/") {
       setLandingEntryId((id) => id + 1);
     }
 
-    previousIsLandingRef.current = nextIsLanding;
+    previousPathRef.current = pathname;
   }, [pathname]);
 
   if (isMapPath(pathname)) {
