@@ -44,6 +44,11 @@ export function release(sceneId: LandingSceneId) {
   return true;
 }
 
+export function resetLandingSceneController() {
+  lockOwner = null;
+  lastHandoffAt = 0;
+}
+
 export function getHandoffScrollPx(rawDelta: number) {
   if (rawDelta === 0) return 0;
 
