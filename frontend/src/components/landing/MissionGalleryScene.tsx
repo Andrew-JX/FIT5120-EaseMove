@@ -68,6 +68,7 @@ const SPRING_CONFIG = {
   damping: 27,
   mass: 0.9,
 };
+type MissionSceneState = "before" | "active" | "after";
 
 function clampProgress(value: number) {
   return Math.min(1, Math.max(0, value));
@@ -261,17 +262,17 @@ function MissionComposition({
 
 export default function MissionGalleryScene() {
   const [layout, setLayout] = useState(() => getLayoutMetrics());
-  const [frameActive, setFrameActive] = useState(false);
+  const [sceneState, setSceneState] = useState<MissionSceneState>("before");
   const sceneRef = useRef<HTMLElement | null>(null);
-  const frameActiveRef = useRef(false);
+  const sceneStateRef = useRef<MissionSceneState>("before");
   const targetProgress = useMotionValue(0);
   const smoothedProgress = useSpring(targetProgress, SPRING_CONFIG);
 
-  const setFrameActiveIfChanged = (nextActive: boolean) => {
-    if (frameActiveRef.current === nextActive) return;
+  const setSceneStateIfChanged = (nextState: MissionSceneState) => {
+    if (sceneStateRef.current === nextState) return;
 
-    frameActiveRef.current = nextActive;
-    setFrameActive(nextActive);
+    sceneStateRef.current = nextState;
+    setSceneState(nextState);
   };
 
   useEffect(() => {
@@ -286,8 +287,10 @@ export default function MissionGalleryScene() {
       const sectionEnd = sectionStart + node.offsetHeight - window.innerHeight;
       const travel = Math.max(1, sectionEnd - sectionStart);
       const scrollY = window.scrollY;
+      const nextState =
+        scrollY < sectionStart ? "before" : scrollY <= sectionEnd ? "active" : "after";
 
-      setFrameActiveIfChanged(scrollY >= sectionStart && scrollY <= sectionEnd);
+      setSceneStateIfChanged(nextState);
       targetProgress.set(clampProgress((scrollY - sectionStart) / travel));
     };
 
@@ -321,8 +324,10 @@ export default function MissionGalleryScene() {
       const sectionEnd = sectionStart + node.offsetHeight - window.innerHeight;
       const travel = Math.max(1, sectionEnd - sectionStart);
       const scrollY = window.scrollY;
+      const nextState =
+        scrollY < sectionStart ? "before" : scrollY <= sectionEnd ? "active" : "after";
 
-      setFrameActiveIfChanged(scrollY >= sectionStart && scrollY <= sectionEnd);
+      setSceneStateIfChanged(nextState);
       targetProgress.set(clampProgress((scrollY - sectionStart) / travel));
     };
 
@@ -348,8 +353,12 @@ export default function MissionGalleryScene() {
       ref={sceneRef}
       aria-label="EaseMove mission gallery"
     >
-      {frameActive ? (
-        <div className="landing-mission-fixed-frame">
+      {sceneState !== "before" ? (
+        <div
+          className={`landing-mission-frame ${
+            sceneState === "active" ? "landing-mission-frame-active" : "landing-mission-frame-released"
+          }`}
+        >
           <MissionComposition progress={smoothedProgress} layout={layout} />
         </div>
       ) : null}
