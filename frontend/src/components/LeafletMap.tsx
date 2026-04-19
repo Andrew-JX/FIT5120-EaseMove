@@ -86,7 +86,7 @@ function riskLevel(label: string): 'low' | 'caution' | 'high' {
 
 function furnitureStyle(assetType: string): { label: string; color: string; radius: number } {
   const type = assetType.toLowerCase();
-  if (type.includes('bicycle')) return { label: 'Bicycle Rack', color: '#2563eb', radius: 4 };
+  if (type.includes('bicycle')) return { label: 'Bicycle Rack', color: '#c2410c', radius: 4 };
   if (type.includes('drinking')) return { label: 'Drinking Fountain', color: '#06b6d4', radius: 4 };
   if (type.includes('bin')) return { label: 'Bin', color: '#f97316', radius: 4 };
   if (type.includes('barbecue')) return { label: 'Barbecue', color: '#ef4444', radius: 4 };
@@ -97,14 +97,16 @@ function furnitureStyle(assetType: string): { label: string; color: string; radi
   return { label: assetType || 'Street Furniture', color: '#0f172a', radius: 4 };
 }
 
-function keepFurnitureType(assetType: string): boolean {
+function classifyFurnitureType(assetType: string): 'bicycle' | 'drinking' | 'seat' | null {
   const type = assetType.toLowerCase();
-  return (
-    type.includes('bicycle') ||
-    type.includes('drinking') ||
-    type.includes('seat') ||
-    type.includes('bin')
-  );
+  if (type.includes('bicycle')) return 'bicycle';
+  if (type.includes('drinking')) return 'drinking';
+  if (type.includes('seat')) return 'seat';
+  return null;
+}
+
+function keepFurnitureType(assetType: string): boolean {
+  return classifyFurnitureType(assetType) !== null;
 }
 
 function hasValidCoords(lat: number | null | undefined, lng: number | null | undefined): boolean {
@@ -120,7 +122,9 @@ interface LeafletMapProps {
   compareSelection1: string | null;
   compareSelection2: string | null;
   onPrecinctClick: (id: string) => void;
-  activeLayer?: 'ease-places' | 'comfort-area';
+  showEasePlaces?: boolean;
+  showStreetFacilities?: boolean;
+  showNaturalPlaces?: boolean;
   onMapReady?: (map: L.Map) => void;
   onEasePlacesClick?: (feature: EasePlacesFeature, point: { x: number; y: number }) => void;
 }
@@ -132,7 +136,9 @@ export default function LeafletMap({
   compareSelection1,
   compareSelection2,
   onPrecinctClick,
-  activeLayer = 'ease-places',
+  showEasePlaces = true,
+  showStreetFacilities = true,
+  showNaturalPlaces = true,
   onMapReady,
   onEasePlacesClick,
 }: LeafletMapProps) {
@@ -140,7 +146,6 @@ export default function LeafletMap({
   const markersRef = useRef<L.Marker[]>([]);
   const poiRef = useRef<L.Layer[]>([]);
   const boundaryRef = useRef<L.GeoJSON | null>(null);
-  const shoppingLayerRef = useRef<L.GeoJSON | null>(null);
   const waterLayerRef = useRef<L.GeoJSON | null>(null);
   const parksLayerRef = useRef<L.GeoJSON | null>(null);
   const coolPlacesMarkersRef = useRef<L.Marker[]>([]);
@@ -149,8 +154,14 @@ export default function LeafletMap({
   // Stable refs for callbacks used inside the init effect
   const onMapReadyRef = useRef(onMapReady);
   const onEasePlacesClickRef = useRef(onEasePlacesClick);
+  const showEasePlacesRef = useRef(showEasePlaces);
+  const showStreetFacilitiesRef = useRef(showStreetFacilities);
+  const showNaturalPlacesRef = useRef(showNaturalPlaces);
   useEffect(() => { onMapReadyRef.current = onMapReady; }, [onMapReady]);
   useEffect(() => { onEasePlacesClickRef.current = onEasePlacesClick; }, [onEasePlacesClick]);
+  useEffect(() => { showEasePlacesRef.current = showEasePlaces; }, [showEasePlaces]);
+  useEffect(() => { showStreetFacilitiesRef.current = showStreetFacilities; }, [showStreetFacilities]);
+  useEffect(() => { showNaturalPlacesRef.current = showNaturalPlaces; }, [showNaturalPlaces]);
 
   // ─── Map initialisation (runs once) ────────────────────────────────────────
   useEffect(() => {
@@ -192,23 +203,6 @@ export default function LeafletMap({
       })
       .catch((err: unknown) => { console.error('[LeafletMap] failed to load municipal boundary', err); });
 
-    fetch('/geoscape/shopping-facilities.geojson')
-      .then(res => (res.ok ? res.json() : null))
-      .then(data => {
-        if (!data || !mapRef.current) return;
-        shoppingLayerRef.current?.remove();
-        shoppingLayerRef.current = L.geoJSON(data, {
-          style: { color: '#c2410c', weight: 1.2, fillColor: '#fb923c', fillOpacity: 0.12, opacity: 0.9 },
-          pane: 'areaPane',
-          interactive: true,
-          onEachFeature(feature, layer) {
-            const name = String(feature?.properties?.NAME_LABEL || feature?.properties?.NAME || '').trim();
-            if (name) layer.bindTooltip(`<strong>Shopping</strong><br/>${name}`, { direction: 'top' });
-          },
-        }).addTo(mapRef.current);
-      })
-      .catch((err: unknown) => { console.error('[LeafletMap] failed to load shopping layer', err); });
-
     fetch('/geoscape/waterbodies.geojson')
       .then(res => (res.ok ? res.json() : null))
       .then(data => {
@@ -222,7 +216,8 @@ export default function LeafletMap({
             const name = String(feature?.properties?.NAME_LABEL || feature?.properties?.NAME || '').trim();
             if (name) layer.bindTooltip(`<strong>Waterbody</strong><br/>${name}`, { direction: 'top' });
           },
-        }).addTo(mapRef.current);
+        });
+        if (showNaturalPlacesRef.current) waterLayerRef.current.addTo(mapRef.current);
       })
       .catch((err: unknown) => { console.error('[LeafletMap] failed to load waterbody layer', err); });
 
@@ -239,15 +234,34 @@ export default function LeafletMap({
             const name = String(feature?.properties?.NAME_LABEL || feature?.properties?.NAME || '').trim();
             if (name) layer.bindTooltip(`<strong>Park</strong><br/>${name}`, { direction: 'top' });
           },
-        }).addTo(mapRef.current);
+        });
+        if (showNaturalPlacesRef.current) parksLayerRef.current.addTo(mapRef.current);
       })
       .catch((err: unknown) => { console.error('[LeafletMap] failed to load parks layer', err); });
 
     // Street furniture POI
-    const drawFurniture = (data: { features: FurnitureFeature[] }) => {
+    const drawFurniture = (features: FurnitureFeature[]) => {
       if (!mapRef.current) return;
-      data.features.forEach((feature: FurnitureFeature) => {
-        if (!keepFurnitureType(feature.properties.asset_type || '')) return;
+      const grouped: Record<'bicycle' | 'drinking' | 'seat', FurnitureFeature[]> = {
+        bicycle: [],
+        drinking: [],
+        seat: [],
+      };
+      features.forEach((feature: FurnitureFeature) => {
+        const kind = classifyFurnitureType(feature.properties.asset_type || '');
+        if (!kind) return;
+        grouped[kind].push(feature);
+      });
+
+      // Keep all drinking points, then balance bicycle/seat towards drinking count.
+      const target = grouped.drinking.length;
+      const balanced = [
+        ...grouped.drinking,
+        ...grouped.bicycle.slice(0, target),
+        ...grouped.seat.slice(0, target),
+      ];
+
+      balanced.forEach((feature: FurnitureFeature) => {
         const style = furnitureStyle(feature.properties.asset_type || '');
         const [lng, lat] = feature.geometry.coordinates;
         if (!hasValidCoords(lat, lng)) return;
@@ -259,26 +273,39 @@ export default function LeafletMap({
           fillColor: style.color,
           fillOpacity: 0.9,
         })
-          .addTo(mapRef.current!)
           .bindTooltip(
             `<span class="furniture-tip-label">${style.label}</span>` +
             `<span class="furniture-tip-location">${feature.properties.location_desc || ''}</span>`,
             { direction: 'top', offset: [0, -6], className: 'furniture-tip' }
           );
+        if (showStreetFacilitiesRef.current) marker.addTo(mapRef.current!);
         poiRef.current.push(marker);
       });
     };
 
-    fetchFurniture('all', 'all', 1000)
-      .then(data => {
-        if (!data.features?.length) {
-          return fetchFurniture('all', 'all', 200).then(drawFurniture);
+    Promise.all([
+      fetchFurniture('all', 'all', 3000),
+      fetchFurniture('all', 'drinking_fountain', 3000),
+    ])
+      .then(([allData, drinkingData]) => {
+        const merged = [...(allData.features ?? []), ...(drinkingData.features ?? [])];
+        const deduped = Array.from(
+          new Map(
+            merged.map((f) => {
+              const [lng, lat] = f.geometry.coordinates;
+              const key = `${lat},${lng},${(f.properties.asset_type || '').toLowerCase()}`;
+              return [key, f] as const;
+            })
+          ).values()
+        );
+        if (!deduped.length) {
+          return fetchFurniture('all', 'all', 400).then((fallbackData) => drawFurniture(fallbackData.features ?? []));
         }
-        drawFurniture(data);
+        drawFurniture(deduped);
       })
       .catch((err: unknown) => { console.error('[LeafletMap] failed to load street furniture points', err); });
 
-    // Cool Places markers (static mock data — visibility toggled by activeLayer effect)
+    // Ease Places markers (static mock data — visibility controlled by filter effects)
     EASE_PLACES_DATA.forEach(feature => {
       const { core, halo } = cpMarkerColor(feature.category);
       const icon = L.divIcon({
@@ -293,11 +320,11 @@ export default function LeafletMap({
           if (onEasePlacesClickRef.current)
             onEasePlacesClickRef.current(feature, { x: e.containerPoint.x, y: e.containerPoint.y });
         });
+      if (showEasePlacesRef.current) marker.addTo(mapRef.current!);
       coolPlacesMarkersRef.current.push(marker);
     });
 
     return () => {
-      shoppingLayerRef.current?.remove(); shoppingLayerRef.current = null;
       waterLayerRef.current?.remove();   waterLayerRef.current = null;
       parksLayerRef.current?.remove();   parksLayerRef.current = null;
       boundaryRef.current?.remove();     boundaryRef.current = null;
@@ -307,17 +334,42 @@ export default function LeafletMap({
     };
   }, []);
 
-  // ─── Show / hide Cool Places markers based on activeLayer ──────────────────
+  // ─── Show / hide Ease Places markers ────────────────────────────────────────
   useEffect(() => {
     if (!mapRef.current) return;
     coolPlacesMarkersRef.current.forEach((m: L.Marker) => {
-      if (activeLayer === 'ease-places') {
+      if (showEasePlaces) {
         if (!mapRef.current!.hasLayer(m)) m.addTo(mapRef.current!);
       } else {
         if (mapRef.current!.hasLayer(m)) m.remove();
       }
     });
-  }, [activeLayer]);
+  }, [showEasePlaces]);
+
+  // ─── Show / hide street facilities ──────────────────────────────────────────
+  useEffect(() => {
+    if (!mapRef.current) return;
+    poiRef.current.forEach((layer: L.Layer) => {
+      if (showStreetFacilities) {
+        if (!mapRef.current!.hasLayer(layer)) layer.addTo(mapRef.current!);
+      } else if (mapRef.current!.hasLayer(layer)) {
+        layer.remove();
+      }
+    });
+  }, [showStreetFacilities]);
+
+  // ─── Show / hide natural places (parks + water) ────────────────────────────
+  useEffect(() => {
+    if (!mapRef.current) return;
+    [waterLayerRef.current, parksLayerRef.current].forEach((layer) => {
+      if (!layer) return;
+      if (showNaturalPlaces) {
+        if (!mapRef.current!.hasLayer(layer)) layer.addTo(mapRef.current!);
+      } else if (mapRef.current!.hasLayer(layer)) {
+        layer.remove();
+      }
+    });
+  }, [showNaturalPlaces]);
 
   // ─── Precinct markers (only rendered when precincts array is non-empty) ─────
   useEffect(() => {
