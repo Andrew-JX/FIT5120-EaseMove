@@ -1,7 +1,8 @@
-export type AppRoutePath = "/" | "/map";
+export type AppRoutePath = "/" | "/map" | "/aboutus";
 
 export function normalizeAppPath(path: string): AppRoutePath {
   if (path === "/map" || path === "/map/") return "/map";
+  if (path === "/aboutus" || path === "/aboutus/") return "/aboutus";
 
   return "/";
 }

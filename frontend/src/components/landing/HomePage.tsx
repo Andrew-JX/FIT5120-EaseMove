@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect } from "react";
+import FooterScene from "./FooterScene";
 import HeroSplitScene from "./HeroSplitScene";
 import HowToUseScene from "./HowToUseScene";
 import MissionGalleryScene from "./MissionGalleryScene";
@@ -43,6 +44,7 @@ export default function HomePage({ entryId }: { entryId: number }) {
       <MissionGalleryScene />
       <HowToUseScene />
       <StartUsingScene />
+      <FooterScene />
     </main>
   );
 }
