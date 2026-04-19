@@ -57,12 +57,12 @@ const missionCopy = "Move through Melbourne with comfort, confidence, and better
 const CARD_ENTRY_BUFFER = 48;
 const CARD_DESKTOP_WIDTH = { min: 170, ratio: 0.22, max: 315 };
 const CARD_DESKTOP_HEIGHT = { min: 124, ratio: 0.158, max: 226 };
-const CARD_MOBILE_WIDTH = { min: 128, ratio: 0.38, max: 178 };
-const CARD_MOBILE_HEIGHT = { min: 96, ratio: 0.29, max: 134 };
+const CARD_MOBILE_WIDTH = { min: 80, ratio: 0.24, max: 140 };
+const CARD_MOBILE_HEIGHT = { min: 60, ratio: 0.19, max: 104 };
 const MISSION_SAFE_RADIUS_X = 250;
 const MISSION_SAFE_RADIUS_Y = 145;
-const MISSION_SAFE_RADIUS_X_MOBILE = 165;
-const MISSION_SAFE_RADIUS_Y_MOBILE = 145;
+const MISSION_SAFE_RADIUS_X_MOBILE = 82;
+const MISSION_SAFE_RADIUS_Y_MOBILE = 130;
 const SPRING_CONFIG = {
   stiffness: 118,
   damping: 27,
