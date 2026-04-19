@@ -59,8 +59,8 @@ const CARD_DESKTOP_WIDTH = { min: 170, ratio: 0.22, max: 315 };
 const CARD_DESKTOP_HEIGHT = { min: 124, ratio: 0.158, max: 226 };
 const CARD_MOBILE_WIDTH = { min: 128, ratio: 0.38, max: 178 };
 const CARD_MOBILE_HEIGHT = { min: 96, ratio: 0.29, max: 134 };
-const MISSION_SAFE_RADIUS_X = 330;
-const MISSION_SAFE_RADIUS_Y = 185;
+const MISSION_SAFE_RADIUS_X = 250;
+const MISSION_SAFE_RADIUS_Y = 145;
 const MISSION_SAFE_RADIUS_X_MOBILE = 165;
 const MISSION_SAFE_RADIUS_Y_MOBILE = 145;
 const SPRING_CONFIG = {
@@ -105,8 +105,10 @@ function getLayoutMetrics() {
   const cardHeight = getClampedViewportSize(width, isMobile ? CARD_MOBILE_HEIGHT : CARD_DESKTOP_HEIGHT);
   const safeRadiusX = isMobile ? MISSION_SAFE_RADIUS_X_MOBILE : MISSION_SAFE_RADIUS_X;
   const safeRadiusY = isMobile ? MISSION_SAFE_RADIUS_Y_MOBILE : MISSION_SAFE_RADIUS_Y;
-  const maxX = Math.max(safeRadiusX + cardWidth / 2 + 18, width / 2 - cardWidth / 2 - 26);
-  const maxY = Math.max(safeRadiusY + cardHeight / 2 + 18, height / 2 - cardHeight / 2 - 26);
+  const edgeMarginX = isMobile ? 26 : 80;
+  const edgeMarginY = isMobile ? 26 : 60;
+  const maxX = Math.max(safeRadiusX + cardWidth / 2 + 18, width / 2 - cardWidth / 2 - edgeMarginX);
+  const maxY = Math.max(safeRadiusY + cardHeight / 2 + 18, height / 2 - cardHeight / 2 - edgeMarginY);
 
   return {
     cardWidth,
