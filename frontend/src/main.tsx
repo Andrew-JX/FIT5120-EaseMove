@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import App from "./app/App.tsx";
 import HomePage from "./components/landing/HomePage.tsx";
+import AboutUsPage from "./pages/AboutUsPage.tsx";
 import { normalizeAppPath } from "./lib/navigation.ts";
 import "./styles/index.css";
 
@@ -53,6 +54,10 @@ function RootRouter() {
 
   if (isMapPath(pathname)) {
     return <App />;
+  }
+
+  if (pathname === "/aboutus") {
+    return <AboutUsPage />;
   }
 
   return <HomePage entryId={landingEntryId} key={`landing-${landingEntryId}`} />;
