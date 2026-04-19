@@ -164,6 +164,122 @@
   color: var(--pearl-aqua, #83c5be);
 }
 
+.landing-mission-scene {
+  --landing-mission-card-width: clamp(170px, 22vw, 315px);
+  --landing-mission-card-height: clamp(124px, 15.8vw, 226px);
+  position: relative;
+  height: 360vh;
+  background:
+    linear-gradient(180deg, #081515 0%, #102624 44%, #122d2b 100%);
+  isolation: isolate;
+}
+
+.landing-mission-fixed-frame {
+  position: fixed;
+  inset: 0;
+  height: 100vh;
+  overflow: hidden;
+  z-index: 80;
+  background: #102624;
+  isolation: isolate;
+  transform: translateZ(0);
+}
+
+.landing-mission-fixed-frame::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(180deg, rgba(8, 21, 21, 0.34), rgba(6, 14, 14, 0.68)),
+    radial-gradient(circle at 50% 52%, rgba(131, 197, 190, 0.14), transparent 34%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.landing-mission-composition {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
+
+.landing-mission-flow-anchor {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: min(820px, calc(100vw - 44px));
+  z-index: 30;
+  text-align: center;
+  transform: translate(-50%, -50%);
+}
+
+.landing-mission-text-inner {
+  will-change: transform, opacity;
+}
+
+.landing-mission-copy {
+  margin: 0 auto;
+  max-width: 13ch;
+  color: #f7fffd;
+  font-size: clamp(2.3rem, 5.4vw, 6rem);
+  line-height: 0.98;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-wrap: balance;
+  text-shadow: 0 16px 58px rgba(0, 0, 0, 0.48);
+}
+
+.landing-mission-copy-character {
+  display: inline-block;
+  opacity: 0;
+  transform: translate3d(0, 18px, 0) rotate(0.001deg);
+}
+
+.landing-mission-copy-word {
+  display: inline-block;
+  white-space: nowrap;
+}
+
+.landing-mission-copy-revealed .landing-mission-copy-character {
+  animation: landing-mission-character-reveal 0.64s cubic-bezier(0.21, 0.72, 0.24, 1) forwards;
+}
+
+.landing-mission-copy-instant .landing-mission-copy-character {
+  opacity: 1;
+  transform: translate3d(0, 0, 0) rotate(0.001deg);
+  animation: none;
+}
+
+.landing-mission-gallery-stage {
+  position: absolute;
+  inset: 0;
+  z-index: 62;
+  pointer-events: none;
+}
+
+.landing-mission-gallery-card {
+  position: absolute;
+  top: calc(50% - (var(--landing-mission-card-height) / 2));
+  left: calc(50% - (var(--landing-mission-card-width) / 2));
+  width: var(--landing-mission-card-width);
+  height: var(--landing-mission-card-height);
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid rgba(237, 246, 249, 0.22);
+  border-radius: 8px;
+  background: #17302e;
+  box-shadow: 0 26px 76px rgba(0, 0, 0, 0.38);
+  transform-origin: center center;
+  will-change: transform, opacity;
+}
+
+.landing-mission-gallery-card img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+  user-select: none;
+}
+
 @keyframes landing-marquee {
   from {
     transform: translateX(0);
@@ -171,6 +287,18 @@
 
   to {
     transform: translateX(calc(-50% - 6px));
+  }
+}
+
+@keyframes landing-mission-character-reveal {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 18px, 0) rotate(0.001deg);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) rotate(0.001deg);
   }
 }
 
@@ -195,5 +323,20 @@
     max-width: 38rem;
     font-size: 0.98rem;
     line-height: 1.65;
+  }
+
+  .landing-mission-scene {
+    --landing-mission-card-width: clamp(128px, 38vw, 178px);
+    --landing-mission-card-height: clamp(96px, 29vw, 134px);
+    height: 360vh;
+  }
+
+  .landing-mission-flow-anchor {
+    width: min(520px, calc(100vw - 32px));
+  }
+
+  .landing-mission-copy {
+    max-width: 11.5ch;
+    font-size: clamp(2.1rem, 11vw, 4.1rem);
   }
 }

@@ -1,6 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { motion, useMotionValue, useSpring, useTransform } from "framer-motion";
 import IconMarquee from "./IconMarquee";
+import {
+  acquire,
+  bridgeResidualScroll,
+  getLockOwner,
+  KEYBOARD_HANDOFF_DELTA_PX,
+  release,
+} from "./landingSceneController";
 
 const melVideoUrl = new URL("../../assets/landing/Mel.mp4", import.meta.url).href;
 const WHEEL_PROGRESS_FACTOR = 0.001;
@@ -8,6 +15,9 @@ const TOUCH_PROGRESS_FACTOR = 0.003;
 const KEY_PROGRESS_STEP = 0.1;
 const MAX_INPUT_STEP = 0.08;
 const COMPLETION_THRESHOLD = 0.995;
+const START_THRESHOLD = 0.005;
+const REVERSE_REENTRY_SCROLL_Y = 4;
+const TOP_SCROLL_BRIDGE_THRESHOLD = 4;
 
 function clampProgress(value: number) {
   return Math.min(1, Math.max(0, value));
@@ -20,6 +30,7 @@ function clampInputStep(value: number) {
 export default function HeroSplitScene() {
   const [canPlayVideo, setCanPlayVideo] = useState(true);
   const [completed, setCompleted] = useState(false);
+  const [isHeroControlEnabled, setIsHeroControlEnabled] = useState(true);
   const targetProgress = useMotionValue(0);
   const smoothedProgress = useSpring(targetProgress, {
     stiffness: 115,
@@ -27,7 +38,9 @@ export default function HeroSplitScene() {
     mass: 0.9,
   });
   const touchYRef = useRef<number | null>(null);
+  const reentryTouchYRef = useRef<number | null>(null);
   const completedRef = useRef(false);
+  const latestRawInputDeltaRef = useRef(0);
 
   useEffect(() => {
     completedRef.current = completed;
@@ -35,18 +48,106 @@ export default function HeroSplitScene() {
 
   useEffect(() => {
     const unsubscribe = smoothedProgress.on("change", (latest) => {
-      if (completedRef.current || latest < COMPLETION_THRESHOLD) return;
+      if (!completedRef.current && latest >= COMPLETION_THRESHOLD) {
+        completedRef.current = true;
+        targetProgress.set(1);
+        release("hero");
+        setCompleted(true);
+        bridgeResidualScroll(Math.max(latestRawInputDeltaRef.current, KEYBOARD_HANDOFF_DELTA_PX));
+        return;
+      }
 
-      completedRef.current = true;
-      setCompleted(true);
+      if (
+        !completedRef.current &&
+        latest <= START_THRESHOLD &&
+        targetProgress.get() <= START_THRESHOLD &&
+        latestRawInputDeltaRef.current < 0 &&
+        getLockOwner() === "hero"
+      ) {
+        targetProgress.set(0);
+        release("hero");
+        setIsHeroControlEnabled(false);
+
+        if (window.scrollY > TOP_SCROLL_BRIDGE_THRESHOLD) {
+          bridgeResidualScroll(latestRawInputDeltaRef.current);
+        }
+      }
     });
 
     return unsubscribe;
-  }, [smoothedProgress]);
+  }, [smoothedProgress, targetProgress]);
 
   useEffect(() => {
     const isHomePath = window.location.pathname === "/";
-    if (!isHomePath || completed) return;
+    if (!isHomePath || completed || isHeroControlEnabled) return;
+
+    const canStartHeroControl = () => window.scrollY <= REVERSE_REENTRY_SCROLL_Y;
+
+    const resumeHeroForward = (progressDelta: number, rawDelta: number) => {
+      if (!canStartHeroControl() || rawDelta <= 0 || !acquire("hero")) return false;
+
+      latestRawInputDeltaRef.current = rawDelta;
+      targetProgress.set(clampProgress(progressDelta));
+      setIsHeroControlEnabled(true);
+      return true;
+    };
+
+    const handleWheel = (event: WheelEvent) => {
+      const delta = clampInputStep(event.deltaY * WHEEL_PROGRESS_FACTOR);
+      if (!resumeHeroForward(delta, event.deltaY)) return;
+
+      event.preventDefault();
+    };
+
+    const handleTouchStart = (event: TouchEvent) => {
+      reentryTouchYRef.current = event.touches[0]?.clientY ?? null;
+    };
+
+    const handleTouchMove = (event: TouchEvent) => {
+      const currentY = event.touches[0]?.clientY;
+      if (currentY === undefined || reentryTouchYRef.current === null) return;
+
+      const deltaY = reentryTouchYRef.current - currentY;
+      reentryTouchYRef.current = currentY;
+      const delta = clampInputStep(deltaY * TOUCH_PROGRESS_FACTOR);
+
+      if (!resumeHeroForward(delta, deltaY)) return;
+
+      event.preventDefault();
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const key = event.key;
+      const isForward =
+        key === "ArrowDown" ||
+        key === "PageDown" ||
+        key === " " ||
+        key === "Spacebar" ||
+        key === "End";
+
+      if (!isForward || !resumeHeroForward(KEY_PROGRESS_STEP, KEYBOARD_HANDOFF_DELTA_PX)) return;
+
+      event.preventDefault();
+    };
+
+    window.addEventListener("wheel", handleWheel, { passive: false });
+    window.addEventListener("touchstart", handleTouchStart, { passive: true });
+    window.addEventListener("touchmove", handleTouchMove, { passive: false });
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.removeEventListener("wheel", handleWheel);
+      window.removeEventListener("touchstart", handleTouchStart);
+      window.removeEventListener("touchmove", handleTouchMove);
+      window.removeEventListener("keydown", handleKeyDown);
+      reentryTouchYRef.current = null;
+    };
+  }, [completed, isHeroControlEnabled, targetProgress]);
+
+  useEffect(() => {
+    const isHomePath = window.location.pathname === "/";
+    if (!isHomePath || completed || !isHeroControlEnabled) return;
+    if (!acquire("hero")) return;
 
     const root = document.documentElement;
     const body = document.body;
@@ -56,16 +157,17 @@ export default function HeroSplitScene() {
     root.style.overflow = "hidden";
     body.style.overflow = "hidden";
 
-    const updateProgress = (delta: number) => {
+    const updateProgress = (delta: number, rawDelta: number) => {
       if (completedRef.current) return;
 
+      latestRawInputDeltaRef.current = rawDelta;
       const nextProgress = clampProgress(targetProgress.get() + delta);
       targetProgress.set(nextProgress);
     };
 
     const handleWheel = (event: WheelEvent) => {
       event.preventDefault();
-      updateProgress(clampInputStep(event.deltaY * WHEEL_PROGRESS_FACTOR));
+      updateProgress(clampInputStep(event.deltaY * WHEEL_PROGRESS_FACTOR), event.deltaY);
     };
 
     const handleTouchStart = (event: TouchEvent) => {
@@ -79,7 +181,7 @@ export default function HeroSplitScene() {
 
       const deltaY = touchYRef.current - currentY;
       touchYRef.current = currentY;
-      updateProgress(clampInputStep(deltaY * TOUCH_PROGRESS_FACTOR));
+      updateProgress(clampInputStep(deltaY * TOUCH_PROGRESS_FACTOR), deltaY);
     };
 
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -97,17 +199,18 @@ export default function HeroSplitScene() {
       event.preventDefault();
 
       if (key === "End") {
-        updateProgress(1);
+        updateProgress(1, KEYBOARD_HANDOFF_DELTA_PX);
         return;
       }
 
       if (key === "Home") {
+        latestRawInputDeltaRef.current = -KEYBOARD_HANDOFF_DELTA_PX;
         targetProgress.set(0);
         return;
       }
 
       const direction = isReverse || (event.shiftKey && (key === " " || key === "Spacebar")) ? -1 : 1;
-      updateProgress(direction * KEY_PROGRESS_STEP);
+      updateProgress(direction * KEY_PROGRESS_STEP, direction * KEYBOARD_HANDOFF_DELTA_PX);
     };
 
     window.addEventListener("wheel", handleWheel, { passive: false });
@@ -122,9 +225,10 @@ export default function HeroSplitScene() {
       window.removeEventListener("keydown", handleKeyDown);
       root.style.overflow = previousRootOverflow;
       body.style.overflow = previousBodyOverflow;
+      release("hero");
       touchYRef.current = null;
     };
-  }, [completed, targetProgress]);
+  }, [completed, isHeroControlEnabled, targetProgress]);
 
   const videoWidth = useTransform(smoothedProgress, [0.2, 0.65], ["100vw", "42vw"]);
   const videoHeight = useTransform(smoothedProgress, [0.2, 0.65], ["100vh", "58vh"]);
