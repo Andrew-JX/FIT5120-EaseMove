@@ -800,18 +800,28 @@ export default function App() {
 
             {/* Tabs */}
             <div className="border-b border-gray-200">
-              <div className="flex items-center px-6 pt-4">
-                {(['view', 'compare'] as const).map(tab => (
-                  <button
-                    type="button"
-                    key={tab}
-                    onClick={() => { setActiveTab(tab); setShowCard(null); }}
-                    className={`px-6 py-3 font-medium text-sm transition-all relative ${activeTab === tab ? 'text-teal-600' : 'text-gray-600 hover:text-gray-900'}`}
-                  >
-                    {tab.charAt(0).toUpperCase() + tab.slice(1)}
-                    {activeTab === tab && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-teal-600" />}
-                  </button>
-                ))}
+              <div className="flex items-center justify-between px-6 pt-4">
+                <div className="flex items-center">
+                  {(['view', 'compare'] as const).map(tab => (
+                    <button
+                      type="button"
+                      key={tab}
+                      onClick={() => { setActiveTab(tab); setShowCard(null); }}
+                      className={`px-6 py-3 font-medium text-sm transition-all relative ${activeTab === tab ? 'text-teal-600' : 'text-gray-600 hover:text-gray-900'}`}
+                    >
+                      {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                      {activeTab === tab && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-teal-600" />}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => navigateTo('/extreme-weather-risks')}
+                  className="px-4 py-2 mb-2 rounded-lg border text-sm font-semibold transition-all flex items-center gap-2 border-gray-300 text-gray-700 hover:border-amber-300 hover:bg-amber-50/60"
+                >
+                  <img src={warningIcon} alt="" className="h-4 w-4 object-contain" aria-hidden="true" />
+                  <span>Extreme Weather Risks</span>
+                </button>
               </div>
             </div>
 
@@ -1236,6 +1246,7 @@ export default function App() {
                 </div>
               </>
             )}
+
           </div>
         </div>
       </div>
