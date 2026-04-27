@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import App from "./app/App.tsx";
 import HomePage from "./components/landing/HomePage.tsx";
 import AboutUsPage from "./pages/AboutUsPage.tsx";
+import ExtremeWeatherRisksPage from "./pages/ExtremeWeatherRisksPage.tsx";
 import { normalizeAppPath } from "./lib/navigation.ts";
 import "./styles/index.css";
 
@@ -58,6 +59,10 @@ function RootRouter() {
 
   if (pathname === "/aboutus") {
     return <AboutUsPage />;
+  }
+
+  if (pathname === "/extreme-weather-risks") {
+    return <ExtremeWeatherRisksPage />;
   }
 
   return <HomePage entryId={landingEntryId} key={`landing-${landingEntryId}`} />;
