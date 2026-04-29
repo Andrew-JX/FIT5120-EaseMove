@@ -20,7 +20,9 @@ import {
   type Precinct,
   type TodayRecommendation,
 } from "../lib/api";
+import { getAreaInfo } from "../lib/areaInfo";
 import { navigateTo } from "../lib/navigation";
+import AreaDetailPage from "../pages/AreaDetailPage";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -44,6 +46,11 @@ function formatDataFreshness(p: Precinct): string {
 function formatDetailSensorStatus(p: Precinct): string {
   if (p.id === 'flemington') return 'No live sensors';
   return '✅ Live Sensors';
+}
+
+function getAreaIdFromUrl(): string | null {
+  const areaId = new URLSearchParams(window.location.search).get("area");
+  return getAreaInfo(areaId)?.id ?? null;
 }
 
 function adjustWeights(current: ComfortWeights, key: keyof ComfortWeights, nextValue: number): ComfortWeights {
@@ -361,11 +368,12 @@ export default function App() {
   const [weights, setWeights] = useState<ComfortWeights>(() => loadWeights());
   const [debouncedWeights, setDebouncedWeights] = useState<ComfortWeights>(weights);
   const [activeTab, setActiveTab] = useState<"view" | "compare">("view");
+  const [selectedAreaId, setSelectedAreaId] = useState<string | null>(() => getAreaIdFromUrl());
   const [mapFilters, setMapFilters] = useState<MapFilters>({
-    easePlaces: true,
+    easePlaces: false,
     comfortArea: true,
-    streetFacilities: true,
-    naturalPlaces: true,
+    streetFacilities: false,
+    naturalPlaces: false,
   });
   const shouldFetchPrecincts = activeTab === 'compare' || mapFilters.comfortArea;
 
@@ -408,6 +416,20 @@ export default function App() {
     navigateTo("/");
   }, []);
 
+  const handleAreaNavigation = useCallback((areaId: string | null) => {
+    const url = new URL(window.location.href);
+    if (areaId) url.searchParams.set("area", areaId);
+    else url.searchParams.delete("area");
+    const nextUrl = `${url.pathname}${url.search}`;
+    const currentUrl = `${window.location.pathname}${window.location.search}`;
+    if (nextUrl === currentUrl) {
+      setSelectedAreaId(areaId);
+      return;
+    }
+    window.history.pushState({}, "", nextUrl);
+    window.dispatchEvent(new PopStateEvent("popstate"));
+  }, []);
+
   const categories = [
     { name: "Comfortable", level: "low",     color: "#22c55e", bgColor: "bg-green-100",  textColor: "text-green-800" },
     { name: "Caution",     level: "caution", color: "#eab308", bgColor: "bg-yellow-100", textColor: "text-yellow-800" },
@@ -415,6 +437,15 @@ export default function App() {
   ];
 
   useEffect(() => { saveWeights(weights); }, [weights]);
+
+  useEffect(() => {
+    const syncAreaFromUrl = () => {
+      setSelectedAreaId(getAreaIdFromUrl());
+    };
+
+    window.addEventListener("popstate", syncAreaFromUrl);
+    return () => window.removeEventListener("popstate", syncAreaFromUrl);
+  }, []);
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedWeights(weights), 800);
@@ -760,6 +791,11 @@ export default function App() {
 
   const showCardPrecinct = showCard ? precincts[showCard] : null;
   const betterPrecinctId = getBetterPrecinct();
+  const selectedArea = getAreaInfo(selectedAreaId);
+
+  if (selectedArea) {
+    return <AreaDetailPage area={selectedArea} onBack={() => handleAreaNavigation(null)} />;
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-gray-100 relative overflow-hidden">
@@ -952,6 +988,8 @@ export default function App() {
                       compareSelection1={null}
                       compareSelection2={null}
                       onPrecinctClick={handleMapClickCombined}
+                      onAreaClick={handleAreaNavigation}
+                      showInteractiveAreas={mapFilters.comfortArea}
                       showEasePlaces={mapFilters.easePlaces}
                       showStreetFacilities={mapFilters.streetFacilities}
                       showNaturalPlaces={mapFilters.naturalPlaces}
@@ -1099,6 +1137,7 @@ export default function App() {
                       compareSelection1={compareSelection1}
                       compareSelection2={compareSelection2}
                       onPrecinctClick={handleCompareClick}
+                      showInteractiveAreas={false}
                       showEasePlaces={false}
                       showStreetFacilities={false}
                       showNaturalPlaces={false}
