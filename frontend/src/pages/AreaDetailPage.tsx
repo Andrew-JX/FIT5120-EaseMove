@@ -3,16 +3,24 @@ import {
   BookOpenText,
   Compass,
   Footprints,
+  MoveRight,
   MapPinned,
 } from "lucide-react";
-import type { AreaInfo } from "../lib/areaInfo";
+import { getAreaRecommendationItems, type AreaInfo } from "../lib/areaInfo";
 
 type AreaDetailPageProps = {
   area: AreaInfo;
   onBack: () => void;
+  onRecommendationClick: (recommendationId: string) => void;
 };
 
-export default function AreaDetailPage({ area, onBack }: AreaDetailPageProps) {
+export default function AreaDetailPage({
+  area,
+  onBack,
+  onRecommendationClick,
+}: AreaDetailPageProps) {
+  const recommendations = getAreaRecommendationItems(area);
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-cyan-50/30 to-white">
       <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
@@ -98,18 +106,32 @@ export default function AreaDetailPage({ area, onBack }: AreaDetailPageProps) {
               </div>
 
               <div className="space-y-3">
-                {area.recommendations.map((item, index) => (
-                  <div
-                    key={item}
-                    className="rounded-2xl border border-gray-100 bg-gradient-to-r from-white to-cyan-50/50 p-4 shadow-sm"
+                {recommendations.map((item, index) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => onRecommendationClick(item.id)}
+                    className="group w-full rounded-2xl border border-gray-100 bg-gradient-to-r from-white to-cyan-50/50 p-4 text-left shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-cyan-200 hover:from-cyan-50 hover:to-teal-50 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-cyan-300"
                   >
                     <div className="flex items-start gap-3">
                       <div className="mt-0.5 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-teal-600 text-sm font-bold text-white">
                         {index + 1}
                       </div>
-                      <p className="text-sm leading-7 text-gray-700 sm:text-base">{item}</p>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0 flex-1">
+                            <p className="text-base font-semibold text-gray-900 sm:text-lg">
+                              {item.name}
+                            </p>
+                            <p className="mt-1 text-sm leading-7 text-gray-700 sm:text-base">
+                              {item.description}
+                            </p>
+                          </div>
+                          <MoveRight className="mt-1 h-5 w-5 flex-shrink-0 text-cyan-500 transition-transform duration-200 group-hover:translate-x-1" />
+                        </div>
+                      </div>
                     </div>
-                  </div>
+                  </button>
                 ))}
               </div>
             </section>
