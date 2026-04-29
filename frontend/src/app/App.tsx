@@ -20,9 +20,10 @@ import {
   type Precinct,
   type TodayRecommendation,
 } from "../lib/api";
-import { getAreaInfo } from "../lib/areaInfo";
+import { getAreaInfo, getAreaRecommendation } from "../lib/areaInfo";
 import { navigateTo } from "../lib/navigation";
 import AreaDetailPage from "../pages/AreaDetailPage";
+import RecommendationFacilitiesPage from "../pages/RecommendationFacilitiesPage";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -51,6 +52,13 @@ function formatDetailSensorStatus(p: Precinct): string {
 function getAreaIdFromUrl(): string | null {
   const areaId = new URLSearchParams(window.location.search).get("area");
   return getAreaInfo(areaId)?.id ?? null;
+}
+
+function getRecommendationIdFromUrl(): string | null {
+  const params = new URLSearchParams(window.location.search);
+  const areaId = params.get("area");
+  const recommendationId = params.get("place");
+  return getAreaRecommendation(areaId, recommendationId)?.id ?? null;
 }
 
 function adjustWeights(current: ComfortWeights, key: keyof ComfortWeights, nextValue: number): ComfortWeights {
@@ -369,6 +377,9 @@ export default function App() {
   const [debouncedWeights, setDebouncedWeights] = useState<ComfortWeights>(weights);
   const [activeTab, setActiveTab] = useState<"view" | "compare">("view");
   const [selectedAreaId, setSelectedAreaId] = useState<string | null>(() => getAreaIdFromUrl());
+  const [selectedRecommendationId, setSelectedRecommendationId] = useState<string | null>(
+    () => getRecommendationIdFromUrl()
+  );
   const [mapFilters, setMapFilters] = useState<MapFilters>({
     easePlaces: false,
     comfortArea: true,
@@ -416,14 +427,20 @@ export default function App() {
     navigateTo("/");
   }, []);
 
-  const handleAreaNavigation = useCallback((areaId: string | null) => {
+  const handleAreaNavigation = useCallback((
+    areaId: string | null,
+    recommendationId: string | null = null
+  ) => {
     const url = new URL(window.location.href);
     if (areaId) url.searchParams.set("area", areaId);
     else url.searchParams.delete("area");
+    if (areaId && recommendationId) url.searchParams.set("place", recommendationId);
+    else url.searchParams.delete("place");
     const nextUrl = `${url.pathname}${url.search}`;
     const currentUrl = `${window.location.pathname}${window.location.search}`;
     if (nextUrl === currentUrl) {
       setSelectedAreaId(areaId);
+      setSelectedRecommendationId(recommendationId);
       return;
     }
     window.history.pushState({}, "", nextUrl);
@@ -441,6 +458,7 @@ export default function App() {
   useEffect(() => {
     const syncAreaFromUrl = () => {
       setSelectedAreaId(getAreaIdFromUrl());
+      setSelectedRecommendationId(getRecommendationIdFromUrl());
     };
 
     window.addEventListener("popstate", syncAreaFromUrl);
@@ -792,9 +810,28 @@ export default function App() {
   const showCardPrecinct = showCard ? precincts[showCard] : null;
   const betterPrecinctId = getBetterPrecinct();
   const selectedArea = getAreaInfo(selectedAreaId);
+  const selectedRecommendation = getAreaRecommendation(selectedAreaId, selectedRecommendationId);
+
+  if (selectedArea && selectedRecommendation) {
+    return (
+      <RecommendationFacilitiesPage
+        area={selectedArea}
+        recommendation={selectedRecommendation}
+        onBack={() => handleAreaNavigation(selectedArea.id, null)}
+      />
+    );
+  }
 
   if (selectedArea) {
-    return <AreaDetailPage area={selectedArea} onBack={() => handleAreaNavigation(null)} />;
+    return (
+      <AreaDetailPage
+        area={selectedArea}
+        onBack={() => handleAreaNavigation(null)}
+        onRecommendationClick={(recommendationId) =>
+          handleAreaNavigation(selectedArea.id, recommendationId)
+        }
+      />
+    );
   }
 
   return (

@@ -8,6 +8,17 @@ export type ComfortRoute = {
   description: string;
 };
 
+export type RecommendationPoint = {
+  id: string;
+  lat: number;
+  lng: number;
+};
+
+export type AreaRecommendation = RecommendationPoint & {
+  name: string;
+  description: string;
+};
+
 export type AreaInfo = {
   id: string;
   name: string;
@@ -565,7 +576,129 @@ export const AREA_INFO_BY_ID = Object.fromEntries(
   AREA_INFO.map((area) => [area.id, area])
 ) as Record<string, AreaInfo>;
 
+const AREA_RECOMMENDATION_POINTS: Record<string, RecommendationPoint[]> = {
+  "docklands": [
+    { id: "library-at-the-dock", lat: -37.8141, lng: 144.9475 },
+    { id: "victoria-harbour-promenade", lat: -37.8149, lng: 144.9479 },
+    { id: "the-district-docklands", lat: -37.8104, lng: 144.9396 },
+    { id: "marvel-stadium", lat: -37.8165, lng: 144.9475 },
+    { id: "ron-barassi-snr-park", lat: -37.8121, lng: 144.9442 },
+  ],
+  "southbank": [
+    { id: "southbank-promenade", lat: -37.8208, lng: 144.9658 },
+    { id: "ngv-international", lat: -37.8227, lng: 144.9688 },
+    { id: "arts-centre-melbourne", lat: -37.8216, lng: 144.9681 },
+    { id: "eureka-skydeck", lat: -37.8214, lng: 144.9648 },
+    { id: "hamer-hall", lat: -37.8200, lng: 144.9670 },
+  ],
+  "north-melbourne": [
+    { id: "queen-victoria-market-north-edge", lat: -37.8067, lng: 144.9578 },
+    { id: "royal-park-access", lat: -37.7949, lng: 144.9528 },
+    { id: "errol-street", lat: -37.8007, lng: 144.9496 },
+    { id: "north-melbourne-recreation-reserve", lat: -37.7994, lng: 144.9485 },
+    { id: "meat-market-arts-house", lat: -37.8058, lng: 144.9526 },
+  ],
+  "west-melbourne": [
+    { id: "flagstaff-gardens", lat: -37.8114, lng: 144.9542 },
+    { id: "queen-victoria-market", lat: -37.8076, lng: 144.9568 },
+    { id: "north-melbourne-station-precinct", lat: -37.8063, lng: 144.9418 },
+    { id: "warehouse-laneways", lat: -37.8089, lng: 144.9486 },
+    { id: "spencer-street-fringe-cafes", lat: -37.8115, lng: 144.9491 },
+  ],
+  "east-melbourne": [
+    { id: "fitzroy-gardens", lat: -37.8136, lng: 144.9807 },
+    { id: "treasury-gardens", lat: -37.8159, lng: 144.9738 },
+    { id: "melbourne-cricket-ground", lat: -37.8199, lng: 144.9835 },
+    { id: "st-patricks-cathedral", lat: -37.8100, lng: 144.9759 },
+    { id: "parliament-gardens-precinct", lat: -37.8109, lng: 144.9737 },
+  ],
+  "south-melbourne": [
+    { id: "south-melbourne-market", lat: -37.8323, lng: 144.9585 },
+    { id: "clarendon-street", lat: -37.8316, lng: 144.9605 },
+    { id: "south-melbourne-town-hall", lat: -37.8312, lng: 144.9636 },
+    { id: "albert-park-edge", lat: -37.8382, lng: 144.9688 },
+    { id: "eastern-road-streetscape", lat: -37.8338, lng: 144.9690 },
+  ],
+  "fitzroy": [
+    { id: "brunswick-street", lat: -37.7983, lng: 144.9780 },
+    { id: "smith-street", lat: -37.8021, lng: 144.9838 },
+    { id: "rose-street-artists-market", lat: -37.8025, lng: 144.9787 },
+    { id: "fitzroy-town-hall", lat: -37.7988, lng: 144.9788 },
+    { id: "atherton-gardens", lat: -37.8009, lng: 144.9828 },
+  ],
+  "kensington": [
+    { id: "bellair-street-village", lat: -37.7945, lng: 144.9280 },
+    { id: "jj-holland-park", lat: -37.7952, lng: 144.9247 },
+    { id: "kensington-station-precinct", lat: -37.7938, lng: 144.9271 },
+    { id: "macaulay-road-strip", lat: -37.7930, lng: 144.9364 },
+    { id: "historic-terrace-streets", lat: -37.7920, lng: 144.9289 },
+  ],
+  "flemington": [
+    { id: "flemington-racecourse", lat: -37.7872, lng: 144.9129 },
+    { id: "newmarket-plaza-precinct", lat: -37.7878, lng: 144.9219 },
+    { id: "racecourse-road", lat: -37.7888, lng: 144.9290 },
+    { id: "debneys-park-and-river-trails", lat: -37.8007, lng: 144.9188 },
+    { id: "travancore-connections", lat: -37.7899, lng: 144.9380 },
+  ],
+  "melbourne-cbd": [
+    { id: "state-library-victoria", lat: -37.8097, lng: 144.9653 },
+    { id: "federation-square", lat: -37.8179, lng: 144.9690 },
+    { id: "bourke-street-mall", lat: -37.8136, lng: 144.9631 },
+    { id: "hosier-lane", lat: -37.8168, lng: 144.9693 },
+    { id: "flinders-street-station", lat: -37.8183, lng: 144.9671 },
+  ],
+  "south-yarra": [
+    { id: "chapel-street", lat: -37.8374, lng: 144.9954 },
+    { id: "como-house-and-garden", lat: -37.8398, lng: 144.9917 },
+    { id: "royal-botanic-gardens-access", lat: -37.8324, lng: 144.9818 },
+    { id: "yarra-river-trail", lat: -37.8358, lng: 144.9977 },
+    { id: "toorak-road-dining-area", lat: -37.8404, lng: 144.9936 },
+  ],
+  "carlton": [
+    { id: "lygon-street", lat: -37.7985, lng: 144.9670 },
+    { id: "melbourne-museum", lat: -37.8033, lng: 144.9717 },
+    { id: "royal-exhibition-building", lat: -37.8047, lng: 144.9717 },
+    { id: "carlton-gardens", lat: -37.8044, lng: 144.9711 },
+    { id: "university-of-melbourne-precinct", lat: -37.7964, lng: 144.9615 },
+  ],
+};
+
+function parseRecommendationText(text: string): { name: string; description: string } {
+  const [name, ...rest] = text.split(" - ");
+  return {
+    name: name.trim(),
+    description: rest.join(" - ").trim(),
+  };
+}
+
 export function getAreaInfo(areaId: string | null | undefined): AreaInfo | null {
   if (!areaId) return null;
   return AREA_INFO_BY_ID[areaId] ?? null;
+}
+
+export function getAreaRecommendationItems(area: AreaInfo): AreaRecommendation[] {
+  const points = AREA_RECOMMENDATION_POINTS[area.id] ?? [];
+
+  return area.recommendations.map((text, index) => {
+    const point = points[index];
+    const parsed = parseRecommendationText(text);
+
+    return {
+      id: point?.id ?? `${area.id}-recommendation-${index + 1}`,
+      name: parsed.name,
+      description: parsed.description,
+      lat: point?.lat ?? Number.NaN,
+      lng: point?.lng ?? Number.NaN,
+    };
+  });
+}
+
+export function getAreaRecommendation(
+  areaId: string | null | undefined,
+  recommendationId: string | null | undefined
+): AreaRecommendation | null {
+  const area = getAreaInfo(areaId);
+  if (!area || !recommendationId) return null;
+
+  return getAreaRecommendationItems(area).find((item) => item.id === recommendationId) ?? null;
 }
