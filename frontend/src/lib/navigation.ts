@@ -1,9 +1,17 @@
-export type AppRoutePath = "/" | "/map" | "/aboutus" | "/extreme-weather-risks";
+export type AppRoutePath =
+  "/"
+  | "/map"
+  | "/aboutus"
+  | "/extreme-weather-risks"
+  | "/extreme-weather-risks-detail"
+  | "/extreme-weather-risks-quiz";
 
 export function normalizeAppPath(path: string): AppRoutePath {
   if (path === "/map" || path === "/map/") return "/map";
   if (path === "/aboutus" || path === "/aboutus/") return "/aboutus";
   if (path === "/extreme-weather-risks" || path === "/extreme-weather-risks/") return "/extreme-weather-risks";
+  if (path.startsWith("/extreme-weather-risks-detail")) return "/extreme-weather-risks-detail";
+  if (path === "/extreme-weather-risks-quiz" || path === "/extreme-weather-risks-quiz/") return "/extreme-weather-risks-quiz";
 
   return "/";
 }

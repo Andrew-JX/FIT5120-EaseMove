@@ -4,6 +4,8 @@ import App from "./app/App.tsx";
 import HomePage from "./components/landing/HomePage.tsx";
 import AboutUsPage from "./pages/AboutUsPage.tsx";
 import ExtremeWeatherRisksPage from "./pages/ExtremeWeatherRisksPage.tsx";
+import ExtremeWeatherRiskDetailPage from "./pages/ExtremeWeatherRiskDetailPage.tsx";
+import ExtremeWeatherQuizPage from "./pages/ExtremeWeatherQuizPage.tsx";
 import { normalizeAppPath } from "./lib/navigation.ts";
 import "./styles/index.css";
 
@@ -63,6 +65,14 @@ function RootRouter() {
 
   if (pathname === "/extreme-weather-risks") {
     return <ExtremeWeatherRisksPage />;
+  }
+
+  if (pathname === "/extreme-weather-risks-detail") {
+    return <ExtremeWeatherRiskDetailPage />;
+  }
+
+  if (pathname === "/extreme-weather-risks-quiz") {
+    return <ExtremeWeatherQuizPage />;
   }
 
   return <HomePage entryId={landingEntryId} key={`landing-${landingEntryId}`} />;
