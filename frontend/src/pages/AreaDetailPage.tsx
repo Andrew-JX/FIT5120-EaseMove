@@ -3,8 +3,8 @@ import {
   BookOpenText,
   Compass,
   Footprints,
-  MoveRight,
   MapPinned,
+  MoveRight,
 } from "lucide-react";
 import { getAreaRecommendationItems, type AreaInfo } from "../lib/areaInfo";
 
@@ -62,7 +62,7 @@ export default function AreaDetailPage({
                     Area Character
                   </p>
                   <h2 className="text-2xl font-bold text-gray-900">
-                    {"🌿 "}What {area.name} feels like?
+                    What {area.name} feels like?
                   </h2>
                 </div>
               </div>
@@ -101,7 +101,11 @@ export default function AreaDetailPage({
                   <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-700/80">
                     Recommendation
                   </p>
-                  <h2 className="text-2xl font-bold text-gray-900">{"🧭 "}Where to go ?</h2>
+                  <h2 className="text-2xl font-bold text-gray-900">Where to go ?</h2>
+                  <p className="mt-2 max-w-xl text-sm leading-6 text-gray-500">
+                    Tap a place to check nearby bike racks, drinking fountains, and
+                    seating within 500m.
+                  </p>
                 </div>
               </div>
 
@@ -111,23 +115,26 @@ export default function AreaDetailPage({
                     key={item.id}
                     type="button"
                     onClick={() => onRecommendationClick(item.id)}
-                    className="group w-full rounded-2xl border border-gray-100 bg-gradient-to-r from-white to-cyan-50/50 p-4 text-left shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-cyan-200 hover:from-cyan-50 hover:to-teal-50 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-cyan-300"
+                    className="group w-full cursor-pointer rounded-2xl border border-gray-100 bg-gradient-to-r from-white to-cyan-50/50 p-4 text-left shadow-sm transition-all duration-200 hover:-translate-y-1 hover:border-cyan-300 hover:from-cyan-50 hover:to-teal-50 hover:shadow-lg active:translate-y-0 active:scale-[0.995] active:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-300"
                   >
                     <div className="flex items-start gap-3">
-                      <div className="mt-0.5 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-teal-600 text-sm font-bold text-white">
+                      <div className="mt-0.5 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-teal-600 text-sm font-bold text-white shadow-sm transition-transform duration-200 group-hover:scale-105">
                         {index + 1}
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0 flex-1">
-                            <p className="text-base font-semibold text-gray-900 sm:text-lg">
+                            <p className="text-base font-semibold text-gray-900 transition-colors duration-200 group-hover:text-cyan-800 sm:text-lg">
                               {item.name}
                             </p>
                             <p className="mt-1 text-sm leading-7 text-gray-700 sm:text-base">
                               {item.description}
                             </p>
+                            <p className="mt-3 text-xs font-semibold uppercase tracking-[0.14em] text-cyan-600 transition-colors duration-200 group-hover:text-cyan-700">
+                              View nearby facilities
+                            </p>
                           </div>
-                          <MoveRight className="mt-1 h-5 w-5 flex-shrink-0 text-cyan-500 transition-transform duration-200 group-hover:translate-x-1" />
+                          <MoveRight className="mt-1 h-5 w-5 flex-shrink-0 text-cyan-500 transition-all duration-200 group-hover:translate-x-1.5 group-hover:text-cyan-600" />
                         </div>
                       </div>
                     </div>
