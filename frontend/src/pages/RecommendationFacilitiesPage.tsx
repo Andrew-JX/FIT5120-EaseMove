@@ -194,7 +194,7 @@ export default function RecommendationFacilitiesPage({
                               {!facility && (
                                 <p className="mt-2 text-sm leading-7 text-slate-600">
                                   No {slot.typeLabel.toLowerCase()} was found within 500m of this
-                                  selected place.
+                                  selected place in the current supported map area.
                                 </p>
                               )}
                             </div>
@@ -222,8 +222,9 @@ export default function RecommendationFacilitiesPage({
 
                   <div className="rounded-2xl border border-indigo-100 bg-indigo-50/70 px-4 py-3 text-sm leading-7 text-indigo-900">
                     <span className="font-semibold">Tip:</span> All facilities are based on the
-                    same dataset used in the Street Facilities map layer. Each row checks one
-                    facility type and shows the nearest match within 500m.
+                    same dataset used in the Street Facilities map layer. Results only reflect
+                    facilities within the supported map area, so places near or beyond the
+                    boundary may return no nearby match within 500m.
                   </div>
                 </div>
               )}
