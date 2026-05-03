@@ -1,6 +1,10 @@
 import { useState } from "react";
 
-const screenshotUrl = new URL("../../assets/landing/5.png", import.meta.url).href;
+const screenshotUrls = [
+  new URL("../../assets/landing/5.png", import.meta.url).href,
+  new URL("../../assets/landing/6.png", import.meta.url).href,
+  new URL("../../assets/landing/7.png", import.meta.url).href,
+] as const;
 
 const steps = [
   {
@@ -60,14 +64,15 @@ const steps = [
 export default function HowToUseScene() {
   const [activeStepIndex, setActiveStepIndex] = useState(0);
   const activeCallout = steps[activeStepIndex].callout;
+  const activeScreenshotUrl = screenshotUrls[activeStepIndex];
 
   return (
-    <section className="landing-how-scene" aria-label="How to use EaseMove">
+    <section className="landing-how-scene" aria-label="How to use MoveComfortly">
       <div className="landing-how-inner">
         <div className="landing-how-grid">
           <div className="landing-how-copy">
             <p className="landing-how-kicker">Plan with confidence</p>
-            <h2>How to Use EaseMove</h2>
+            <h2>How to Use MoveComfortly</h2>
             <p className="landing-how-subtitle">
               Explore cool places, check comfort conditions, and compare options before you head
               out.
@@ -105,10 +110,13 @@ export default function HowToUseScene() {
 
           <div className="landing-how-product">
             <figure className="landing-how-screenshot">
-              <img src={screenshotUrl} alt="EaseMove map interface with places and comfort data" />
+              <img
+                src={activeScreenshotUrl}
+                alt="MoveComfortly map interface with places and comfort data"
+              />
             </figure>
             <div className="landing-how-callout" aria-live="polite">
-              <span>Using EaseMove</span>
+              <span>Using MoveComfortly</span>
               <p>{activeCallout}</p>
             </div>
           </div>

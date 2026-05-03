@@ -37,7 +37,7 @@ function PortfolioEmbed() {
     <iframe
       ref={iframeRef}
       src={PORTFOLIO_URL}
-      title="EaseMove Portfolio"
+      title="MoveComfortly Portfolio"
       className="aboutus-portfolio-frame"
       loading="lazy"
       onError={() => setBlocked(true)}
@@ -54,10 +54,10 @@ export default function AboutUsPage() {
     <div className="aboutus-page">
       {/* Hero */}
       <section className="aboutus-hero">
-        <p className="aboutus-hero-kicker">EaseMove Melbourne</p>
-        <h1>About EaseMove</h1>
+        <p className="aboutus-hero-kicker">MoveComfortly Melbourne</p>
+        <h1>About MoveComfortly</h1>
         <p className="aboutus-hero-sub">
-          EaseMove is a concept-driven web experience exploring how public urban
+          MoveComfortly is a concept-driven web experience exploring how public urban
           data can support more comfortable walking and riding decisions across
           inner Melbourne during hotter days.
         </p>
@@ -77,9 +77,9 @@ export default function AboutUsPage() {
           <div className="aboutus-intro-grid">
             <div>
               <div className="aboutus-qa-block">
-                <h3>What is EaseMove?</h3>
+                <h3>What is MoveComfortly?</h3>
                 <p>
-                  EaseMove is a prototype that explores how public environmental
+                  MoveComfortly is a prototype that explores how public environmental
                   and city activity information can be translated into more
                   understandable travel-comfort guidance for young walkers and
                   riders.
@@ -88,7 +88,7 @@ export default function AboutUsPage() {
               <div className="aboutus-qa-block">
                 <h3>Who is it for?</h3>
                 <p>
-                  EaseMove is designed with young adults in mind, especially
+                  MoveComfortly is designed with young adults in mind, especially
                   students and part-time workers moving through inner Melbourne
                   on foot or by bike.
                 </p>
@@ -108,7 +108,7 @@ export default function AboutUsPage() {
               <div className="aboutus-project-card">
                 <div>
                   <p className="aboutus-project-card-title">Project</p>
-                  <h4>EaseMove Melbourne</h4>
+                  <h4>MoveComfortly Melbourne</h4>
                 </div>
                 <div className="aboutus-tags">
                   <span className="aboutus-tag">Urban comfort</span>
@@ -153,7 +153,7 @@ export default function AboutUsPage() {
       {/* Bottom CTA */}
       <section className="aboutus-cta">
         <p className="aboutus-cta-kicker">Get started</p>
-        <h2>Explore EaseMove</h2>
+        <h2>Explore MoveComfortly</h2>
         <p className="aboutus-cta-sub">
           Explore the landing story or go directly to the interactive map
           experience.
