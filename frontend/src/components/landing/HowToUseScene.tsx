@@ -4,7 +4,9 @@ const screenshotUrls = [
   new URL("../../assets/landing/5.png", import.meta.url).href,
   new URL("../../assets/landing/6.png", import.meta.url).href,
   new URL("../../assets/landing/7.png", import.meta.url).href,
+  new URL("../../assets/landing/8.png", import.meta.url).href,
 ] as const;
+const extremeWeatherUrl = "http://localhost:5174/extreme-weather-risks";
 
 const steps = [
   {
@@ -59,12 +61,31 @@ const steps = [
     chips: ["Side-by-side view", "Suggestion", "Recommended times"],
     callout: "Pick the better-feeling option, then choose the time window that works best.",
   },
+  {
+    eyebrow: "Step 4",
+    title: "Check extreme weather risks before heading out",
+    body:
+      "Open the extreme weather page to understand major weather-related risks, health impacts, and what actions help you stay safer outdoors.",
+    details: [
+      "Review heat, storm, rain, cold, and dry-condition risks",
+      "See why each risk happens",
+      "Read practical safety actions",
+      "Try the quick quiz to test your understanding",
+    ],
+    chips: ["Extreme weather", "Health impacts", "Safety actions", "Quiz"],
+    callout:
+      "Use the extreme weather guide to spot risks early and choose safer actions before your trip.",
+  },
 ] as const;
 
 export default function HowToUseScene() {
   const [activeStepIndex, setActiveStepIndex] = useState(0);
   const activeCallout = steps[activeStepIndex].callout;
   const activeScreenshotUrl = screenshotUrls[activeStepIndex];
+  const isExtremeWeatherStep = activeStepIndex === 3;
+  const openExtremeWeatherPage = () => {
+    window.location.href = extremeWeatherUrl;
+  };
 
   return (
     <section className="landing-how-scene" aria-label="How to use MoveComfortly">
@@ -119,6 +140,15 @@ export default function HowToUseScene() {
               <span>Using MoveComfortly</span>
               <p>{activeCallout}</p>
             </div>
+            {isExtremeWeatherStep ? (
+              <button
+                className="landing-how-action"
+                type="button"
+                onClick={openExtremeWeatherPage}
+              >
+                Explore Extreme Weather Risks
+              </button>
+            ) : null}
           </div>
         </div>
       </div>
