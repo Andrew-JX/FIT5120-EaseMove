@@ -1,70 +1,81 @@
 /* ─── Map Sidebar Controls (right-side vertical button strip) ─── */
 .map-sidebar-controls {
   position: absolute;
-  right: 12px;
-  top: 12px;
+  right: 16px;
+  top: 16px;
   z-index: 1000;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
   pointer-events: auto;
 }
 
 .map-ctrl-btn {
-  width: 40px;
-  height: 40px;
-  border-radius: 4px;
-  background: #fff;
-  border: 1px solid rgba(0, 0, 0, 0.12);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  background: rgba(247, 255, 253, 0.94);
+  border: 1px solid rgba(131, 197, 190, 0.22);
+  box-shadow: 0 16px 36px rgba(4, 14, 14, 0.18);
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  color: #666;
-  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  color: #17413f;
+  transition:
+    background 0.15s,
+    color 0.15s,
+    border-color 0.15s,
+    transform 0.15s,
+    box-shadow 0.15s;
   padding: 0;
   flex-shrink: 0;
+  backdrop-filter: blur(14px);
 }
 
 .map-ctrl-btn:hover {
-  background: #f5f5f5;
+  background: #ffffff;
+  border-color: rgba(0, 109, 119, 0.36);
+  transform: translateY(-1px);
 }
 
 .map-ctrl-btn.active {
-  border: 2px solid #007bff;
-  color: #007bff;
-  background: rgba(0, 123, 255, 0.06);
+  border: 1px solid rgba(0, 109, 119, 0.42);
+  color: #006d77;
+  background: rgba(131, 197, 190, 0.18);
+  box-shadow: 0 18px 40px rgba(0, 109, 119, 0.18);
 }
 
 .map-ctrl-sep {
   height: 1px;
-  background: rgba(0, 0, 0, 0.08);
+  background: rgba(23, 65, 63, 0.12);
   margin: 0;
 }
 
 /* ─── Right-side Floating Panel (legend / layer switcher) ────── */
 .map-right-panel {
   position: absolute;
-  right: 60px;
-  top: 12px;
+  right: 72px;
+  top: 16px;
   z-index: 999;
-  background: #fff;
-  border-radius: 8px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.14);
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  min-width: 200px;
+  background: rgba(247, 255, 253, 0.94);
+  border-radius: 18px;
+  box-shadow: 0 20px 44px rgba(4, 14, 14, 0.18);
+  border: 1px solid rgba(131, 197, 190, 0.22);
+  min-width: 220px;
   overflow: hidden;
+  backdrop-filter: blur(16px);
 }
 
 .map-panel-header {
-  padding: 8px 14px 6px;
+  padding: 12px 16px 8px;
   font-size: 11px;
   font-weight: 700;
-  color: #888;
+  color: #4d6f6c;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
-  border-bottom: 1px solid #f0f0f0;
+  letter-spacing: 0.12em;
+  border-bottom: 1px solid rgba(23, 65, 63, 0.08);
+  background: linear-gradient(180deg, rgba(131, 197, 190, 0.12), rgba(255, 255, 255, 0));
 }
 
 /* ─── Layer Switcher Items ───────────────────────────────────── */
@@ -72,12 +83,12 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 10px 14px;
+  padding: 12px 16px;
   cursor: pointer;
   transition: background 0.12s;
   font-size: 13px;
-  font-weight: 500;
-  color: #333;
+  font-weight: 600;
+  color: #17302e;
   border: none;
   background: none;
   width: 100%;
@@ -85,11 +96,11 @@
 }
 
 .layer-item:hover {
-  background: #f5f5f5;
+  background: rgba(131, 197, 190, 0.1);
 }
 
 .layer-item.active {
-  background: rgba(0, 109, 119, 0.08);
+  background: rgba(131, 197, 190, 0.18);
   color: var(--stormy-teal, #006d77);
   font-weight: 600;
 }
@@ -120,10 +131,10 @@
 
 /* ─── Legend Items ───────────────────────────────────────────── */
 .legend-body {
-  padding: 12px 14px;
+  padding: 14px 16px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
 }
 
 .legend-row {
@@ -131,7 +142,7 @@
   align-items: center;
   gap: 10px;
   font-size: 12px;
-  color: #444;
+  color: #294745;
 }
 
 /* Cool Places concentric circle dots (CSS-only, no extra DOM) */
@@ -185,17 +196,33 @@
 /* Legend section divider */
 .legend-divider {
   height: 1px;
-  background: #f0f0f0;
-  margin: 8px 0;
+  background: rgba(23, 65, 63, 0.08);
+  margin: 8px 0 6px;
 }
 
 .legend-section-label {
   font-size: 10px;
   font-weight: 700;
-  color: #aaa;
+  color: #5f8682;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.1em;
   margin-bottom: 6px;
+}
+
+.leaflet-tooltip.area-tip {
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(13, 148, 136, 0.14);
+  border-radius: 999px;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.12);
+  color: #0f172a;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  padding: 6px 10px;
+}
+
+.leaflet-tooltip.area-tip.leaflet-tooltip-top::before {
+  border-top-color: rgba(255, 255, 255, 0.96) !important;
 }
 
 /* ─── Unified Furniture Tooltip ──────────────────────────────── */
@@ -237,14 +264,15 @@
   position: absolute;
   width: 300px;
   max-height: calc(100% - 32px);
-  background: #fff;
-  border-radius: 12px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.16);
-  border: 1px solid rgba(0, 0, 0, 0.08);
+  background: rgba(247, 255, 253, 0.96);
+  border-radius: 18px;
+  box-shadow: 0 24px 54px rgba(4, 14, 14, 0.24);
+  border: 1px solid rgba(131, 197, 190, 0.22);
   z-index: 1100;
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  backdrop-filter: blur(16px);
 }
 
 @media (max-width: 640px) {
@@ -263,8 +291,8 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 12px;
-  background: var(--stormy-teal, #006d77);
+  padding: 12px 14px;
+  background: linear-gradient(135deg, #0f2524 0%, #17413f 100%);
   color: #fff;
   flex-shrink: 0;
 }
@@ -286,7 +314,7 @@
   height: 26px;
   border-radius: 50%;
   border: none;
-  background: rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.14);
   color: #fff;
   cursor: pointer;
   display: flex;
@@ -297,12 +325,12 @@
 }
 
 .cpp-icon-btn:hover {
-  background: rgba(255, 255, 255, 0.32);
+  background: rgba(255, 255, 255, 0.28);
 }
 
 .cpp-body {
   overflow-y: auto;
-  padding: 14px 16px;
+  padding: 16px 18px;
   flex: 1;
 }
 
@@ -316,12 +344,12 @@
 .cpp-category-name {
   font-size: 12px;
   font-weight: 600;
-  color: #555;
+  color: #4d6f6c;
 }
 
 .cpp-sub-type {
   font-size: 11px;
-  color: #aaa;
+  color: #6e908d;
   margin-bottom: 6px;
   padding-left: 20px;
 }
@@ -329,7 +357,7 @@
 .cpp-place-name {
   font-size: 18px;
   font-weight: 700;
-  color: #111;
+  color: #10201f;
   margin-bottom: 12px;
   line-height: 1.25;
 }
@@ -344,7 +372,7 @@
   width: 34px;
   height: 34px;
   border-radius: 50%;
-  background: #2d2d2d;
+  background: #17413f;
   color: #fff;
   border: none;
   cursor: default;
@@ -365,7 +393,7 @@
   bottom: calc(100% + 6px);
   left: 50%;
   transform: translateX(-50%) translateY(0);
-  background: #222;
+  background: #102624;
   color: #fff;
   font-size: 11px;
   padding: 4px 8px;
@@ -378,7 +406,7 @@
 }
 
 .cpp-details {
-  border-top: 1px solid #eee;
+  border-top: 1px solid rgba(23, 65, 63, 0.08);
   padding-top: 12px;
 }
 
@@ -394,7 +422,7 @@
 
 .cpp-detail-label {
   font-size: 11px;
-  color: #aaa;
+  color: #6e908d;
   min-width: 90px;
   flex-shrink: 0;
   padding-top: 1px;
@@ -402,7 +430,7 @@
 
 .cpp-detail-value {
   font-size: 12px;
-  color: #111;
+  color: #10201f;
   font-weight: 500;
   flex: 1;
   line-height: 1.4;
