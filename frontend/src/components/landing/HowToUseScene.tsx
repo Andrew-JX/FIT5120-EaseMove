@@ -1,12 +1,16 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { motion } from "framer-motion";
+import { navigateTo } from "../../lib/navigation";
 
 const screenshotUrls = [
   new URL("../../assets/landing/5.png", import.meta.url).href,
   new URL("../../assets/landing/6.png", import.meta.url).href,
   new URL("../../assets/landing/7.png", import.meta.url).href,
   new URL("../../assets/landing/8.png", import.meta.url).href,
+  new URL("../../assets/landing/9.png", import.meta.url).href,
 ] as const;
 const extremeWeatherUrl = "http://localhost:5174/extreme-weather-risks";
+const areaDetailExampleUrl = "http://localhost:5174/map?area=melbourne-cbd";
 
 const steps = [
   {
@@ -76,6 +80,21 @@ const steps = [
     callout:
       "Use the extreme weather guide to spot risks early and choose safer actions before your trip.",
   },
+  {
+    eyebrow: "Step 5",
+    title: "Open area details and nearby public facilities",
+    body:
+      "Select an interactive area on the map to open its area introduction, neighbourhood tags, comfort route ideas, and recommended places.",
+    details: [
+      "Open an area detail page from the map",
+      "Read the area character and quick tags",
+      "Tap a recommended place in that area",
+      "Check nearby bike racks, drinking fountains, and seats",
+    ],
+    chips: ["Area introduction", "Recommendation", "Comfort routes", "Nearby facilities"],
+    callout:
+      "Use the area detail flow to understand a precinct first, then open a recommended place to see nearby public comfort support.",
+  },
 ] as const;
 
 export default function HowToUseScene() {
@@ -83,9 +102,58 @@ export default function HowToUseScene() {
   const activeCallout = steps[activeStepIndex].callout;
   const activeScreenshotUrl = screenshotUrls[activeStepIndex];
   const isExtremeWeatherStep = activeStepIndex === 3;
+  const isAreaDetailStep = activeStepIndex === 4;
+  const viewportRef = useRef<HTMLDivElement | null>(null);
+  const wheelLockRef = useRef(false);
+  const isMapStep = activeStepIndex < 3;
   const openExtremeWeatherPage = () => {
     window.location.href = extremeWeatherUrl;
   };
+  const openMapPage = () => {
+    navigateTo("/map");
+  };
+  const openAreaDetailExample = () => {
+    window.location.href = areaDetailExampleUrl;
+  };
+  const activateStep = (index: number) => {
+    setActiveStepIndex(Math.max(0, Math.min(steps.length - 1, index)));
+  };
+  const handleStepKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === "ArrowDown" || event.key === "PageDown") {
+      event.preventDefault();
+      activateStep(activeStepIndex + 1);
+    }
+
+    if (event.key === "ArrowUp" || event.key === "PageUp") {
+      event.preventDefault();
+      activateStep(activeStepIndex - 1);
+    }
+  };
+
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+
+    const handleWheel = (event: WheelEvent) => {
+      event.preventDefault();
+      event.stopPropagation();
+
+      if (wheelLockRef.current || Math.abs(event.deltaY) < 12) return;
+
+      wheelLockRef.current = true;
+      activateStep(activeStepIndex + (event.deltaY > 0 ? 1 : -1));
+
+      window.setTimeout(() => {
+        wheelLockRef.current = false;
+      }, 520);
+    };
+
+    viewport.addEventListener("wheel", handleWheel, { passive: false });
+
+    return () => {
+      viewport.removeEventListener("wheel", handleWheel);
+    };
+  }, [activeStepIndex]);
 
   return (
     <section className="landing-how-scene" aria-label="How to use MoveComfortly">
@@ -94,20 +162,83 @@ export default function HowToUseScene() {
           <div className="landing-how-copy">
             <p className="landing-how-kicker">Plan with confidence</p>
             <h2>How to Use MoveComfortly</h2>
-            <p className="landing-how-subtitle">
-              Explore cool places, check comfort conditions, and compare options before you head
-              out.
-            </p>
 
             <div className="landing-how-steps-wrap">
-              <ol className="landing-how-steps">
+              <div
+                ref={viewportRef}
+                className="landing-how-steps-viewport"
+                role="region"
+                aria-label="MoveComfortly step cards"
+                tabIndex={0}
+                onKeyDown={handleStepKeyDown}
+              >
+                <ol className="landing-how-steps">
                 {steps.map((step, index) => (
-                  <li key={step.title}>
+                  <motion.li
+                    key={step.title}
+                    className="landing-how-step-item"
+                    initial={false}
+                    animate={{
+                      y:
+                        index === activeStepIndex
+                          ? 0
+                          : index < activeStepIndex
+                            ? -110
+                            : index === activeStepIndex + 1
+                              ? 110
+                              : 150,
+                      z:
+                        index === activeStepIndex
+                          ? 0
+                          : index < activeStepIndex
+                            ? -120
+                            : index === activeStepIndex + 1
+                              ? -80
+                              : -140,
+                      scale:
+                        index === activeStepIndex
+                          ? 1
+                          : index < activeStepIndex
+                            ? 0.82
+                            : index === activeStepIndex + 1
+                              ? 0.86
+                              : 0.78,
+                      opacity:
+                        index === activeStepIndex
+                          ? 1
+                          : index < activeStepIndex
+                            ? 0
+                            : index === activeStepIndex + 1
+                              ? 0.52
+                              : 0,
+                      rotateX:
+                        index === activeStepIndex
+                          ? 0
+                          : index < activeStepIndex
+                            ? 18
+                            : index === activeStepIndex + 1
+                              ? -12
+                              : -16,
+                      zIndex:
+                        index === activeStepIndex
+                          ? 4
+                          : index === activeStepIndex + 1
+                            ? 3
+                            : index === activeStepIndex - 1
+                              ? 2
+                              : 1,
+                    }}
+                    transition={{
+                      duration: 0.62,
+                      ease: [0.25, 1, 0.5, 1],
+                    }}
+                  >
                     <button
                       className={`landing-how-step${activeStepIndex === index ? " is-active" : ""}`}
                       type="button"
                       aria-pressed={activeStepIndex === index}
-                      onClick={() => setActiveStepIndex(index)}
+                      aria-current={activeStepIndex === index ? "step" : undefined}
+                      onClick={() => activateStep(index)}
                     >
                       <span className="landing-how-step-eyebrow">{step.eyebrow}</span>
                       <h3>{step.title}</h3>
@@ -123,9 +254,11 @@ export default function HowToUseScene() {
                         ))}
                       </div>
                     </button>
-                  </li>
+                  </motion.li>
                 ))}
-              </ol>
+                </ol>
+              </div>
+              <p className="landing-how-steps-hint">Scroll to move through the steps</p>
             </div>
           </div>
 
@@ -140,6 +273,20 @@ export default function HowToUseScene() {
               <span>Using MoveComfortly</span>
               <p>{activeCallout}</p>
             </div>
+            {isMapStep ? (
+              <button className="landing-how-action" type="button" onClick={openMapPage}>
+                Open the Map
+              </button>
+            ) : null}
+            {isAreaDetailStep ? (
+              <button
+                className="landing-how-action"
+                type="button"
+                onClick={openAreaDetailExample}
+              >
+                Explore an Area Detail Example
+              </button>
+            ) : null}
             {isExtremeWeatherStep ? (
               <button
                 className="landing-how-action"
