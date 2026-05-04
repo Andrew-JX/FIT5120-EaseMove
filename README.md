@@ -1,14 +1,48 @@
 # EaseMove Melbourne
 
-Smart Active Mobility Decision Support for Melbourne's Inner City.
+Smart active mobility decision support for Melbourne's inner city.
 
 FIT5120 Industry Experience 2026 S1 | Team TP12 | Group vme50
 
 ## Product Scope
 
-EaseMove Melbourne helps young adults aged 18-30 who walk or cycle in Melbourne's inner city compare precinct-level travel comfort before they leave. It combines City of Melbourne microclimate sensor readings, pedestrian activity counts, and user-adjustable comfort weights.
+EaseMove Melbourne helps young adults aged 18-30 who walk or cycle in Melbourne's inner city compare travel comfort before they leave, explore support places, and make more informed movement choices on hotter days.
 
-This is not a route navigation engine, crime-avoidance app, UV app, or general weather dashboard.
+The current frontend experience is branded as `MoveComfortly`, while the repository and deployment naming still use `EaseMove`.
+
+This is not a turn-by-turn navigation engine, a crime-avoidance app, or a general weather dashboard.
+
+## Current User Experience
+
+The current app includes these main flows:
+
+- A multi-scene landing page with project introduction, walkthrough steps, and direct entry points into the interactive map and extreme weather content.
+- An interactive comfort map for Melbourne inner-city precincts with comfort-area, ease-place, natural-place, and street-facility layers.
+- A compare mode for checking two precincts side by side.
+- Comfort preference controls that rebalance temperature, humidity, and activity weighting.
+- Time-slot recommendation cards for choosing more comfortable times to head out.
+- Area detail pages reached from map selections such as `/map?area=melbourne-cbd`.
+- Recommendation facility pages reached from area recommendations such as `/map?area=melbourne-cbd&place=state-library-victoria`.
+- An extreme weather risks section with overview, detail, and quiz pages.
+- An About Us page and refreshed landing-page storytelling content.
+
+## Main Routes
+
+Confirmed frontend routes in the current codebase:
+
+| Route | Purpose |
+| --- | --- |
+| `/` | Landing page / homepage |
+| `/map` | Main interactive map and compare experience |
+| `/aboutus` | About Us page |
+| `/extreme-weather-risks` | Extreme weather overview |
+| `/extreme-weather-risks-detail` | Risk detail page |
+| `/extreme-weather-risks-quiz` | Extreme weather quiz |
+
+The map also supports query-based detail flows:
+
+- `/map?area=<area-id>` for area detail pages
+- `/map?area=<area-id>&place=<place-id>` for recommendation/public-facility detail pages
 
 ## Live Services
 
@@ -22,10 +56,10 @@ This is not a route navigation engine, crime-avoidance app, UV app, or general w
 
 | Layer | Technology | Hosting |
 | --- | --- | --- |
-| Frontend | React 18, Vite, Tailwind CSS v4, Shadcn UI, vanilla Leaflet | Vercel |
+| Frontend | React 18, Vite, Tailwind CSS v4, Leaflet, Framer Motion | Vercel |
 | Backend | Node.js, Express | Render |
 | Database | PostgreSQL | Neon |
-| Data | City of Melbourne Open Data APIs | Public, no API key |
+| Data | City of Melbourne Open Data APIs + Open-Meteo weather fallback | Public / external APIs |
 
 Keep the `frontend/` and `backend/` directory names unchanged because deployment projects are bound to them.
 
@@ -35,10 +69,25 @@ Keep the `frontend/` and `backend/` directory names unchanged because deployment
 EaseMove/
   frontend/
     src/app/App.tsx
+    src/main.tsx
     src/components/LeafletMap.tsx
+    src/components/map/DynamicLegendPanel.tsx
+    src/components/landing/
+      HeroSplitScene.tsx
+      MissionGalleryScene.tsx
+      HowToUseScene.tsx
+      StartUsingScene.tsx
+      FooterScene.tsx
     src/hooks/usePrecincts.ts
     src/lib/api.ts
-    src/app/components/ui/
+    src/lib/areaInfo.ts
+    src/pages/
+      AboutUsPage.tsx
+      AreaDetailPage.tsx
+      RecommendationFacilitiesPage.tsx
+      ExtremeWeatherRisksPage.tsx
+      ExtremeWeatherRiskDetailPage.tsx
+      ExtremeWeatherQuizPage.tsx
   backend/
     config/precincts.json
     config/furniture.json
@@ -76,6 +125,13 @@ Local URLs:
 | Backend | http://localhost:3000 |
 | Frontend | http://localhost:5173 |
 
+Useful local pages:
+
+- `http://localhost:5173/`
+- `http://localhost:5173/map`
+- `http://localhost:5173/aboutus`
+- `http://localhost:5173/extreme-weather-risks`
+
 Frontend `.env.local`:
 
 ```text
@@ -94,11 +150,11 @@ PORT=3000
 
 | Method | Path | Purpose |
 | --- | --- | --- |
-| GET | `/api/health` | Render/UptimeRobot health check |
-| GET | `/api/precincts/current` | Returns all 12 precinct comfort records |
+| GET | `/api/health` | Health check |
+| GET | `/api/precincts/current` | Returns all precinct comfort records |
 | GET | `/api/precincts/compare?a=cbd&b=southbank` | Returns two selected precincts |
 | GET | `/api/precincts/:id/today` | Returns recommendation and preparation advice |
-| GET | `/api/furniture?precinct=cbd&type=all` | Returns street furniture GeoJSON |
+| GET | `/api/furniture?precinct=cbd&type=all` | Returns street furniture data |
 
 Comfort weight query parameters are supported by `/current`, `/compare`, and `/:id/today`:
 
@@ -106,21 +162,17 @@ Comfort weight query parameters are supported by `/current`, `/compare`, and `/:
 weight_temperature=60&weight_humidity=30&weight_activity=10
 ```
 
-The frontend stores weights in localStorage under `easemove_weights`, sends them to the backend, and refreshes scores without a page reload.
+The frontend stores weights in localStorage under `easemove_weights`, sends them to the backend, and refreshes scores without a full page reload.
 
-## Data Sources
+## Data and Scoring Notes
 
-| Dataset | API ID | Iteration | Role |
-| --- | --- | --- | --- |
-| Microclimate Sensor Readings | `microclimate-sensors-data` | 1 | Temperature, humidity, wind speed, PM2.5 |
-| Pedestrian Counting System hourly counts | `pedestrian-counting-system-monthly-counts-per-hour` | 1 | Activity density |
-| Street Furniture | `street-furniture-including-bollards-bicycle-rails-bins-drinking-fountains-horse-` | 1 | Drinking fountains and bicycle rails |
-| Cool Places | `cool-places` | 2 | Cool-space layer |
-| Urban Forest / canopy | varies by CoM portal dataset | 2 | Shade and green coverage |
+Confirmed in the current implementation:
 
-Important caveat: as of 15 April 2026, the City of Melbourne microclimate dataset's latest records are from March 2026, so sensor-covered precincts correctly appear as stale. No-sensor precincts such as Carlton still appear on the map with `no_sensor_data: true`, environmental readings as `N/A`, and activity density where available.
-
-## Comfort Score
+- Comfort scoring uses temperature, humidity, and activity density.
+- Default weights are 60% temperature, 30% humidity, and 10% activity.
+- The backend fetches precinct data and can rebalance scores when user weights change.
+- Non-sensor precincts now use weather fallback logic so they do not rely only on `N/A` values.
+- Street furniture data is used both in the map layer and in the recommendation-facilities detail flow.
 
 Default weights:
 
@@ -130,16 +182,6 @@ Default weights:
 | Humidity | 30% |
 | Activity density | 10% |
 
-Normalisation:
-
-```text
-temp_score     = clamp((40 - temperature) / 40 * 100, 0, 100)
-humid_score    = clamp((100 - humidity) / 100 * 100, 0, 100)
-activity_score = clamp((500 - activity_count) / 500 * 100, 0, 100)
-
-comfort_score = round(temp_score*w_temp + humid_score*w_humidity + activity_score*w_activity)
-```
-
 Bands:
 
 | Score | Label | Colour |
@@ -148,27 +190,21 @@ Bands:
 | 40-69 | Caution | Amber |
 | 0-39 | High Risk | Red |
 
-Readings older than 30 minutes set `stale_data: true`; the frontend dims the marker and displays a warning rather than hiding the precinct.
+## Current Status
 
-## Current Iteration 1 Status
+This README now reflects the parts of the current product that are clearly present in the codebase:
 
-Implemented:
+- Landing page experience has expanded well beyond the original single map entry page.
+- The map supports multiple layer types and a dynamic legend that changes with active layers.
+- Compare mode and time-slot recommendation flows are implemented.
+- Area detail and nearby public-facility flows are implemented through map query parameters.
+- Extreme weather overview, detail, and quiz pages are implemented.
+- Visual branding in the frontend currently uses `MoveComfortly` text in key user-facing pages.
 
-- React/Vite frontend with Leaflet map and 12 precinct markers.
-- Score card on marker tap with stale/no-sensor warnings.
-- Time-slot recommendation and preparation advice.
-- Comparison tab with better-precinct highlighting.
-- Backend-linked comfort weight sliders with localStorage persistence.
-- Street furniture API endpoint with static fallback.
-- Pedestrian activity polling from the City of Melbourne hourly counts dataset.
-- Mobile bottom-sheet detail card, collapsible legend, 800 ms debounce on weight sliders
+Items intentionally not expanded here:
 
-Known limitations:
-
-- AC 6 map overlay UI for drinking fountains and bicycle rails still needs frontend toggle rendering.
-- Microclimate source data is stale upstream, so stale grey markers are expected.
-- Some no-sensor precincts cannot show temperature, humidity, wind, or PM2.5 until Iteration 2 fallback/estimation work is added.
-- Backend tests need to be restored after the Vue-to-React rewrite removed the old `comfortScore.test.js`.
+- Deployment and hosting details that have not been re-verified in this update.
+- Any feature claims that are not obvious from the current repository state.
 
 ## Branch Strategy
 
