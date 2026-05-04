@@ -113,6 +113,47 @@ function hasValidCoords(lat: number | null | undefined, lng: number | null | und
   return Number.isFinite(lat) && Number.isFinite(lng);
 }
 
+const AREA_FILL_COLORS: Record<string, string> = {
+  "docklands": "#6fd3c2",
+  "southbank": "#73c8ff",
+  "north-melbourne": "#86d39b",
+  "west-melbourne": "#b7d38a",
+  "east-melbourne": "#86d9d0",
+  "south-melbourne": "#7bc0ff",
+  "fitzroy": "#f0c16b",
+  "kensington": "#8ec5ff",
+  "flemington": "#c1b0ff",
+  "melbourne-cbd": "#9de0cf",
+  "south-yarra": "#f2bf88",
+  "carlton": "#a6d9a2",
+};
+
+function areaFillColor(areaId: string): string {
+  return AREA_FILL_COLORS[areaId] ?? "#7bc6c2";
+}
+
+function areaBaseStyle(areaId: string): L.PathOptions {
+  const fillColor = areaFillColor(areaId);
+  return {
+    color: fillColor,
+    weight: 1.4,
+    opacity: 0.95,
+    fillColor,
+    fillOpacity: 0.1,
+  };
+}
+
+function areaHoverStyle(areaId: string): L.PathOptions {
+  const fillColor = areaFillColor(areaId);
+  return {
+    color: fillColor,
+    weight: 2.4,
+    opacity: 1,
+    fillColor,
+    fillOpacity: 0.24,
+  };
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 interface LeafletMapProps {
@@ -122,6 +163,8 @@ interface LeafletMapProps {
   compareSelection1: string | null;
   compareSelection2: string | null;
   onPrecinctClick: (id: string) => void;
+  onAreaClick?: (id: string) => void;
+  showInteractiveAreas?: boolean;
   showEasePlaces?: boolean;
   showStreetFacilities?: boolean;
   showNaturalPlaces?: boolean;
@@ -136,6 +179,8 @@ export default function LeafletMap({
   compareSelection1,
   compareSelection2,
   onPrecinctClick,
+  onAreaClick,
+  showInteractiveAreas = false,
   showEasePlaces = true,
   showStreetFacilities = true,
   showNaturalPlaces = true,
@@ -146,6 +191,7 @@ export default function LeafletMap({
   const markersRef = useRef<L.Marker[]>([]);
   const poiRef = useRef<L.Layer[]>([]);
   const boundaryRef = useRef<L.GeoJSON | null>(null);
+  const interactiveAreasRef = useRef<L.GeoJSON | null>(null);
   const waterLayerRef = useRef<L.GeoJSON | null>(null);
   const parksLayerRef = useRef<L.GeoJSON | null>(null);
   const coolPlacesMarkersRef = useRef<L.Marker[]>([]);
@@ -154,11 +200,15 @@ export default function LeafletMap({
   // Stable refs for callbacks used inside the init effect
   const onMapReadyRef = useRef(onMapReady);
   const onEasePlacesClickRef = useRef(onEasePlacesClick);
+  const onAreaClickRef = useRef(onAreaClick);
+  const showInteractiveAreasRef = useRef(showInteractiveAreas);
   const showEasePlacesRef = useRef(showEasePlaces);
   const showStreetFacilitiesRef = useRef(showStreetFacilities);
   const showNaturalPlacesRef = useRef(showNaturalPlaces);
   useEffect(() => { onMapReadyRef.current = onMapReady; }, [onMapReady]);
   useEffect(() => { onEasePlacesClickRef.current = onEasePlacesClick; }, [onEasePlacesClick]);
+  useEffect(() => { onAreaClickRef.current = onAreaClick; }, [onAreaClick]);
+  useEffect(() => { showInteractiveAreasRef.current = showInteractiveAreas; }, [showInteractiveAreas]);
   useEffect(() => { showEasePlacesRef.current = showEasePlaces; }, [showEasePlaces]);
   useEffect(() => { showStreetFacilitiesRef.current = showStreetFacilities; }, [showStreetFacilities]);
   useEffect(() => { showNaturalPlacesRef.current = showNaturalPlaces; }, [showNaturalPlaces]);
@@ -176,7 +226,11 @@ export default function LeafletMap({
     if (onMapReadyRef.current) onMapReadyRef.current(mapRef.current);
 
     mapRef.current.createPane('areaPane');
-    mapRef.current.getPane('areaPane')!.style.zIndex = '350';
+    mapRef.current.getPane('areaPane')!.style.zIndex = '330';
+    mapRef.current.createPane('districtPane');
+    mapRef.current.getPane('districtPane')!.style.zIndex = '340';
+    mapRef.current.createPane('boundaryPane');
+    mapRef.current.getPane('boundaryPane')!.style.zIndex = '350';
     mapRef.current.createPane('furniturePane');
     mapRef.current.getPane('furniturePane')!.style.zIndex = '625';
     mapRef.current.createPane('coolPlacesPane');
@@ -197,11 +251,50 @@ export default function LeafletMap({
         boundaryRef.current?.remove();
         boundaryRef.current = L.geoJSON(data, {
           style: { color: '#111111', weight: 2, fill: false, opacity: 1 },
-          pane: 'areaPane',
+          pane: 'boundaryPane',
           interactive: false,
         }).addTo(mapRef.current);
       })
       .catch((err: unknown) => { console.error('[LeafletMap] failed to load municipal boundary', err); });
+
+    fetch('/geoscape/interactive-areas.geojson')
+      .then(res => (res.ok ? res.json() : null))
+      .then(data => {
+        if (!data || !mapRef.current) return;
+        interactiveAreasRef.current?.remove();
+        interactiveAreasRef.current = L.geoJSON(data, {
+          pane: 'districtPane',
+          style: (feature) => areaBaseStyle(String(feature?.properties?.id ?? '')),
+          onEachFeature(feature, layer) {
+            const areaId = String(feature?.properties?.id ?? '');
+            const areaName = String(feature?.properties?.name ?? '');
+            layer.bindTooltip(areaName, {
+              sticky: true,
+              direction: 'top',
+              className: 'area-tip',
+            });
+            layer.on({
+              mouseover: () => {
+                mapRef.current?.getContainer().style.setProperty('cursor', 'pointer');
+                layer.setStyle(areaHoverStyle(areaId));
+                if ('bringToFront' in layer) {
+                  (layer as L.Path).bringToFront();
+                }
+                boundaryRef.current?.bringToFront();
+              },
+              mouseout: () => {
+                mapRef.current?.getContainer().style.setProperty('cursor', '');
+                layer.setStyle(areaBaseStyle(areaId));
+              },
+              click: () => {
+                if (onAreaClickRef.current) onAreaClickRef.current(areaId);
+              },
+            });
+          },
+        });
+        if (showInteractiveAreasRef.current) interactiveAreasRef.current.addTo(mapRef.current);
+      })
+      .catch((err: unknown) => { console.error('[LeafletMap] failed to load interactive areas', err); });
 
     fetch('/geoscape/waterbodies.geojson')
       .then(res => (res.ok ? res.json() : null))
@@ -325,6 +418,7 @@ export default function LeafletMap({
     });
 
     return () => {
+      interactiveAreasRef.current?.remove(); interactiveAreasRef.current = null;
       waterLayerRef.current?.remove();   waterLayerRef.current = null;
       parksLayerRef.current?.remove();   parksLayerRef.current = null;
       boundaryRef.current?.remove();     boundaryRef.current = null;
@@ -333,6 +427,18 @@ export default function LeafletMap({
       mapRef.current?.remove(); mapRef.current = null;
     };
   }, []);
+
+  useEffect(() => {
+    if (!mapRef.current || !interactiveAreasRef.current) return;
+    if (showInteractiveAreas) {
+      if (!mapRef.current.hasLayer(interactiveAreasRef.current)) {
+        interactiveAreasRef.current.addTo(mapRef.current);
+      }
+      boundaryRef.current?.bringToFront();
+    } else if (mapRef.current.hasLayer(interactiveAreasRef.current)) {
+      interactiveAreasRef.current.remove();
+    }
+  }, [showInteractiveAreas]);
 
   // ─── Show / hide Ease Places markers ────────────────────────────────────────
   useEffect(() => {

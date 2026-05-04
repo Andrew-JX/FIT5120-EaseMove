@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { motion, useMotionValue, useSpring, useTransform } from "framer-motion";
+import { navigateTo } from "../../lib/navigation";
 import IconMarquee from "./IconMarquee";
 import {
   acquire,
@@ -243,7 +244,8 @@ export default function HeroSplitScene() {
         return;
       }
 
-      const direction = isReverse || (event.shiftKey && (key === " " || key === "Spacebar")) ? -1 : 1;
+      const direction =
+        isReverse || (event.shiftKey && (key === " " || key === "Spacebar")) ? -1 : 1;
       updateProgress(direction * KEY_PROGRESS_STEP, direction * KEYBOARD_HANDOFF_DELTA_PX);
     };
 
@@ -283,6 +285,7 @@ export default function HeroSplitScene() {
 
   const marqueeOpacity = useTransform(smoothedProgress, [0.28, 0.55, 0.72], [0, 0.82, 1]);
   const marqueeY = useTransform(smoothedProgress, [0.28, 0.72], ["24px", "0px"]);
+  const openMap = () => navigateTo("/map");
 
   return (
     <section className="landing-hero-scene">
@@ -325,26 +328,38 @@ export default function HeroSplitScene() {
           style={{ opacity: heroLabelOpacity, x: "-50%", y: heroLabelY }}
           aria-hidden="true"
         >
-          EaseMove
+          MoveComfortly
         </motion.div>
 
         <motion.p
           className="landing-hero-caption"
           style={{ opacity: heroLabelOpacity, y: heroLabelY }}
         >
-          EaseMove of Melbourne
+          <span>MoveComfortly</span>
+          <span className="landing-hero-caption-break">of Melbourne</span>
         </motion.p>
+
+        <motion.div
+          className="landing-hero-scroll-cue"
+          style={{ opacity: heroLabelOpacity, y: heroLabelY }}
+          aria-hidden="true"
+        >
+          <span className="landing-hero-scroll-arrow">&darr;</span>
+          <span>Scroll down to continue</span>
+        </motion.div>
 
         <div className="landing-compose-grid">
           <motion.div
             className="landing-copy-panel"
             style={{ opacity: copyOpacity, x: copyX, y: copyY }}
           >
-            <h1>Helping young Melburnians move through their city, comfortably.</h1>
+            <button className="landing-hero-title" type="button" onClick={openMap}>
+              Helping young Melburnians move through their city, comfortably.
+            </button>
             <p>
-              EaseMove Melbourne combines real-time microclimate conditions and activity
-              patterns to help young walkers and cyclists compare precincts, personalise
-              comfort priorities, and choose better travel times.
+              MoveComfortly Melbourne combines real-time microclimate conditions and activity
+              patterns to help young walkers and cyclists compare precincts, personalise comfort
+              priorities, and choose better travel times.
             </p>
             <motion.div
               className="landing-marquee-wrap"
