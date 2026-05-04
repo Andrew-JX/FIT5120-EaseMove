@@ -104,6 +104,8 @@ export default function HowToUseScene() {
   const isAreaDetailStep = activeStepIndex === 4;
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const wheelLockRef = useRef(false);
+  const touchStartYRef = useRef<number | null>(null);
+  const touchDeltaYRef = useRef(0);
   const isMapStep = activeStepIndex < 3;
   const openExtremeWeatherPage = () => {
     navigateTo("/extreme-weather-risks");
@@ -153,6 +155,61 @@ export default function HowToUseScene() {
 
     return () => {
       viewport.removeEventListener("wheel", handleWheel);
+    };
+  }, [activeStepIndex]);
+
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+
+    const handleTouchStart = (event: TouchEvent) => {
+      touchStartYRef.current = event.touches[0]?.clientY ?? null;
+      touchDeltaYRef.current = 0;
+    };
+
+    const handleTouchMove = (event: TouchEvent) => {
+      const startY = touchStartYRef.current;
+      const currentY = event.touches[0]?.clientY;
+      if (startY === null || currentY === undefined) return;
+
+      touchDeltaYRef.current = currentY - startY;
+
+      if (Math.abs(touchDeltaYRef.current) > 8) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+    };
+
+    const handleTouchEnd = (event: TouchEvent) => {
+      const changedY = event.changedTouches[0]?.clientY;
+      const startY = touchStartYRef.current;
+      const deltaY =
+        changedY !== undefined && startY !== null ? changedY - startY : touchDeltaYRef.current;
+
+      touchStartYRef.current = null;
+      touchDeltaYRef.current = 0;
+
+      if (wheelLockRef.current || Math.abs(deltaY) < 36) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+
+      wheelLockRef.current = true;
+      activateStep(activeStepIndex + (deltaY < 0 ? 1 : -1));
+
+      window.setTimeout(() => {
+        wheelLockRef.current = false;
+      }, 520);
+    };
+
+    viewport.addEventListener("touchstart", handleTouchStart, { passive: true });
+    viewport.addEventListener("touchmove", handleTouchMove, { passive: false });
+    viewport.addEventListener("touchend", handleTouchEnd, { passive: false });
+
+    return () => {
+      viewport.removeEventListener("touchstart", handleTouchStart);
+      viewport.removeEventListener("touchmove", handleTouchMove);
+      viewport.removeEventListener("touchend", handleTouchEnd);
     };
   }, [activeStepIndex]);
 
