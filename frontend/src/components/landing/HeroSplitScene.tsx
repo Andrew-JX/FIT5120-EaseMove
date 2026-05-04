@@ -344,7 +344,9 @@ export default function HeroSplitScene() {
           style={{ opacity: heroLabelOpacity, y: heroLabelY }}
           aria-hidden="true"
         >
-          <span className="landing-hero-scroll-arrow">&darr;</span>
+          <span className="landing-hero-scroll-arrow">
+            <span className="landing-hero-scroll-arrow-head" />
+          </span>
           <span>Scroll down to continue</span>
         </motion.div>
 
