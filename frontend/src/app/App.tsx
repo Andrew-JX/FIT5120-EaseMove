@@ -10,6 +10,7 @@ import ideaIcon from "../assets/idea.png";
 import questionMarkIcon from "../assets/question-mark.png";
 import warningIcon from "../assets/warning.png";
 import LeafletMap, { type EasePlacesFeature } from "../components/LeafletMap";
+import DynamicLegendPanel from "../components/map/DynamicLegendPanel";
 import { usePrecincts } from "../hooks/usePrecincts";
 import {
   DEFAULT_WEIGHTS,
@@ -20,7 +21,10 @@ import {
   type Precinct,
   type TodayRecommendation,
 } from "../lib/api";
+import { getAreaInfo, getAreaRecommendation } from "../lib/areaInfo";
 import { navigateTo } from "../lib/navigation";
+import AreaDetailPage from "../pages/AreaDetailPage";
+import RecommendationFacilitiesPage from "../pages/RecommendationFacilitiesPage";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -44,6 +48,18 @@ function formatDataFreshness(p: Precinct): string {
 function formatDetailSensorStatus(p: Precinct): string {
   if (p.id === 'flemington') return 'No live sensors';
   return '✅ Live Sensors';
+}
+
+function getAreaIdFromUrl(): string | null {
+  const areaId = new URLSearchParams(window.location.search).get("area");
+  return getAreaInfo(areaId)?.id ?? null;
+}
+
+function getRecommendationIdFromUrl(): string | null {
+  const params = new URLSearchParams(window.location.search);
+  const areaId = params.get("area");
+  const recommendationId = params.get("place");
+  return getAreaRecommendation(areaId, recommendationId)?.id ?? null;
 }
 
 function adjustWeights(current: ComfortWeights, key: keyof ComfortWeights, nextValue: number): ComfortWeights {
@@ -361,11 +377,15 @@ export default function App() {
   const [weights, setWeights] = useState<ComfortWeights>(() => loadWeights());
   const [debouncedWeights, setDebouncedWeights] = useState<ComfortWeights>(weights);
   const [activeTab, setActiveTab] = useState<"view" | "compare">("view");
+  const [selectedAreaId, setSelectedAreaId] = useState<string | null>(() => getAreaIdFromUrl());
+  const [selectedRecommendationId, setSelectedRecommendationId] = useState<string | null>(
+    () => getRecommendationIdFromUrl()
+  );
   const [mapFilters, setMapFilters] = useState<MapFilters>({
-    easePlaces: true,
+    easePlaces: false,
     comfortArea: true,
-    streetFacilities: true,
-    naturalPlaces: true,
+    streetFacilities: false,
+    naturalPlaces: false,
   });
   const shouldFetchPrecincts = activeTab === 'compare' || mapFilters.comfortArea;
 
@@ -408,6 +428,26 @@ export default function App() {
     navigateTo("/");
   }, []);
 
+  const handleAreaNavigation = useCallback((
+    areaId: string | null,
+    recommendationId: string | null = null
+  ) => {
+    const url = new URL(window.location.href);
+    if (areaId) url.searchParams.set("area", areaId);
+    else url.searchParams.delete("area");
+    if (areaId && recommendationId) url.searchParams.set("place", recommendationId);
+    else url.searchParams.delete("place");
+    const nextUrl = `${url.pathname}${url.search}`;
+    const currentUrl = `${window.location.pathname}${window.location.search}`;
+    if (nextUrl === currentUrl) {
+      setSelectedAreaId(areaId);
+      setSelectedRecommendationId(recommendationId);
+      return;
+    }
+    window.history.pushState({}, "", nextUrl);
+    window.dispatchEvent(new PopStateEvent("popstate"));
+  }, []);
+
   const categories = [
     { name: "Comfortable", level: "low",     color: "#22c55e", bgColor: "bg-green-100",  textColor: "text-green-800" },
     { name: "Caution",     level: "caution", color: "#eab308", bgColor: "bg-yellow-100", textColor: "text-yellow-800" },
@@ -415,6 +455,16 @@ export default function App() {
   ];
 
   useEffect(() => { saveWeights(weights); }, [weights]);
+
+  useEffect(() => {
+    const syncAreaFromUrl = () => {
+      setSelectedAreaId(getAreaIdFromUrl());
+      setSelectedRecommendationId(getRecommendationIdFromUrl());
+    };
+
+    window.addEventListener("popstate", syncAreaFromUrl);
+    return () => window.removeEventListener("popstate", syncAreaFromUrl);
+  }, []);
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedWeights(weights), 800);
@@ -592,14 +642,14 @@ export default function App() {
     const destName = destPrecinct?.name ?? selectedDestId;
 
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-gray-100 relative overflow-hidden">
+      <div className="min-h-screen bg-[#eef6f3] relative overflow-hidden text-[#10201f]">
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute -top-40 -right-40 w-80 h-80 bg-gradient-to-br from-blue-100/20 to-gray-200/20 rounded-full blur-3xl" />
-          <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-gradient-to-tr from-gray-100/20 to-blue-100/20 rounded-full blur-3xl" />
-          <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-gradient-to-br from-blue-100/10 to-gray-100/10 rounded-full blur-3xl" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_78%_16%,rgba(131,197,190,0.18),transparent_26%),linear-gradient(180deg,#eef6f3_0%,#f7fbfa_52%,#e3f0ec_100%)]" />
+          <div className="absolute -top-36 -right-28 h-80 w-80 rounded-full bg-[#83c5be]/14 blur-3xl" />
+          <div className="absolute -bottom-44 -left-24 h-96 w-96 rounded-full bg-[#ffddd2]/12 blur-3xl" />
         </div>
 
-        <nav className="bg-white/80 backdrop-blur-md shadow-lg mb-6 relative z-10 border-b border-white/20">
+        <nav className="bg-[#d9e8e3]/88 backdrop-blur-md mb-6 relative z-10 border-b border-[#17413f]/10">
           <div className="px-6 py-2">
             <div className="flex items-center justify-between">
               <button
@@ -621,23 +671,23 @@ export default function App() {
               <button
                 type="button"
                 onClick={() => { setShowTimeRecommendation(false); setSelectedDestId(null); setTodayData(null); }}
-                className="flex items-center gap-2 rounded-lg bg-blue-500 px-3 py-2 text-sm text-white transition-colors hover:bg-blue-600"
+                className="flex items-center gap-2 rounded-2xl bg-gradient-to-r from-[#006d77] to-[#17413f] px-3 py-2 text-sm text-white transition-colors hover:from-[#17413f] hover:to-[#006d77]"
               >
                 <ArrowLeft className="h-4 w-4" />
                 <span>Back</span>
               </button>
             </div>
-            <div className="bg-white/95 backdrop-blur-sm rounded-xl shadow-xl p-6 mb-6 border border-white/20">
+            <div className="bg-[rgba(247,255,253,0.82)] backdrop-blur-sm rounded-[24px] shadow-[0_24px_58px_rgba(16,32,31,0.14)] p-6 mb-6 border border-[#83c5be]/14 text-[#10201f]">
               <div className="flex items-center gap-3 mb-4">
-                <div className="p-3 bg-gradient-to-br from-amber-500 to-orange-600 rounded-lg shadow-lg">
+                <div className="p-3 bg-gradient-to-br from-[#e29578] to-[#c96f4f] rounded-2xl shadow-lg">
                   <Map className="w-6 h-6 text-white" />
                 </div>
                 <div className="flex-1">
-                  <h2 className="text-2xl font-semibold bg-gradient-to-r from-amber-600 to-orange-600 bg-clip-text text-transparent">Time-slot Recommendation</h2>
+                  <h2 className="text-2xl font-semibold bg-gradient-to-r from-[#17413f] to-[#006d77] bg-clip-text text-transparent">Time-slot Recommendation</h2>
                   <p className="text-sm text-gray-600">Optimal travel times based on real-time sensor data</p>
                 </div>
               </div>
-              <div className="bg-gradient-to-r from-teal-50 to-cyan-50 rounded-lg p-4 border-2 border-teal-200">
+              <div className="bg-gradient-to-r from-[#edf6f9] to-[#e3f3ef] rounded-2xl p-4 border border-[#83c5be]/30">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 bg-teal-500 rounded-full flex items-center justify-center text-white">📍</div>
                   <div>
@@ -648,7 +698,7 @@ export default function App() {
               </div>
             </div>
 
-            <div className="bg-white/95 backdrop-blur-sm rounded-xl shadow-xl p-6 mb-6 border border-white/20">
+            <div className="bg-[rgba(247,255,253,0.82)] backdrop-blur-sm rounded-[24px] shadow-[0_24px_58px_rgba(16,32,31,0.14)] p-6 mb-6 border border-[#83c5be]/14 text-[#10201f]">
               <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
                 <span className="text-2xl">⭐</span>
                 <span>Right Now</span>
@@ -656,7 +706,7 @@ export default function App() {
               {loadingToday ? (
                 <div className="text-center py-4 text-gray-500">Loading sensor data…</div>
               ) : destPrecinct ? (
-                <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-5 border-2 border-green-300">
+                <div className="bg-gradient-to-r from-[#edf6f9] to-[#e3f3ef] rounded-2xl p-5 border border-[#83c5be]/30">
                   <div className="flex items-start gap-4">
                     <div className="flex-shrink-0 w-12 h-12 bg-green-500 rounded-full flex items-center justify-center text-white text-xl">✓</div>
                     <div className="flex-1">
@@ -680,10 +730,10 @@ export default function App() {
               )}
             </div>
 
-            <div className="bg-white/95 backdrop-blur-sm rounded-xl shadow-xl p-6 mb-6 border border-white/20">
+            <div className="bg-[rgba(247,255,253,0.82)] backdrop-blur-sm rounded-[24px] shadow-[0_24px_58px_rgba(16,32,31,0.14)] p-6 mb-6 border border-[#83c5be]/14 text-[#10201f]">
               <h3 className="text-xl font-semibold mb-4">Recommended Time Slots</h3>
               <div className="space-y-4">
-                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4 border-2 border-blue-200">
+                <div className="bg-gradient-to-r from-[#edf6f9] to-[#eef8f5] rounded-2xl p-4 border border-[#83c5be]/24">
                   <div className="flex items-center gap-3 mb-2">
                     <span className="text-2xl">🌅</span>
                     <div>
@@ -695,7 +745,7 @@ export default function App() {
                     <p className="text-sm text-gray-700"><span className="font-semibold">Why:</span> Morning temperatures are generally more comfortable, crowds are lower, and air quality tends to be better before peak traffic.</p>
                   </div>
                 </div>
-                <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-4 border-2 border-purple-200">
+                <div className="bg-gradient-to-r from-[#fff4ef] to-[#fef8f3] rounded-2xl p-4 border border-[#e29578]/24">
                   <div className="flex items-center gap-3 mb-2">
                     <span className="text-2xl">🌆</span>
                     <div>
@@ -708,20 +758,20 @@ export default function App() {
                   </div>
                 </div>
               </div>
-              <div className="mt-5 p-4 bg-yellow-50 rounded-lg border-l-4 border-yellow-400">
+              <div className="mt-5 p-4 bg-[#fff7e8] rounded-2xl border-l-4 border-[#e29578]">
                 <p className="text-sm font-semibold text-yellow-900 mb-2">💡 Alternative Suggestion</p>
                 <p className="text-sm text-gray-700">If travelling between 12:00–15:00, consider indoor routes or bring sun protection as temperatures are higher during this period.</p>
               </div>
             </div>
 
-            <div className="bg-white/95 backdrop-blur-sm rounded-xl shadow-xl p-6 border border-white/20">
+            <div className="bg-[rgba(247,255,253,0.82)] backdrop-blur-sm rounded-[24px] shadow-[0_24px_58px_rgba(16,32,31,0.14)] p-6 border border-[#83c5be]/14 text-[#10201f]">
               <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
                 <span className="text-2xl">🎒</span>
                 <span>Preparation Advice</span>
               </h3>
               <div className="space-y-3">
                 {destPrecinct && getPreparationAdvice(destPrecinct).map((adv, i) => (
-                  <div key={i} className="bg-gradient-to-r from-green-50 via-emerald-50 to-teal-50 rounded-xl border-2 border-green-200 hover:border-green-300 shadow-sm hover:shadow-md transition-all p-4">
+                  <div key={i} className="bg-gradient-to-r from-[#edf6f9] via-[#eef8f5] to-[#e3f3ef] rounded-2xl border border-[#83c5be]/24 hover:border-[#83c5be]/42 shadow-sm hover:shadow-md transition-all p-4">
                     <div className="flex items-start gap-3 mb-2">
                       <div className="flex-shrink-0 w-10 h-10 flex items-center justify-center bg-white rounded-full shadow-sm">
                         <span className="text-2xl">{adv.icon}</span>
@@ -760,17 +810,41 @@ export default function App() {
 
   const showCardPrecinct = showCard ? precincts[showCard] : null;
   const betterPrecinctId = getBetterPrecinct();
+  const selectedArea = getAreaInfo(selectedAreaId);
+  const selectedRecommendation = getAreaRecommendation(selectedAreaId, selectedRecommendationId);
+
+  if (selectedArea && selectedRecommendation) {
+    return (
+      <RecommendationFacilitiesPage
+        area={selectedArea}
+        recommendation={selectedRecommendation}
+        onBack={() => handleAreaNavigation(selectedArea.id, null)}
+      />
+    );
+  }
+
+  if (selectedArea) {
+    return (
+      <AreaDetailPage
+        area={selectedArea}
+        onBack={() => handleAreaNavigation(null)}
+        onRecommendationClick={(recommendationId) =>
+          handleAreaNavigation(selectedArea.id, recommendationId)
+        }
+      />
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-gray-100 relative overflow-hidden">
+    <div className="min-h-screen bg-[#eef6f3] relative overflow-hidden text-[#10201f]">
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 -right-40 w-80 h-80 bg-gradient-to-br from-blue-100/20 to-gray-200/20 rounded-full blur-3xl" />
-        <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-gradient-to-tr from-gray-100/20 to-blue-100/20 rounded-full blur-3xl" />
-        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-gradient-to-br from-blue-100/10 to-gray-100/10 rounded-full blur-3xl" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_78%_16%,rgba(131,197,190,0.18),transparent_26%),linear-gradient(180deg,#eef6f3_0%,#f7fbfa_52%,#e3f0ec_100%)]" />
+        <div className="absolute -top-36 -right-28 h-80 w-80 rounded-full bg-[#83c5be]/14 blur-3xl" />
+        <div className="absolute -bottom-44 -left-24 h-96 w-96 rounded-full bg-[#ffddd2]/12 blur-3xl" />
       </div>
 
       {/* Nav */}
-      <nav className="bg-white/80 backdrop-blur-md shadow-lg mb-4 relative z-10 border-b border-white/20">
+      <nav className="bg-[#d9e8e3]/88 backdrop-blur-md mb-4 relative z-10 border-b border-[#17413f]/10">
         <div className="px-6 py-2">
           <div className="flex items-center justify-between">
             <button
@@ -796,22 +870,32 @@ export default function App() {
       {/* Main */}
       <div className="px-6 pb-4 relative z-10">
         <div className="grid grid-cols-1 gap-6">
-          <div className="bg-white/95 backdrop-blur-sm rounded-xl shadow-2xl border border-white/20" id="map-container">
+          <div className="bg-[rgba(247,255,253,0.78)] backdrop-blur-md rounded-[28px] shadow-[0_24px_60px_rgba(16,32,31,0.14)] border border-[#83c5be]/14 overflow-hidden" id="map-container">
 
             {/* Tabs */}
-            <div className="border-b border-gray-200">
-              <div className="flex items-center px-6 pt-4">
-                {(['view', 'compare'] as const).map(tab => (
-                  <button
-                    type="button"
-                    key={tab}
-                    onClick={() => { setActiveTab(tab); setShowCard(null); }}
-                    className={`px-6 py-3 font-medium text-sm transition-all relative ${activeTab === tab ? 'text-teal-600' : 'text-gray-600 hover:text-gray-900'}`}
-                  >
-                    {tab.charAt(0).toUpperCase() + tab.slice(1)}
-                    {activeTab === tab && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-teal-600" />}
-                  </button>
-                ))}
+            <div className="border-b border-[#17413f]/10 bg-[linear-gradient(180deg,rgba(131,197,190,0.08),rgba(255,255,255,0))]">
+              <div className="flex items-center justify-between px-6 pt-4">
+                <div className="flex items-center">
+                  {(['view', 'compare'] as const).map(tab => (
+                    <button
+                      type="button"
+                      key={tab}
+                      onClick={() => { setActiveTab(tab); setShowCard(null); }}
+                      className={`px-6 py-3 font-medium text-sm transition-all relative ${activeTab === tab ? 'text-[#006d77]' : 'text-[#5f8682] hover:text-[#17413f]'}`}
+                    >
+                      {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                      {activeTab === tab && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#006d77]" />}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => navigateTo('/extreme-weather-risks')}
+                  className="px-4 py-2 mb-2 rounded-xl border text-sm font-semibold transition-all flex items-center gap-2 border-[#e29578]/28 text-[#17413f] bg-[#fffaf6] hover:border-[#e29578]/56 hover:bg-[#fff3eb]"
+                >
+                  <img src={warningIcon} alt="" className="h-4 w-4 object-contain" aria-hidden="true" />
+                  <span>Extreme Weather Risks</span>
+                </button>
               </div>
             </div>
 
@@ -820,11 +904,11 @@ export default function App() {
               <>
                 <div className="p-6 pb-4">
                   <div className="flex items-center gap-3">
-                    <div className="p-3 bg-gradient-to-br from-teal-500 to-cyan-600 rounded-lg shadow-lg">
+                    <div className="p-3 bg-gradient-to-br from-[#006d77] to-[#17413f] rounded-2xl shadow-lg">
                       <Map className="w-6 h-6 text-white" />
                     </div>
                     <div className="flex-1">
-                      <h2 className="text-2xl font-semibold bg-gradient-to-r from-teal-600 to-cyan-600 bg-clip-text text-transparent">
+                      <h2 className="text-2xl font-semibold bg-gradient-to-r from-[#17413f] to-[#006d77] bg-clip-text text-transparent">
                         Interactive Map View
                       </h2>
                       <p className="text-sm text-gray-600">
@@ -837,13 +921,13 @@ export default function App() {
                 <div className="flex">
                   {/* Left sidebar — hidden when Ease Places is active */}
                   <div
-                    className={`border-r border-gray-200 bg-gray-50/50 transition-all duration-300 overflow-x-hidden overflow-y-auto ${
+                    className={`border-r border-[#17413f]/8 bg-[linear-gradient(180deg,rgba(237,246,249,0.92),rgba(247,251,250,0.86))] transition-all duration-300 overflow-x-hidden overflow-y-auto ${
                       sidebarCollapsed || !mapFilters.comfortArea ? 'w-0' : 'w-56'
                     }`}
                     style={{ height: "clamp(420px, calc(100vh - 230px), 680px)" }}
                   >
                     <div className="p-4 w-56">
-                      <h3 className="font-semibold mb-3 text-sm text-gray-700">Filter by Comfort</h3>
+                      <h3 className="font-semibold mb-3 text-sm text-[#17413f]">Filter by Comfort</h3>
                       <div className="space-y-2 map-legend-items">
                         {categories.map(cat => (
                           <button
@@ -853,7 +937,7 @@ export default function App() {
                             className={`w-full text-left px-4 py-3 rounded-lg flex items-center gap-3 transition-all border-2 ${
                               selectedCategory === cat.level
                                 ? `${cat.bgColor} ${cat.textColor} shadow-lg scale-105 font-semibold`
-                                : 'bg-white hover:bg-gray-50 text-gray-700 border-gray-200'
+                                : 'bg-white/78 hover:bg-white text-[#294745] border-[#17413f]/10'
                             }`}
                             style={{ borderColor: selectedCategory === cat.level ? cat.color : undefined }}
                           >
@@ -866,13 +950,13 @@ export default function App() {
                         ))}
                       </div>
 
-                      <div className="mt-5 border-t border-gray-200 pt-4">
+                      <div className="mt-5 border-t border-[#17413f]/10 pt-4">
                         <div className="flex items-center justify-between mb-3">
-                          <h3 className="font-semibold text-sm text-gray-700">Comfort Preferences</h3>
+                          <h3 className="font-semibold text-sm text-[#17413f]">Comfort Preferences</h3>
                           <button
                             type="button"
                             onClick={() => setWeights(DEFAULT_WEIGHTS)}
-                            className="text-xs font-semibold text-teal-700 hover:text-teal-900"
+                            className="text-xs font-semibold text-[#006d77] hover:text-[#17413f]"
                           >
                             Reset
                           </button>
@@ -883,9 +967,9 @@ export default function App() {
                           ['activity', 'Activity'],
                         ] as const).map(([key, label]) => (
                           <label key={key} className="block mb-3">
-                            <div className="flex items-center justify-between text-xs text-gray-600 mb-1">
+                            <div className="flex items-center justify-between text-xs text-[#5f8682] mb-1">
                               <span>{label}</span>
-                              <span className="font-bold text-gray-800">{weights[key]}%</span>
+                              <span className="font-bold text-[#17413f]">{weights[key]}%</span>
                             </div>
                             <input
                               type="range"
@@ -898,7 +982,7 @@ export default function App() {
                             />
                           </label>
                         ))}
-                        <p className="text-[11px] leading-4 text-gray-500">
+                        <p className="text-[11px] leading-4 text-[#5f8682]">
                           Scores refresh through the backend as you adjust these weights. Your preferences are saved on this device only.
                         </p>
                       </div>
@@ -912,7 +996,7 @@ export default function App() {
                       <button
                         type="button"
                         onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-                        className="absolute top-20 left-4 z-30 bg-white/95 hover:bg-white shadow-lg rounded-lg p-2 transition-colors"
+                        className="absolute top-20 left-4 z-30 bg-[rgba(247,255,253,0.94)] hover:bg-white shadow-[0_16px_36px_rgba(4,14,14,0.18)] rounded-2xl border border-[#83c5be]/20 p-2 transition-colors text-[#17413f]"
                         aria-label={sidebarCollapsed ? "Show sidebar" : "Hide sidebar"}
                         title={sidebarCollapsed ? "Show sidebar" : "Hide sidebar"}
                       >
@@ -942,7 +1026,7 @@ export default function App() {
                       <MapFilterPanel filters={mapFilters} onToggle={handleToggleMapFilter} />
                     )}
                     {openPanel === 'legend' && (
-                      <LegendPanel />
+                      <DynamicLegendPanel filters={mapFilters} />
                     )}
 
                     <LeafletMap
@@ -952,6 +1036,8 @@ export default function App() {
                       compareSelection1={null}
                       compareSelection2={null}
                       onPrecinctClick={handleMapClickCombined}
+                      onAreaClick={handleAreaNavigation}
+                      showInteractiveAreas={mapFilters.comfortArea}
                       showEasePlaces={mapFilters.easePlaces}
                       showStreetFacilities={mapFilters.streetFacilities}
                       showNaturalPlaces={mapFilters.naturalPlaces}
@@ -971,7 +1057,7 @@ export default function App() {
 
                     {/* Comfort Area detail card */}
                     {showCard && showCardPrecinct && mapFilters.comfortArea && (
-                      <div className="fixed bottom-0 left-0 right-0 sm:absolute sm:bottom-4 sm:left-4 sm:right-auto sm:w-96 sm:max-h-[calc(100%-2rem)] bg-white/98 backdrop-blur rounded-t-2xl sm:rounded-xl shadow-2xl p-4 sm:p-5 z-[500] border-t border-gray-200 max-h-[60vh] overflow-y-auto">
+                      <div className="fixed bottom-0 left-0 right-0 sm:absolute sm:bottom-4 sm:left-4 sm:right-auto sm:w-96 sm:max-h-[calc(100%-2rem)] bg-[rgba(247,255,253,0.98)] backdrop-blur-md rounded-t-[28px] sm:rounded-[24px] shadow-[0_28px_72px_rgba(4,14,14,0.24)] p-4 sm:p-5 z-[500] border-t border-[#83c5be]/18 max-h-[60vh] overflow-y-auto text-[#10201f]">
                         <div className="flex justify-center mb-2 sm:hidden">
                           <div className="w-10 h-1 bg-gray-300 rounded-full" />
                         </div>
@@ -986,7 +1072,7 @@ export default function App() {
                         </div>
 
                         {isStale(showCardPrecinct) && (
-                          <div className="mb-4 p-3 bg-red-50 border-2 border-red-300 rounded-lg">
+                          <div className="mb-4 p-3 bg-[#fff5f3] border border-[#e29578]/36 rounded-2xl">
                             <div className="flex items-start gap-2">
                               <div className="flex-shrink-0 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center text-white text-xs font-bold">!</div>
                               <div>
@@ -998,7 +1084,7 @@ export default function App() {
                         )}
 
                         {!isStale(showCardPrecinct) && (
-                          <div className="mb-4 p-3 bg-green-50 border-2 border-green-300 rounded-lg">
+                          <div className="mb-4 p-3 bg-[#edf6f9] border border-[#83c5be]/36 rounded-2xl">
                             <div className="flex items-start gap-2">
                               <div className="flex-shrink-0 w-5 h-5 bg-green-500 rounded-full flex items-center justify-center text-white text-xs font-bold">✓</div>
                               <div>
@@ -1010,7 +1096,7 @@ export default function App() {
                         )}
 
                         <div
-                          className={`mb-4 p-4 bg-gradient-to-r rounded-lg border-2 ${isStale(showCardPrecinct) ? 'from-gray-50 to-gray-100' : 'from-teal-50 to-cyan-50'}`}
+                          className={`mb-4 p-4 bg-gradient-to-r rounded-2xl border ${isStale(showCardPrecinct) ? 'from-gray-50 to-gray-100' : 'from-[#edf6f9] to-[#e3f3ef]'}`}
                           style={{ borderColor: isStale(showCardPrecinct) ? '#9ca3af' : getRiskColor(riskLevel(showCardPrecinct.comfort_label)) }}
                         >
                           <div className="text-center">
@@ -1034,19 +1120,19 @@ export default function App() {
                         </div>
 
                         <div className={`grid grid-cols-2 gap-3 mb-4 ${isStale(showCardPrecinct) ? 'opacity-60' : ''}`}>
-                          <div className={`bg-gradient-to-br rounded-lg p-3 border ${isStale(showCardPrecinct) ? 'from-gray-50 to-gray-100 border-gray-300' : 'from-orange-50 to-orange-100 border-orange-200'}`}>
+                          <div className={`bg-gradient-to-br rounded-2xl p-3 border ${isStale(showCardPrecinct) ? 'from-gray-50 to-gray-100 border-gray-300' : 'from-[#fff3eb] to-[#fff8f3] border-[#e29578]/24'}`}>
                             <div className="flex items-center gap-2 mb-1"><Thermometer className={`w-4 h-4 ${isStale(showCardPrecinct) ? 'text-gray-500' : 'text-orange-600'}`} /><p className="text-sm text-gray-600">Temperature</p></div>
                             <p className={`text-xl font-bold ${isStale(showCardPrecinct) ? 'text-gray-600' : 'text-orange-700'}`}>{showCardPrecinct.temperature !== null ? `${showCardPrecinct.temperature}°C` : 'N/A'}</p>
                           </div>
-                          <div className={`bg-gradient-to-br rounded-lg p-3 border ${isStale(showCardPrecinct) ? 'from-gray-50 to-gray-100 border-gray-300' : 'from-blue-50 to-blue-100 border-blue-200'}`}>
+                          <div className={`bg-gradient-to-br rounded-2xl p-3 border ${isStale(showCardPrecinct) ? 'from-gray-50 to-gray-100 border-gray-300' : 'from-[#edf6f9] to-[#f3fbf8] border-[#83c5be]/24'}`}>
                             <div className="flex items-center gap-2 mb-1"><Droplets className={`w-4 h-4 ${isStale(showCardPrecinct) ? 'text-gray-500' : 'text-blue-600'}`} /><p className="text-sm text-gray-600">Humidity</p></div>
                             <p className={`text-xl font-bold ${isStale(showCardPrecinct) ? 'text-gray-600' : 'text-blue-700'}`}>{showCardPrecinct.humidity !== null ? `${showCardPrecinct.humidity}%` : 'N/A'}</p>
                           </div>
-                          <div className={`bg-gradient-to-br rounded-lg p-3 border ${isStale(showCardPrecinct) ? 'from-gray-50 to-gray-100 border-gray-300' : 'from-purple-50 to-purple-100 border-purple-200'}`}>
+                          <div className={`bg-gradient-to-br rounded-2xl p-3 border ${isStale(showCardPrecinct) ? 'from-gray-50 to-gray-100 border-gray-300' : 'from-[#f5f8f8] to-[#eef8f5] border-[#83c5be]/20'}`}>
                             <div className="flex items-center gap-2 mb-1"><Users className={`w-4 h-4 ${isStale(showCardPrecinct) ? 'text-gray-500' : 'text-purple-600'}`} /><p className="text-sm text-gray-600">Activity Level</p></div>
                             <p className={`text-lg font-bold ${isStale(showCardPrecinct) ? 'text-gray-600' : 'text-purple-700'}`}>{showCardPrecinct.activity_level}</p>
                           </div>
-                          <div className={`bg-gradient-to-br rounded-lg p-3 border ${isStale(showCardPrecinct) ? 'from-gray-50 to-gray-100 border-gray-300' : 'from-teal-50 to-teal-100 border-teal-200'}`}>
+                          <div className={`bg-gradient-to-br rounded-2xl p-3 border ${isStale(showCardPrecinct) ? 'from-gray-50 to-gray-100 border-gray-300' : 'from-[#eef8f5] to-[#edf6f9] border-[#83c5be]/24'}`}>
                             <div className="flex items-center gap-2 mb-1"><Wind className={`w-4 h-4 ${isStale(showCardPrecinct) ? 'text-gray-500' : 'text-teal-600'}`} /><p className="text-sm text-gray-600">Wind Speed</p></div>
                             <p className={`text-lg font-bold ${isStale(showCardPrecinct) ? 'text-gray-600' : 'text-teal-700'}`}>{showCardPrecinct.wind_speed !== null ? `${showCardPrecinct.wind_speed} m/s` : 'N/A'}</p>
                           </div>
@@ -1055,7 +1141,7 @@ export default function App() {
                         <button
                           type="button"
                           onClick={() => handleWantToGo(showCard)}
-                          className="w-full py-3 bg-gradient-to-r from-teal-500 to-cyan-600 text-white font-semibold rounded-lg hover:from-teal-600 hover:to-cyan-700 transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2"
+                          className="w-full py-3 bg-gradient-to-r from-[#006d77] to-[#17413f] text-white font-semibold rounded-2xl hover:from-[#17413f] hover:to-[#006d77] transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2"
                         >
                           <img src={ideaIcon} alt="" className="h-4 w-4 object-contain" aria-hidden="true" />
                           <span>Best time & travel suggestion</span>
@@ -1072,11 +1158,11 @@ export default function App() {
               <>
                 <div className="p-6 pb-4">
                   <div className="flex items-center gap-3">
-                    <div className="p-3 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg shadow-lg">
+                    <div className="p-3 bg-gradient-to-br from-[#17413f] to-[#0f2524] rounded-2xl shadow-lg">
                       <Map className="w-6 h-6 text-white" />
                     </div>
                     <div className="flex-1">
-                      <h2 className="text-2xl font-semibold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">Precinct Comparison</h2>
+                      <h2 className="text-2xl font-semibold bg-gradient-to-r from-[#17413f] to-[#006d77] bg-clip-text text-transparent">Precinct Comparison</h2>
                       <p className="text-sm text-gray-600">Click two markers on the map to compare their data</p>
                     </div>
                   </div>
@@ -1084,7 +1170,7 @@ export default function App() {
 
                 <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 px-4 sm:px-6 pb-6">
                   <div className="sm:flex-[3] relative">
-                    <div className="absolute top-4 right-4 bg-white/95 backdrop-blur rounded-lg shadow-lg p-4 z-30 pointer-events-none border border-gray-200">
+                    <div className="absolute top-4 right-4 bg-[rgba(247,255,253,0.82)] backdrop-blur-md rounded-2xl shadow-[0_16px_34px_rgba(16,32,31,0.12)] p-4 z-30 pointer-events-none border border-[#83c5be]/16 text-[#10201f]">
                       <h3 className="font-semibold mb-3 text-sm">Comfort Levels</h3>
                       <div className="space-y-2">
                         <div className="flex items-center gap-2"><div className="w-4 h-4 rounded-full bg-green-500" /><span className="text-xs font-medium">Comfortable (70–100)</span></div>
@@ -1099,6 +1185,7 @@ export default function App() {
                       compareSelection1={compareSelection1}
                       compareSelection2={compareSelection2}
                       onPrecinctClick={handleCompareClick}
+                      showInteractiveAreas={false}
                       showEasePlaces={false}
                       showStreetFacilities={false}
                       showNaturalPlaces={false}
@@ -1107,7 +1194,7 @@ export default function App() {
 
                   <div className="sm:flex-[2]">
                     {!compareSelection1 && !compareSelection2 ? (
-                      <div className="flex items-center justify-center h-full bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
+                      <div className="flex items-center justify-center h-full bg-[rgba(237,246,249,0.82)] rounded-[24px] border border-dashed border-[#83c5be]/34">
                         <div className="text-center p-6">
                           <div className="text-4xl mb-4">👆</div>
                           <h3 className="text-lg font-semibold text-gray-700 mb-2">Select Two Areas</h3>
@@ -1135,7 +1222,7 @@ export default function App() {
                             return (
                               <div
                                 key={num}
-                                className={`border-2 rounded-xl p-4 shadow-lg bg-gradient-to-br from-white to-gray-50 relative transition-all duration-300 ${
+                                className={`border rounded-[24px] p-4 shadow-[0_18px_44px_rgba(4,14,14,0.16)] bg-gradient-to-br from-[rgba(247,255,253,0.96)] to-[rgba(237,246,249,0.92)] relative transition-all duration-300 ${
                                   hasRecommendation
                                     ? (isRecommendedCard ? 'scale-[1.03] ring-2 ring-green-400' : 'scale-[0.90] opacity-85')
                                     : ''
@@ -1163,7 +1250,7 @@ export default function App() {
                                   </div>
                                   <p className="text-sm text-gray-500 mt-1 ml-8">{formatDetailSensorStatus(p)}</p>
                                 </div>
-                                <div className={`mb-3 p-3 rounded-lg border ${stale ? 'bg-gray-50' : 'bg-white'}`}>
+                                <div className={`mb-3 p-3 rounded-2xl border ${stale ? 'bg-gray-50' : 'bg-white/80'}`}>
                                   <div className="mb-1 flex items-center">
                                     <p className="text-xs text-gray-600">Comfort Score</p>
                                     <ComfortScoreInfo placement="right" />
@@ -1171,22 +1258,22 @@ export default function App() {
                                   <p className={`text-3xl font-bold ${stale ? 'text-gray-400' : ''}`} style={{ color: stale ? undefined : getRiskColor(risk) }}>{p.comfort_score}</p>
                                 </div>
                                 <div className="space-y-2">
-                                  <div className="bg-orange-50 rounded p-2 border border-orange-200">
+                                  <div className="bg-[#fff3eb] rounded-xl p-2 border border-[#e29578]/24">
                                     <div className="flex items-center gap-1 mb-1"><Thermometer className="w-3 h-3 text-orange-600" /><p className="text-[10px] text-gray-600">Temperature</p></div>
                                     <p className="text-sm font-bold text-orange-700">{p.temperature !== null ? `${p.temperature}°C` : 'N/A'}</p>
                                     <p className="text-[10px] text-gray-500 mt-1">Recommended: 18-26°C</p>
                                   </div>
-                                  <div className="bg-blue-50 rounded p-2 border border-blue-200">
+                                  <div className="bg-[#edf6f9] rounded-xl p-2 border border-[#83c5be]/24">
                                     <div className="flex items-center gap-1 mb-1"><Droplets className="w-3 h-3 text-blue-600" /><p className="text-[10px] text-gray-600">Humidity</p></div>
                                     <p className="text-sm font-bold text-blue-700">{p.humidity !== null ? `${p.humidity}%` : 'N/A'}</p>
                                     <p className="text-[10px] text-gray-500 mt-1">Recommended: 40-60%</p>
                                   </div>
-                                  <div className="bg-purple-50 rounded p-2 border border-purple-200">
+                                  <div className="bg-[#f5f8f8] rounded-xl p-2 border border-[#83c5be]/18">
                                     <div className="flex items-center gap-1 mb-1"><Users className="w-3 h-3 text-purple-600" /><p className="text-[10px] text-gray-600">Activity</p></div>
                                     <p className="text-sm font-bold text-purple-700">{p.activity_level}</p>
                                     <p className="text-[10px] text-gray-500 mt-1">Recommended: Low / Medium</p>
                                   </div>
-                                  <div className="bg-teal-50 rounded p-2 border border-teal-200">
+                                  <div className="bg-[#eef8f5] rounded-xl p-2 border border-[#83c5be]/22">
                                     <div className="flex items-center gap-1 mb-1"><Wind className="w-3 h-3 text-teal-600" /><p className="text-[10px] text-gray-600">Wind</p></div>
                                     <p className="text-sm font-bold text-teal-700">{p.wind_speed !== null ? `${p.wind_speed} m/s` : 'N/A'}</p>
                                     <p className="text-[10px] text-gray-500 mt-1">Recommended: 2-8 m/s</p>
@@ -1195,7 +1282,7 @@ export default function App() {
                                 <button
                                   type="button"
                                   onClick={() => handleWantToGo(id)}
-                                  className="w-full mt-3 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition-colors shadow-md flex items-center justify-center gap-2"
+                                  className="w-full mt-3 py-2 bg-gradient-to-r from-[#006d77] to-[#17413f] text-white text-sm font-semibold rounded-2xl hover:from-[#17413f] hover:to-[#006d77] transition-colors shadow-md flex items-center justify-center gap-2"
                                 >
                                   <img src={ideaIcon} alt="" className="h-4 w-4 object-contain" aria-hidden="true" />
                                   <span>Best time & travel suggestion</span>
@@ -1206,7 +1293,7 @@ export default function App() {
                         </div>
 
                         {compareSelection1 && compareSelection2 && comparisonRecommendation && (
-                          <div className="relative z-20 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4 border-l-4 border-blue-500 shadow-sm">
+                          <div className="relative z-20 bg-gradient-to-r from-[#edf6f9] to-[#eef8f5] rounded-[24px] p-4 border-l-4 border-[#006d77] shadow-sm text-[#10201f]">
                             <div className="flex items-start gap-3">
                               <div className="flex-shrink-0 w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center">
                                 <img src={ideaIcon} alt="" className="h-5 w-5 object-contain" aria-hidden="true" />
@@ -1236,6 +1323,7 @@ export default function App() {
                 </div>
               </>
             )}
+
           </div>
         </div>
       </div>
