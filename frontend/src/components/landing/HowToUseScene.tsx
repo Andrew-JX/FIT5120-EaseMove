@@ -9,8 +9,7 @@ const screenshotUrls = [
   new URL("../../assets/landing/8.png", import.meta.url).href,
   new URL("../../assets/landing/9.png", import.meta.url).href,
 ] as const;
-const extremeWeatherUrl = "http://localhost:5174/extreme-weather-risks";
-const areaDetailExampleUrl = "http://localhost:5174/map?area=melbourne-cbd";
+const areaDetailExamplePath = "/map?area=melbourne-cbd";
 
 const steps = [
   {
@@ -107,13 +106,15 @@ export default function HowToUseScene() {
   const wheelLockRef = useRef(false);
   const isMapStep = activeStepIndex < 3;
   const openExtremeWeatherPage = () => {
-    window.location.href = extremeWeatherUrl;
+    navigateTo("/extreme-weather-risks");
   };
   const openMapPage = () => {
     navigateTo("/map");
   };
   const openAreaDetailExample = () => {
-    window.location.href = areaDetailExampleUrl;
+    if (`${window.location.pathname}${window.location.search}` === areaDetailExamplePath) return;
+    window.history.pushState({}, "", areaDetailExamplePath);
+    window.dispatchEvent(new PopStateEvent("popstate"));
   };
   const activateStep = (index: number) => {
     setActiveStepIndex(Math.max(0, Math.min(steps.length - 1, index)));
