@@ -29,7 +29,8 @@ function clampInputStep(value: number) {
 }
 
 export default function HeroSplitScene() {
-  const [canPlayVideo, setCanPlayVideo] = useState(true);
+  const [hasVideoError, setHasVideoError] = useState(false);
+  const [isVideoReady, setIsVideoReady] = useState(false);
   const [completed, setCompleted] = useState(false);
   const [isHeroControlEnabled, setIsHeroControlEnabled] = useState(true);
   const targetProgress = useMotionValue(0);
@@ -45,6 +46,8 @@ export default function HeroSplitScene() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
   useLayoutEffect(() => {
+    setHasVideoError(false);
+    setIsVideoReady(false);
     completedRef.current = false;
     latestRawInputDeltaRef.current = 0;
     touchYRef.current = null;
@@ -52,7 +55,7 @@ export default function HeroSplitScene() {
     targetProgress.set(0);
 
     const video = videoRef.current;
-    if (!video) return;
+    if (!video || hasVideoError) return;
 
     const restartPlayback = () => {
       const playPromise = video.play();
@@ -75,7 +78,7 @@ export default function HeroSplitScene() {
       video.load();
       restartPlayback();
     }
-  }, [targetProgress]);
+  }, [hasVideoError, targetProgress]);
 
   useEffect(() => {
     completedRef.current = completed;
@@ -303,23 +306,31 @@ export default function HeroSplitScene() {
             boxShadow: videoShadow,
           }}
         >
-          {canPlayVideo ? (
+          <div className="landing-video-placeholder">
+            <div className="landing-video-placeholder-inner">
+              <span className="landing-video-placeholder-kicker">MoveComfortly Melbourne</span>
+              <strong>Melbourne in motion</strong>
+              <p>Loading the hero experience...</p>
+            </div>
+          </div>
+          {!hasVideoError ? (
             <video
               ref={videoRef}
-              className="landing-video"
+              className={`landing-video${isVideoReady ? " is-ready" : ""}`}
               src={melVideoUrl}
               autoPlay
               muted
               loop
               playsInline
               preload="metadata"
-              onError={() => setCanPlayVideo(false)}
+              onCanPlay={() => setIsVideoReady(true)}
+              onLoadedData={() => setIsVideoReady(true)}
+              onError={() => {
+                setHasVideoError(true);
+                setIsVideoReady(false);
+              }}
             />
-          ) : (
-            <div className="landing-video-placeholder">
-              <span>Melbourne in motion</span>
-            </div>
-          )}
+          ) : null}
           <div className="landing-video-scrim" />
         </motion.div>
 
