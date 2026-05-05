@@ -627,7 +627,7 @@ export default function ExtremeWeatherRisksPage() {
             </div>
             <div className="justify-self-center text-center">
               <h2 className="text-base sm:text-lg font-bold text-white">
-                {selectedWeather !== null ? `${weatherTypes[selectedWeather].name} Risks` : "Risk Details"}
+                Risk Detail
               </h2>
             </div>
             <div />
@@ -786,13 +786,14 @@ export default function ExtremeWeatherRisksPage() {
         </div>
       </section>
 
-      {activePanel !== "quiz" && (
+      {(activePanel === "ring" || activePanel === "detail") && (
         <div className="fixed right-4 bottom-4 z-30 w-64 rounded-lg border border-white/30 bg-black/70 p-3 text-xs leading-5 text-white backdrop-blur-sm">
           <p><span className="font-semibold text-red-300">High:</span> May cause fainting or even life-threatening conditions.</p>
           <p className="mt-1"><span className="font-semibold text-amber-300">Moderate:</span> Affects body condition but can usually be relieved.</p>
           <p className="mt-1"><span className="font-semibold text-blue-300">Mild:</span> Generally low concern in normal situations.</p>
         </div>
       )}
+
     </div>
   );
 }
