@@ -9,7 +9,9 @@ const app = express();
 const allowedOrigins = [
   process.env.CORS_ORIGIN,
   'http://localhost:4173',
-  'http://localhost:3000'
+  'http://localhost:3000',
+  'https://fit-5120-ease-move-iteration1.vercel.app',
+  'https://fit-5120-ease-move-iteration2.vercel.app'
 ].filter(Boolean);
 
 app.use(cors({
