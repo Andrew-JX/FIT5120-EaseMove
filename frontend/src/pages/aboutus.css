@@ -9,10 +9,41 @@
 
 /* Hero */
 .aboutus-hero {
+  position: relative;
   background: linear-gradient(180deg, #081515 0%, #102624 60%, #122d2b 100%);
   color: #f7fffd;
   padding: clamp(80px, 12vw, 140px) clamp(24px, 6vw, 92px) clamp(64px, 9vw, 112px);
   text-align: center;
+}
+
+.aboutus-back-button {
+  all: unset;
+  position: absolute;
+  top: 22px;
+  left: 24px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(247, 255, 253, 0.18);
+  color: rgba(247, 255, 253, 0.92);
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(12px);
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 700;
+  transition:
+    background 0.18s ease,
+    border-color 0.18s ease,
+    transform 0.18s ease;
+}
+
+.aboutus-back-button:hover {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(247, 255, 253, 0.32);
+  transform: translateY(-1px);
 }
 
 .aboutus-hero-kicker {

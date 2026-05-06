@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { navigateTo } from "../../lib/navigation";
+import { useNavigate } from "react-router";
 
 function Accordion({ title, children }: { title: string; children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
@@ -22,6 +22,7 @@ function Accordion({ title, children }: { title: string; children: React.ReactNo
 }
 
 export default function FooterScene() {
+  const navigate = useNavigate();
   const scrollTop = () => window.scrollTo({ top: 0, behavior: "smooth" });
 
   return (
@@ -48,10 +49,10 @@ export default function FooterScene() {
           <div className="landing-footer-col">
             <h4 className="landing-footer-col-title">Explore</h4>
             <nav className="landing-footer-nav">
-              <button className="landing-footer-nav-link" onClick={() => navigateTo("/map")}>
+              <button className="landing-footer-nav-link" onClick={() => navigate("/map")}>
                 Open the map
               </button>
-              <button className="landing-footer-nav-link" onClick={() => navigateTo("/aboutus")}>
+              <button className="landing-footer-nav-link" onClick={() => navigate("/aboutus")}>
                 About us
               </button>
               <button className="landing-footer-nav-link" onClick={scrollTop}>

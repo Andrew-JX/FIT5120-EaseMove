@@ -1,14 +1,14 @@
 import React from "react";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
+import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import ExtremeWeatherQuizPage from "../ExtremeWeatherQuizPage";
 
-const navigateToMock = vi.fn();
-
-vi.mock("../../lib/navigation", () => ({
-  navigateTo: (path: string) => navigateToMock(path),
-}));
+function LocationDisplay() {
+  const location = useLocation();
+  return <div data-testid="location-display">{location.pathname}</div>;
+}
 
 function render(element: React.ReactNode) {
   const container = document.createElement("div");
@@ -31,7 +31,7 @@ function render(element: React.ReactNode) {
 }
 
 beforeEach(() => {
-  navigateToMock.mockReset();
+  vi.restoreAllMocks();
 });
 
 afterEach(() => {
@@ -40,7 +40,22 @@ afterEach(() => {
 
 describe("ExtremeWeatherQuizPage - Epic 4.3", () => {
   test("renders five quiz questions covering heat, heavy rain, storm, cold, and dry conditions", () => {
-    const view = render(<ExtremeWeatherQuizPage />);
+    const view = render(
+      <MemoryRouter initialEntries={["/extreme-weather-risks-quiz"]}>
+        <Routes>
+          <Route
+            path="/extreme-weather-risks-quiz"
+            element={
+              <>
+                <ExtremeWeatherQuizPage />
+                <LocationDisplay />
+              </>
+            }
+          />
+          <Route path="/extreme-weather-risks" element={<LocationDisplay />} />
+        </Routes>
+      </MemoryRouter>
+    );
 
     expect(view.container.textContent).toContain("Extreme Weather Quiz");
     expect(view.container.textContent).toContain("Q1. During very hot weather, which action is the safest?");
@@ -59,7 +74,13 @@ describe("ExtremeWeatherQuizPage - Epic 4.3", () => {
   });
 
   test("submitting one question shows immediate correct or incorrect feedback with explanation", () => {
-    const view = render(<ExtremeWeatherQuizPage />);
+    const view = render(
+      <MemoryRouter initialEntries={["/extreme-weather-risks-quiz"]}>
+        <Routes>
+          <Route path="/extreme-weather-risks-quiz" element={<ExtremeWeatherQuizPage />} />
+        </Routes>
+      </MemoryRouter>
+    );
 
     const firstQuestionRadios = Array.from(
       view.container.querySelectorAll('input[name="q1"]')
@@ -88,7 +109,13 @@ describe("ExtremeWeatherQuizPage - Epic 4.3", () => {
   });
 
   test("after all five questions are submitted, the page shows a score summary", () => {
-    const view = render(<ExtremeWeatherQuizPage />);
+    const view = render(
+      <MemoryRouter initialEntries={["/extreme-weather-risks-quiz"]}>
+        <Routes>
+          <Route path="/extreme-weather-risks-quiz" element={<ExtremeWeatherQuizPage />} />
+        </Routes>
+      </MemoryRouter>
+    );
 
     const answerIndexes = {
       q1: 0,
@@ -128,7 +155,13 @@ describe("ExtremeWeatherQuizPage - Epic 4.3", () => {
   });
 
   test("Try Again resets submitted feedback and allows the quiz to restart", () => {
-    const view = render(<ExtremeWeatherQuizPage />);
+    const view = render(
+      <MemoryRouter initialEntries={["/extreme-weather-risks-quiz"]}>
+        <Routes>
+          <Route path="/extreme-weather-risks-quiz" element={<ExtremeWeatherQuizPage />} />
+        </Routes>
+      </MemoryRouter>
+    );
 
     const firstQuestionRadios = Array.from(
       view.container.querySelectorAll('input[name="q1"]')
@@ -165,7 +198,22 @@ describe("ExtremeWeatherQuizPage - Epic 4.3", () => {
   });
 
   test("clicking Back returns to the extreme weather risks page", () => {
-    const view = render(<ExtremeWeatherQuizPage />);
+    const view = render(
+      <MemoryRouter initialEntries={["/extreme-weather-risks-quiz"]}>
+        <Routes>
+          <Route
+            path="/extreme-weather-risks-quiz"
+            element={
+              <>
+                <ExtremeWeatherQuizPage />
+                <LocationDisplay />
+              </>
+            }
+          />
+          <Route path="/extreme-weather-risks" element={<LocationDisplay />} />
+        </Routes>
+      </MemoryRouter>
+    );
 
     const backButton = Array.from(view.container.querySelectorAll("button")).find((button) =>
       button.textContent?.includes("Back")
@@ -176,7 +224,9 @@ describe("ExtremeWeatherQuizPage - Epic 4.3", () => {
       backButton!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
 
-    expect(navigateToMock).toHaveBeenCalledWith("/extreme-weather-risks");
+    expect(view.container.querySelector('[data-testid="location-display"]')?.textContent).toBe(
+      "/extreme-weather-risks"
+    );
 
     view.unmount();
   });

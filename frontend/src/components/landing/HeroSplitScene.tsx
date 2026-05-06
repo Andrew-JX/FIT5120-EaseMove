@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { motion, useMotionValue, useSpring, useTransform } from "framer-motion";
-import { navigateTo } from "../../lib/navigation";
+import { useNavigate } from "react-router";
 import IconMarquee from "./IconMarquee";
 import {
   acquire,
@@ -29,6 +29,10 @@ function clampInputStep(value: number) {
 }
 
 export default function HeroSplitScene() {
+  const navigate = useNavigate();
+  const [isCompactScreen, setIsCompactScreen] = useState(() =>
+    typeof window !== "undefined" ? window.innerWidth <= 820 : false
+  );
   const [hasVideoError, setHasVideoError] = useState(false);
   const [isVideoReady, setIsVideoReady] = useState(false);
   const [completed, setCompleted] = useState(false);
@@ -83,6 +87,19 @@ export default function HeroSplitScene() {
   useEffect(() => {
     completedRef.current = completed;
   }, [completed]);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsCompactScreen(window.innerWidth <= 820);
+    };
+
+    handleResize();
+    window.addEventListener("resize", handleResize);
+
+    return () => {
+      window.removeEventListener("resize", handleResize);
+    };
+  }, []);
 
   useEffect(() => {
     const unsubscribe = smoothedProgress.on("change", (latest) => {
@@ -269,9 +286,21 @@ export default function HeroSplitScene() {
     };
   }, [completed, isHeroControlEnabled, targetProgress]);
 
-  const videoWidth = useTransform(smoothedProgress, [0.2, 0.65], ["100vw", "42vw"]);
-  const videoHeight = useTransform(smoothedProgress, [0.2, 0.65], ["100vh", "58vh"]);
-  const videoX = useTransform(smoothedProgress, [0.2, 0.65], ["-50%", "-78%"]);
+  const videoWidth = useTransform(
+    smoothedProgress,
+    [0.2, 0.65],
+    ["100vw", isCompactScreen ? "88vw" : "42vw"]
+  );
+  const videoHeight = useTransform(
+    smoothedProgress,
+    [0.2, 0.65],
+    ["100vh", isCompactScreen ? "34vh" : "58vh"]
+  );
+  const videoX = useTransform(
+    smoothedProgress,
+    [0.2, 0.65],
+    ["-50%", isCompactScreen ? "-50%" : "-78%"]
+  );
   const videoRadius = useTransform(smoothedProgress, [0.2, 0.65], ["0px", "8px"]);
   const videoShadow = useTransform(
     smoothedProgress,
@@ -288,7 +317,13 @@ export default function HeroSplitScene() {
 
   const marqueeOpacity = useTransform(smoothedProgress, [0.28, 0.55, 0.72], [0, 0.82, 1]);
   const marqueeY = useTransform(smoothedProgress, [0.28, 0.72], ["24px", "0px"]);
-  const openMap = () => navigateTo("/map");
+  const openMap = () => navigate("/map");
+  const scrollToNextSection = () => {
+    document.getElementById("landing-next-section")?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+  };
 
   return (
     <section className="landing-hero-scene">
@@ -350,16 +385,18 @@ export default function HeroSplitScene() {
           <span className="landing-hero-caption-break">of Melbourne</span>
         </motion.p>
 
-        <motion.div
+        <motion.button
           className="landing-hero-scroll-cue"
           style={{ opacity: heroLabelOpacity, y: heroLabelY }}
-          aria-hidden="true"
+          type="button"
+          onClick={scrollToNextSection}
+          aria-label="Scroll to the next section"
         >
           <span className="landing-hero-scroll-arrow">
             <span className="landing-hero-scroll-arrow-head" />
           </span>
           <span>Scroll down to continue</span>
-        </motion.div>
+        </motion.button>
 
         <div className="landing-compose-grid">
           <motion.div
