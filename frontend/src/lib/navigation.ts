@@ -1,27 +1,18 @@
 export type AppRoutePath =
-  "/"
+  | "/"
   | "/map"
+  | "/map/compare"
   | "/aboutus"
   | "/extreme-weather-risks"
   | "/extreme-weather-risks-detail"
   | "/extreme-weather-risks-quiz";
 
-export function normalizeAppPath(path: string): AppRoutePath {
-  if (path === "/map" || path === "/map/") return "/map";
-  if (path === "/aboutus" || path === "/aboutus/") return "/aboutus";
-  if (path === "/extreme-weather-risks" || path === "/extreme-weather-risks/") return "/extreme-weather-risks";
-  if (path.startsWith("/extreme-weather-risks-detail")) return "/extreme-weather-risks-detail";
-  if (path === "/extreme-weather-risks-quiz" || path === "/extreme-weather-risks-quiz/") return "/extreme-weather-risks-quiz";
-
-  return "/";
-}
-
-export function navigateTo(path: string) {
-  const targetPath = normalizeAppPath(path);
-  const currentPath = normalizeAppPath(window.location.pathname);
-
-  if (targetPath === currentPath) return;
-
-  window.history.pushState({}, "", targetPath);
-  window.dispatchEvent(new PopStateEvent("popstate"));
-}
+export const APP_ROUTES = {
+  home: "/" as const,
+  map: "/map" as const,
+  compare: "/map/compare" as const,
+  about: "/aboutus" as const,
+  risks: "/extreme-weather-risks" as const,
+  riskDetail: "/extreme-weather-risks-detail" as const,
+  riskQuiz: "/extreme-weather-risks-quiz" as const,
+};

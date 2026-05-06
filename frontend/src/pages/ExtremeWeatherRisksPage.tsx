@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode, type WheelEvent } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { Flame, CloudRain, CloudLightning, Snowflake, Sun, ArrowLeft } from "lucide-react";
-import { navigateTo } from "../lib/navigation";
+import { useNavigate } from "react-router";
 import headerImage from "../assets/Melbourne-Extreme-Weather.png";
 import heatImage from "../assets/Heat.png";
 import heavyRainImage from "../assets/Heavy_rain.jpg";
@@ -250,6 +250,7 @@ const weatherTypes: WeatherType[] = [
 ];
 
 export default function ExtremeWeatherRisksPage() {
+  const navigate = useNavigate();
   const [selectedWeather, setSelectedWeather] = useState<number | null>(null);
   const [rotation, setRotation] = useState(0);
   const [hoveredSegment, setHoveredSegment] = useState<number | null>(null);
@@ -411,7 +412,7 @@ export default function ExtremeWeatherRisksPage() {
         <div className="flex flex-col items-start gap-2">
           <button
             type="button"
-            onClick={() => navigateTo("/map")}
+            onClick={() => navigate("/map")}
             className="flex items-center gap-2 text-white hover:text-gray-300 transition-colors"
           >
             <ArrowLeft className="size-4 sm:size-5" />
@@ -777,7 +778,7 @@ export default function ExtremeWeatherRisksPage() {
             </p>
             <button
               type="button"
-              onClick={() => navigateTo("/extreme-weather-risks-quiz")}
+              onClick={() => navigate("/extreme-weather-risks-quiz")}
               className="mt-10 px-10 py-4 rounded-xl bg-teal-600 text-white text-xl sm:text-2xl font-semibold hover:bg-teal-700 transition-colors shadow-lg shadow-teal-900/40"
             >
               Enter Quiz

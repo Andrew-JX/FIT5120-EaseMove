@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { navigateTo } from "../../lib/navigation";
+import { useLocation, useNavigate } from "react-router";
 
 const screenshotUrls = [
   new URL("../../assets/landing/5.png", import.meta.url).href,
@@ -97,6 +97,8 @@ const steps = [
 ] as const;
 
 export default function HowToUseScene() {
+  const navigate = useNavigate();
+  const location = useLocation();
   const [activeStepIndex, setActiveStepIndex] = useState(0);
   const activeCallout = steps[activeStepIndex].callout;
   const activeScreenshotUrl = screenshotUrls[activeStepIndex];
@@ -106,17 +108,20 @@ export default function HowToUseScene() {
   const wheelLockRef = useRef(false);
   const touchStartYRef = useRef<number | null>(null);
   const touchDeltaYRef = useRef(0);
-  const isMapStep = activeStepIndex < 3;
+  const isMapStep = activeStepIndex < 2;
+  const isCompareStep = activeStepIndex === 2;
   const openExtremeWeatherPage = () => {
-    navigateTo("/extreme-weather-risks");
+    navigate("/extreme-weather-risks");
   };
   const openMapPage = () => {
-    navigateTo("/map");
+    navigate("/map");
+  };
+  const openComparePage = () => {
+    navigate("/map/compare");
   };
   const openAreaDetailExample = () => {
-    if (`${window.location.pathname}${window.location.search}` === areaDetailExamplePath) return;
-    window.history.pushState({}, "", areaDetailExamplePath);
-    window.dispatchEvent(new PopStateEvent("popstate"));
+    if (`${location.pathname}${location.search}` === areaDetailExamplePath) return;
+    navigate(areaDetailExamplePath);
   };
   const activateStep = (index: number) => {
     setActiveStepIndex(Math.max(0, Math.min(steps.length - 1, index)));
@@ -214,12 +219,17 @@ export default function HowToUseScene() {
   }, [activeStepIndex]);
 
   return (
-    <section className="landing-how-scene" aria-label="How to use MoveComfortly">
+    <section
+      id="landing-next-section"
+      className="landing-how-scene"
+      aria-label="How to use MoveComfortly"
+    >
       <div className="landing-how-inner">
         <div className="landing-how-grid">
           <div className="landing-how-copy">
             <p className="landing-how-kicker">Plan with confidence</p>
             <h2>How to Use MoveComfortly</h2>
+            <p className="landing-how-steps-hint">Scroll to move through the steps</p>
 
             <div className="landing-how-steps-wrap">
               <div
@@ -231,92 +241,91 @@ export default function HowToUseScene() {
                 onKeyDown={handleStepKeyDown}
               >
                 <ol className="landing-how-steps">
-                {steps.map((step, index) => (
-                  <motion.li
-                    key={step.title}
-                    className="landing-how-step-item"
-                    initial={false}
-                    animate={{
-                      y:
-                        index === activeStepIndex
-                          ? 0
-                          : index < activeStepIndex
-                            ? -110
-                            : index === activeStepIndex + 1
-                              ? 110
-                              : 150,
-                      z:
-                        index === activeStepIndex
-                          ? 0
-                          : index < activeStepIndex
-                            ? -120
-                            : index === activeStepIndex + 1
-                              ? -80
-                              : -140,
-                      scale:
-                        index === activeStepIndex
-                          ? 1
-                          : index < activeStepIndex
-                            ? 0.82
-                            : index === activeStepIndex + 1
-                              ? 0.86
-                              : 0.78,
-                      opacity:
-                        index === activeStepIndex
-                          ? 1
-                          : index < activeStepIndex
+                  {steps.map((step, index) => (
+                    <motion.li
+                      key={step.title}
+                      className="landing-how-step-item"
+                      initial={false}
+                      animate={{
+                        y:
+                          index === activeStepIndex
                             ? 0
+                            : index < activeStepIndex
+                              ? -110
+                              : index === activeStepIndex + 1
+                                ? 110
+                                : 150,
+                        z:
+                          index === activeStepIndex
+                            ? 0
+                            : index < activeStepIndex
+                              ? -120
+                              : index === activeStepIndex + 1
+                                ? -80
+                                : -140,
+                        scale:
+                          index === activeStepIndex
+                            ? 1
+                            : index < activeStepIndex
+                              ? 0.82
+                              : index === activeStepIndex + 1
+                                ? 0.86
+                                : 0.78,
+                        opacity:
+                          index === activeStepIndex
+                            ? 1
+                            : index < activeStepIndex
+                              ? 0
+                              : index === activeStepIndex + 1
+                                ? 0.52
+                                : 0,
+                        rotateX:
+                          index === activeStepIndex
+                            ? 0
+                            : index < activeStepIndex
+                              ? 18
+                              : index === activeStepIndex + 1
+                                ? -12
+                                : -16,
+                        zIndex:
+                          index === activeStepIndex
+                            ? 4
                             : index === activeStepIndex + 1
-                              ? 0.52
-                              : 0,
-                      rotateX:
-                        index === activeStepIndex
-                          ? 0
-                          : index < activeStepIndex
-                            ? 18
-                            : index === activeStepIndex + 1
-                              ? -12
-                              : -16,
-                      zIndex:
-                        index === activeStepIndex
-                          ? 4
-                          : index === activeStepIndex + 1
-                            ? 3
-                            : index === activeStepIndex - 1
-                              ? 2
-                              : 1,
-                    }}
-                    transition={{
-                      duration: 0.62,
-                      ease: [0.25, 1, 0.5, 1],
-                    }}
-                  >
-                    <button
-                      className={`landing-how-step${activeStepIndex === index ? " is-active" : ""}`}
-                      type="button"
-                      aria-pressed={activeStepIndex === index}
-                      aria-current={activeStepIndex === index ? "step" : undefined}
-                      onClick={() => activateStep(index)}
+                              ? 3
+                              : index === activeStepIndex - 1
+                                ? 2
+                                : 1,
+                      }}
+                      transition={{
+                        duration: 0.62,
+                        ease: [0.25, 1, 0.5, 1],
+                      }}
                     >
-                      <span className="landing-how-step-eyebrow">{step.eyebrow}</span>
-                      <h3>{step.title}</h3>
-                      <p>{step.body}</p>
-                      <ul className="landing-how-detail-list" aria-label={`${step.title} details`}>
-                        {step.details.map((detail) => (
-                          <li key={detail}>{detail}</li>
-                        ))}
-                      </ul>
-                      <div className="landing-how-chips" aria-label={`${step.title} highlights`}>
-                        {step.chips.map((chip) => (
-                          <span key={chip}>{chip}</span>
-                        ))}
-                      </div>
-                    </button>
-                  </motion.li>
-                ))}
+                      <button
+                        className={`landing-how-step${activeStepIndex === index ? " is-active" : ""}`}
+                        type="button"
+                        aria-pressed={activeStepIndex === index}
+                        aria-current={activeStepIndex === index ? "step" : undefined}
+                        onClick={() => activateStep(index)}
+                      >
+                        <span className="landing-how-step-eyebrow">{step.eyebrow}</span>
+                        <h3>{step.title}</h3>
+                        <p>{step.body}</p>
+                        <ul className="landing-how-detail-list" aria-label={`${step.title} details`}>
+                          {step.details.map((detail) => (
+                            <li key={detail}>{detail}</li>
+                          ))}
+                        </ul>
+                        <div className="landing-how-chips" aria-label={`${step.title} highlights`}>
+                          {step.chips.map((chip) => (
+                            <span key={chip}>{chip}</span>
+                          ))}
+                        </div>
+                      </button>
+                    </motion.li>
+                  ))}
                 </ol>
               </div>
-              <p className="landing-how-steps-hint">Scroll to move through the steps</p>
             </div>
           </div>
 
@@ -334,6 +343,11 @@ export default function HowToUseScene() {
             {isMapStep ? (
               <button className="landing-how-action" type="button" onClick={openMapPage}>
                 Open the Map
+              </button>
+            ) : null}
+            {isCompareStep ? (
+              <button className="landing-how-action" type="button" onClick={openComparePage}>
+                Open Compare
               </button>
             ) : null}
             {isAreaDetailStep ? (

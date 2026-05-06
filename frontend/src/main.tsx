@@ -1,81 +1,38 @@
-import { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
+import { BrowserRouter, Route, Routes, useLocation } from "react-router";
 import App from "./app/App.tsx";
 import HomePage from "./components/landing/HomePage.tsx";
 import AboutUsPage from "./pages/AboutUsPage.tsx";
 import ExtremeWeatherRisksPage from "./pages/ExtremeWeatherRisksPage.tsx";
 import ExtremeWeatherRiskDetailPage from "./pages/ExtremeWeatherRiskDetailPage.tsx";
 import ExtremeWeatherQuizPage from "./pages/ExtremeWeatherQuizPage.tsx";
-import { normalizeAppPath } from "./lib/navigation.ts";
 import "./styles/index.css";
 
-function isMapPath(pathname: string) {
-  return normalizeAppPath(pathname) === "/map";
+function AppRoutes() {
+  const location = useLocation();
+
+  return (
+    <Routes>
+      <Route path="/" element={<HomePage key={location.key} />} />
+      <Route path="/map" element={<App mode="view" />} />
+      <Route path="/map/compare" element={<App mode="compare" />} />
+      <Route path="/aboutus" element={<AboutUsPage />} />
+      <Route path="/extreme-weather-risks" element={<ExtremeWeatherRisksPage />} />
+      <Route
+        path="/extreme-weather-risks-detail"
+        element={<ExtremeWeatherRiskDetailPage />}
+      />
+      <Route path="/extreme-weather-risks-quiz" element={<ExtremeWeatherQuizPage />} />
+    </Routes>
+  );
 }
 
 function RootRouter() {
-  const [pathname, setPathname] = useState(() => normalizeAppPath(window.location.pathname));
-  const [landingEntryId, setLandingEntryId] = useState(0);
-  const previousPathRef = useRef(normalizeAppPath(window.location.pathname));
-
-  useEffect(() => {
-    const syncPathname = () => {
-      setPathname(normalizeAppPath(window.location.pathname));
-    };
-
-    const handlePageShow = (event: PageTransitionEvent) => {
-      if (!event.persisted) return;
-
-      const nextPathname = normalizeAppPath(window.location.pathname);
-
-      setPathname(nextPathname);
-      previousPathRef.current = nextPathname;
-
-      if (nextPathname === "/") {
-        setLandingEntryId((id) => id + 1);
-      }
-    };
-
-    window.addEventListener("popstate", syncPathname);
-    window.addEventListener("pageshow", handlePageShow);
-
-    return () => {
-      window.removeEventListener("popstate", syncPathname);
-      window.removeEventListener("pageshow", handlePageShow);
-    };
-  }, []);
-
-  useEffect(() => {
-    const previousPath = previousPathRef.current;
-
-    if (previousPath !== "/" && pathname === "/") {
-      setLandingEntryId((id) => id + 1);
-    }
-
-    previousPathRef.current = pathname;
-  }, [pathname]);
-
-  if (isMapPath(pathname)) {
-    return <App />;
-  }
-
-  if (pathname === "/aboutus") {
-    return <AboutUsPage />;
-  }
-
-  if (pathname === "/extreme-weather-risks") {
-    return <ExtremeWeatherRisksPage />;
-  }
-
-  if (pathname === "/extreme-weather-risks-detail") {
-    return <ExtremeWeatherRiskDetailPage />;
-  }
-
-  if (pathname === "/extreme-weather-risks-quiz") {
-    return <ExtremeWeatherQuizPage />;
-  }
-
-  return <HomePage entryId={landingEntryId} key={`landing-${landingEntryId}`} />;
+  return (
+    <BrowserRouter>
+      <AppRoutes />
+    </BrowserRouter>
+  );
 }
 
 createRoot(document.getElementById("root")!).render(<RootRouter />);
