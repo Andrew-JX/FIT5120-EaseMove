@@ -2,7 +2,10 @@ import {
   AlertTriangle,
   ArrowLeft,
   Bike,
+  ChevronLeft,
+  ChevronRight,
   Footprints,
+  Layers3,
   Loader2,
   LocateFixed,
   MapPinned,
@@ -10,7 +13,7 @@ import {
   Trash2,
   XCircle,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type CSSProperties, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import WhiteModelMap, {
   type RoutePoint,
@@ -23,11 +26,33 @@ import { APP_ROUTES } from "../lib/navigation";
 const MAPBOX_PUBLIC_TOKEN = (import.meta.env.VITE_MAPBOX_PUBLIC_TOKEN as string | undefined)?.trim() || null;
 const ROUTE_REQUEST_TIMEOUT_MS = 12000;
 const LOW_ACCURACY_THRESHOLD_METERS = 120;
+const liquidGlassPanelStyle: CSSProperties = {
+  background:
+    "linear-gradient(135deg, rgba(247,255,253,0.46), rgba(237,246,249,0.26) 54%, rgba(255,248,232,0.22))",
+  backdropFilter: "url(#route-liquid-glass-filter) blur(16px) saturate(1.42) brightness(1.06)",
+  WebkitBackdropFilter: "blur(16px) saturate(1.42) brightness(1.06)",
+  boxShadow:
+    "0 24px 60px rgba(4,14,14,0.14), inset 0 1px 0 rgba(255,255,255,0.58), inset 0 -18px 42px rgba(23,65,63,0.06)",
+};
+
+const liquidGlassCardClass =
+  "border border-white/42 bg-[linear-gradient(145deg,rgba(255,255,255,0.34),rgba(237,246,249,0.18))] shadow-[inset_0_1px_0_rgba(255,255,255,0.58),0_12px_30px_rgba(4,14,14,0.055)]";
+
+const liquidGlassInteractiveClass =
+  `${liquidGlassCardClass} transition duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-0.5 hover:border-white/72 hover:bg-[linear-gradient(145deg,rgba(255,255,255,0.48),rgba(237,246,249,0.24))] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.78),0_18px_42px_rgba(4,14,14,0.12)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#83c5be]/70`;
 
 type RouteError = {
   title: string;
   message: string;
 };
+
+type AreaLayerState = {
+  easePlaces: boolean;
+  naturalPlaces: boolean;
+  activityDensity: boolean;
+};
+
+type PanelView = "route" | "layers" | null;
 
 type DirectionsResponse = {
   routes?: Array<{
@@ -42,6 +67,7 @@ type DirectionsResponse = {
           instruction: string;
           modifier?: string;
           type: string;
+          location?: [number, number];
         };
       }>;
     }>;
@@ -97,6 +123,10 @@ function parseRoute(data: DirectionsResponse, profile: RouteProfile): RouteSumma
       type: step.maneuver.type,
       distanceMeters: step.distance,
       roadName: step.name,
+      maneuverPoint:
+        Array.isArray(step.maneuver.location) && step.maneuver.location.length === 2
+          ? { lng: step.maneuver.location[0], lat: step.maneuver.location[1] }
+          : null,
     }))
   );
 
@@ -137,6 +167,13 @@ export default function Map3DExperimentPage() {
         }
   );
   const [isRouteLoading, setIsRouteLoading] = useState(false);
+  const [activePanel, setActivePanel] = useState<PanelView>("route");
+  const [focusedStepIndex, setFocusedStepIndex] = useState<number | null>(null);
+  const [areaLayers, setAreaLayers] = useState<AreaLayerState>({
+    easePlaces: false,
+    naturalPlaces: false,
+    activityDensity: false,
+  });
   const [geolocation, setGeolocation] = useState<GeolocationState>({
     status: "idle",
     message: null,
@@ -211,6 +248,8 @@ export default function Map3DExperimentPage() {
 
   const handleMapClick = useCallback(
     (point: RoutePoint) => {
+      setActivePanel("route");
+      setFocusedStepIndex(null);
       setGeolocation((current) => (current.status === "loading" ? current : { status: "idle", message: null }));
       setRouteError(null);
 
@@ -231,6 +270,8 @@ export default function Map3DExperimentPage() {
 
   const handleProfileChange = useCallback(
     (nextProfile: RouteProfile) => {
+      setActivePanel("route");
+      setFocusedStepIndex(null);
       setProfile(nextProfile);
       if (startPoint && endPoint) {
         void requestRoute(nextProfile, startPoint, endPoint);
@@ -241,6 +282,7 @@ export default function Map3DExperimentPage() {
 
   const handleDeleteStart = useCallback(() => {
     clearRouteOnly();
+    setFocusedStepIndex(null);
     setStartPoint(null);
     setEndPoint(null);
     setRouteError(null);
@@ -248,11 +290,14 @@ export default function Map3DExperimentPage() {
 
   const handleDeleteEnd = useCallback(() => {
     clearRouteOnly();
+    setFocusedStepIndex(null);
     setEndPoint(null);
     setRouteError(null);
   }, [clearRouteOnly]);
 
   const handleUseCurrentLocation = useCallback(() => {
+    setActivePanel("route");
+    setFocusedStepIndex(null);
     if (!navigator.geolocation) {
       setGeolocation({
         status: "error",
@@ -316,6 +361,39 @@ export default function Map3DExperimentPage() {
     return "Reselect points or switch travel mode to try again.";
   }, [canUseRouteApi, endPoint, isRouteLoading, profile, routeReady, startPoint]);
 
+  const panelHasDenseContent = Boolean(route || routeError || isRouteLoading);
+  const activeLayerCount =
+    Number(areaLayers.easePlaces) + Number(areaLayers.naturalPlaces) + Number(areaLayers.activityDensity);
+  const panelCollapsed = activePanel === null;
+
+  const handleBack = useCallback(() => {
+    if (window.history.length > 1) {
+      navigate(-1);
+      return;
+    }
+    navigate(APP_ROUTES.map);
+  }, [navigate]);
+
+  const handleLayerToggle = useCallback((key: keyof AreaLayerState) => {
+    setActivePanel("layers");
+    setAreaLayers((current) => ({
+      ...current,
+      [key]: !current[key],
+    }));
+  }, []);
+
+  const openPanel = useCallback((panel: Exclude<PanelView, null>) => {
+    setActivePanel(panel);
+  }, []);
+
+  const closePanel = useCallback(() => {
+    setActivePanel(null);
+  }, []);
+
+  useEffect(() => {
+    setFocusedStepIndex(null);
+  }, [route]);
+
   useEffect(() => {
     return () => {
       requestIdRef.current += 1;
@@ -324,162 +402,282 @@ export default function Map3DExperimentPage() {
 
   return (
     <div className="relative min-h-[100dvh] w-full overflow-hidden bg-[#edf0f2]">
+      <svg aria-hidden="true" className="pointer-events-none fixed h-0 w-0">
+        <filter id="route-liquid-glass-filter" colorInterpolationFilters="sRGB">
+          <feTurbulence type="fractalNoise" baseFrequency="0.018 0.032" numOctaves="2" seed="12" result="noise" />
+          <feDisplacementMap in="SourceGraphic" in2="noise" scale="10" xChannelSelector="R" yChannelSelector="G" />
+        </filter>
+      </svg>
       <WhiteModelMap
         mapboxToken={MAPBOX_PUBLIC_TOKEN}
         startPoint={startPoint}
         endPoint={endPoint}
         route={route}
+        focusedStep={focusedStepIndex !== null && route ? route.steps[focusedStepIndex] ?? null : null}
+        showEasePlaces={areaLayers.easePlaces}
+        showNaturalPlaces={areaLayers.naturalPlaces}
         onMapClick={handleMapClick}
         onMapError={handleMapError}
       />
 
-      <aside className="absolute bottom-4 left-4 top-4 z-10 flex w-[380px] max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-[24px] border border-white/80 bg-white/95 shadow-[0_24px_60px_rgba(15,23,42,0.18)] backdrop-blur-md max-md:right-4 max-md:top-auto max-md:max-h-[58dvh] max-md:w-auto">
-        <div className="border-b border-slate-200 px-5 py-4">
+      <aside
+        style={liquidGlassPanelStyle}
+        className={`absolute left-4 top-4 z-10 flex max-w-[calc(100vw-2rem)] flex-col overflow-hidden border border-white/55 max-md:right-4 max-md:top-auto ${
+          panelCollapsed
+            ? "w-[184px] rounded-[18px]"
+            : panelHasDenseContent
+              ? "bottom-4 w-[386px] rounded-[24px] max-md:max-h-[62dvh] max-md:w-auto"
+              : "w-[386px] rounded-[24px] max-md:w-auto"
+        }`}
+      >
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_0%,rgba(255,255,255,0.48),transparent_34%),linear-gradient(120deg,rgba(255,255,255,0.12),transparent_42%,rgba(255,255,255,0.1)_68%,transparent)]" />
+        {panelCollapsed ? (
+          <div className="grid grid-cols-2 gap-2 p-2">
+            <CollapsedPanelButton
+              label="Route"
+              icon={<Navigation className="h-4 w-4" />}
+              onClick={() => openPanel("route")}
+            />
+            <CollapsedPanelButton
+              label="Layers"
+              icon={<Layers3 className="h-4 w-4" />}
+              onClick={() => openPanel("layers")}
+            />
+          </div>
+        ) : (
+          <>
+        <div className="relative border-b border-white/38 px-5 py-4 shadow-[inset_0_-1px_0_rgba(23,65,63,0.06)]">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Default route</p>
-              <h1 className="mt-1 text-xl font-semibold text-slate-950">3D Route Preview</h1>
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#5f8682]">MoveComfortly route</p>
+              <h1 className="mt-1 text-xl font-semibold text-[#17413f]">3D Route Preview</h1>
             </div>
-            <button
-              type="button"
-              onClick={handleUseCurrentLocation}
-              disabled={geolocation.status === "loading" || !canUseRouteApi}
-              className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-800 shadow-sm transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-45"
-              title="Use current location as start"
-            >
-              {geolocation.status === "loading" ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <LocateFixed className="h-4 w-4" />
-              )}
-            </button>
+            <div className="flex shrink-0 items-center gap-2">
+              <button
+                type="button"
+                onClick={handleBack}
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-full border border-white/42 bg-white/42 px-3 text-sm font-semibold text-[#17413f] shadow-[inset_0_1px_0_rgba(255,255,255,0.7),0_8px_18px_rgba(23,65,63,0.08)] transition hover:bg-white/62 active:scale-[0.98]"
+                title="Back to previous page"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Back
+              </button>
+              <button
+                type="button"
+                onClick={handleUseCurrentLocation}
+                disabled={geolocation.status === "loading" || !canUseRouteApi}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/42 bg-white/42 text-[#17413f] shadow-[inset_0_1px_0_rgba(255,255,255,0.7),0_8px_18px_rgba(23,65,63,0.08)] transition hover:bg-white/62 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-45"
+                title="Use current location as start"
+              >
+                {geolocation.status === "loading" ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <LocateFixed className="h-4 w-4" />
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={closePanel}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/42 bg-white/42 text-[#17413f] shadow-[inset_0_1px_0_rgba(255,255,255,0.7),0_8px_18px_rgba(23,65,63,0.08)] transition hover:bg-white/62 active:scale-[0.98]"
+                title="Collapse panel"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+            </div>
           </div>
 
-          <div className="mt-4 grid grid-cols-2 rounded-full bg-slate-100 p-1">
-            <button
-              type="button"
-              onClick={() => handleProfileChange("walking")}
-              className={`inline-flex items-center justify-center gap-2 rounded-full px-3 py-2 text-sm font-semibold transition active:scale-[0.98] ${
-                profile === "walking" ? "bg-white text-slate-950 shadow-sm" : "text-slate-500 hover:text-slate-800"
-              }`}
-            >
-              <Footprints className="h-4 w-4" />
-              Walking
-            </button>
-            <button
-              type="button"
-              onClick={() => handleProfileChange("cycling")}
-              className={`inline-flex items-center justify-center gap-2 rounded-full px-3 py-2 text-sm font-semibold transition active:scale-[0.98] ${
-                profile === "cycling" ? "bg-white text-slate-950 shadow-sm" : "text-slate-500 hover:text-slate-800"
-              }`}
-            >
-              <Bike className="h-4 w-4" />
-              Cycling
-            </button>
+          <div className="mt-4 grid grid-cols-2 rounded-full border border-white/32 bg-white/28 p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.55)]">
+            <PanelTabButton
+              active={activePanel === "route"}
+              icon={<Navigation className="h-4 w-4" />}
+              label="Route"
+              onClick={() => openPanel("route")}
+            />
+            <PanelTabButton
+              active={activePanel === "layers"}
+              icon={<Layers3 className="h-4 w-4" />}
+              label="Layers"
+              onClick={() => openPanel("layers")}
+            />
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-5 py-4">
-          <div className="mb-4 rounded-2xl bg-slate-50 p-4 text-sm text-slate-600">
-            <div className="flex items-start gap-3">
-              <MapPinned className="mt-0.5 h-4 w-4 shrink-0 text-slate-900" />
-              <p>{currentInstruction}</p>
-            </div>
-          </div>
-
-          {geolocation.message ? (
-            <div
-              className={`mb-4 rounded-2xl border p-3 text-sm ${
-                geolocation.status === "error"
-                  ? "border-red-200 bg-red-50 text-red-800"
-                  : geolocation.status === "warning"
-                    ? "border-amber-200 bg-amber-50 text-amber-800"
-                    : "border-emerald-200 bg-emerald-50 text-emerald-800"
-              }`}
-            >
-              {geolocation.message}
-            </div>
-          ) : null}
-
-          {routeError ? (
-            <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
-              <div className="mb-1 flex items-center gap-2 font-semibold">
-                <AlertTriangle className="h-4 w-4" />
-                {routeError.title}
-              </div>
-              <p>{routeError.message}</p>
-            </div>
-          ) : null}
-
-          <div className="mb-4 space-y-3">
-            <PointRow label="Start" point={startPoint} colorClass="bg-slate-950" onDelete={handleDeleteStart} />
-            <PointRow label="End" point={endPoint} colorClass="bg-blue-600" onDelete={handleDeleteEnd} />
-          </div>
-
-          {isRouteLoading ? (
-            <div className="mb-4 grid grid-cols-2 gap-3">
-              <div className="h-[86px] animate-pulse rounded-2xl bg-slate-100" />
-              <div className="h-[86px] animate-pulse rounded-2xl bg-slate-100" />
-            </div>
-          ) : null}
-
-          {route ? (
+        <div className={`relative ${panelHasDenseContent ? "flex-1 overflow-y-auto" : ""} px-5 py-4`}>
+          {activePanel === "route" ? (
             <>
-              <div className="mb-4 grid grid-cols-2 gap-3">
-                <Metric label="Distance" value={formatDistance(route.distanceMeters)} />
-                <Metric label="Time" value={formatDuration(route.durationSeconds)} />
+              <div className={`mb-4 rounded-2xl p-4 text-sm text-[#456765] ${liquidGlassInteractiveClass}`} tabIndex={0}>
+                <div className="flex items-start gap-3">
+                  <MapPinned className="mt-0.5 h-4 w-4 shrink-0 text-[#17413f]" />
+                  <p>{currentInstruction}</p>
+                </div>
               </div>
 
-              <div className="mb-3 flex items-center gap-2">
-                <Navigation className="h-4 w-4 text-slate-950" />
-                <h2 className="text-sm font-semibold uppercase tracking-[0.12em] text-slate-500">Directions</h2>
+              <div className={`mb-4 rounded-2xl p-4 text-sm text-[#456765] ${liquidGlassInteractiveClass}`} tabIndex={0}>
+                <div className="flex items-start gap-3">
+                  <Navigation className="mt-0.5 h-4 w-4 shrink-0 text-[#17413f]" />
+                  <p>Drag to pan, scroll to zoom, and right-drag or use the pitch control to rotate the city view.</p>
+                </div>
               </div>
-              {route.steps.length > 0 ? (
-                <div className="space-y-3">
-                  {route.steps.map((step, index) => (
-                    <div key={`${step.instruction}-${index}`} className="rounded-2xl border border-slate-200 bg-white p-4">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
-                            {step.modifier ?? step.type}
-                          </p>
-                          <p className="mt-1 text-sm font-semibold text-slate-950">{step.instruction}</p>
-                          {step.roadName ? <p className="mt-1 text-xs text-slate-500">{step.roadName}</p> : null}
-                        </div>
-                        <span className="shrink-0 rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-600">
-                          {formatDistance(step.distanceMeters)}
-                        </span>
-                      </div>
+
+              <div className="mb-4 grid grid-cols-2 rounded-full border border-white/32 bg-white/28 p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.55)]">
+                <button
+                  type="button"
+                  onClick={() => handleProfileChange("walking")}
+                  className={`inline-flex items-center justify-center gap-2 rounded-full px-3 py-2 text-sm font-semibold transition active:scale-[0.98] ${
+                    profile === "walking" ? "bg-white/72 text-[#17413f] shadow-[0_8px_18px_rgba(23,65,63,0.08),inset_0_1px_0_rgba(255,255,255,0.8)]" : "text-[#5f8682] hover:text-[#17413f]"
+                  }`}
+                >
+                  <Footprints className="h-4 w-4" />
+                  Walking
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleProfileChange("cycling")}
+                  className={`inline-flex items-center justify-center gap-2 rounded-full px-3 py-2 text-sm font-semibold transition active:scale-[0.98] ${
+                    profile === "cycling" ? "bg-white/72 text-[#17413f] shadow-[0_8px_18px_rgba(23,65,63,0.08),inset_0_1px_0_rgba(255,255,255,0.8)]" : "text-[#5f8682] hover:text-[#17413f]"
+                  }`}
+                >
+                  <Bike className="h-4 w-4" />
+                  Cycling
+                </button>
+              </div>
+
+              {geolocation.message ? (
+                <div
+                  className={`mb-4 rounded-2xl border p-3 text-sm ${
+                    geolocation.status === "error"
+                      ? "border-red-200 bg-red-50 text-red-800"
+                      : geolocation.status === "warning"
+                        ? "border-amber-200 bg-amber-50 text-amber-800"
+                        : "border-emerald-200 bg-emerald-50 text-emerald-800"
+                  }`}
+                >
+                  {geolocation.message}
+                </div>
+              ) : null}
+
+              {routeError ? (
+                <div className="mb-4 rounded-2xl border border-red-200/70 bg-red-50/72 p-4 text-sm text-red-800 shadow-[inset_0_1px_0_rgba(255,255,255,0.66)]">
+                  <div className="mb-1 flex items-center gap-2 font-semibold">
+                    <AlertTriangle className="h-4 w-4" />
+                    {routeError.title}
+                  </div>
+                  <p>{routeError.message}</p>
+                </div>
+              ) : null}
+
+              <div className="mb-4 space-y-3">
+                <PointRow label="Start" point={startPoint} colorClass="bg-[#17413f]" onDelete={handleDeleteStart} />
+                <PointRow label="End" point={endPoint} colorClass="bg-blue-600" onDelete={handleDeleteEnd} />
+              </div>
+
+              {isRouteLoading ? (
+                <div className="mb-4 grid grid-cols-2 gap-3">
+                  <div className={`h-[86px] animate-pulse rounded-2xl ${liquidGlassCardClass}`} />
+                  <div className={`h-[86px] animate-pulse rounded-2xl ${liquidGlassCardClass}`} />
+                </div>
+              ) : null}
+
+              {route ? (
+                <>
+                  <div className="mb-4 grid grid-cols-2 gap-3">
+                    <Metric label="Distance" value={formatDistance(route.distanceMeters)} />
+                    <Metric label="Time" value={formatDuration(route.durationSeconds)} />
+                  </div>
+
+                  <div className="mb-3 flex items-center gap-2">
+                    <Navigation className="h-4 w-4 text-[#17413f]" />
+                    <h2 className="text-sm font-semibold uppercase tracking-[0.12em] text-[#5f8682]">Directions</h2>
+                  </div>
+                  {route.steps.length > 0 ? (
+                    <div className="space-y-3">
+                      {route.steps.map((step, index) => (
+                        <button
+                          key={`${step.instruction}-${index}`}
+                          type="button"
+                          onClick={() => setFocusedStepIndex(index)}
+                          className={`w-full rounded-2xl p-4 text-left ${liquidGlassInteractiveClass} ${
+                            focusedStepIndex === index
+                              ? "border-[#83c5be]/80 bg-[linear-gradient(145deg,rgba(255,255,255,0.52),rgba(186,226,220,0.2))] shadow-[inset_0_1px_0_rgba(255,255,255,0.84),0_20px_42px_rgba(4,14,14,0.14)]"
+                              : ""
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#5f8682]">
+                                {step.modifier ?? step.type}
+                              </p>
+                              <p className="mt-1 text-sm font-semibold text-[#17413f]">{step.instruction}</p>
+                              {step.roadName ? <p className="mt-1 text-xs text-[#6b8582]">{step.roadName}</p> : null}
+                            </div>
+                            <span className="shrink-0 rounded-full bg-[#e3f3ef] px-2 py-1 text-xs font-semibold text-[#456765]">
+                              {formatDistance(step.distanceMeters)}
+                            </span>
+                          </div>
+                        </button>
+                      ))}
                     </div>
-                  ))}
+                  ) : (
+                    <div className="rounded-2xl border border-white/38 bg-white/34 p-4 text-sm text-[#456765] shadow-[inset_0_1px_0_rgba(255,255,255,0.72)]">
+                      The route was returned without step-by-step instructions.
+                    </div>
+                  )}
+                </>
+              ) : null}
+            </>
+          ) : null}
+
+          {activePanel === "layers" ? (
+            <>
+              <div className={`mb-4 rounded-2xl p-4 text-sm text-[#456765] ${liquidGlassInteractiveClass}`} tabIndex={0}>
+                <div className="flex items-start gap-3">
+                  <Layers3 className="mt-0.5 h-4 w-4 shrink-0 text-[#17413f]" />
+                  <div>
+                    <p className="font-semibold text-[#17413f]">Area layers</p>
+                    <p className="mt-1 text-xs text-[#6b8582]">
+                      {activeLayerCount === 0 ? "No place-based layers active." : `${activeLayerCount} layer${activeLayerCount > 1 ? "s" : ""} active.`}
+                    </p>
+                  </div>
                 </div>
-              ) : (
-                <div className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-600">
-                  The route was returned without step-by-step instructions.
-                </div>
-              )}
+              </div>
+
+              <div className="space-y-3">
+                <LayerToggle
+                  label="Natural Places"
+                  description="Parks and waterbodies for green-blue context."
+                  checked={areaLayers.naturalPlaces}
+                  onToggle={() => handleLayerToggle("naturalPlaces")}
+                />
+                <LayerToggle
+                  label="Ease Places"
+                  description="Supportive destinations such as museums, parks, and shopping."
+                  checked={areaLayers.easePlaces}
+                  onToggle={() => handleLayerToggle("easePlaces")}
+                />
+                <LayerToggle
+                  label="Activity Density"
+                  description="Reserved for future crowd-density overlay."
+                  checked={areaLayers.activityDensity}
+                  onToggle={() => handleLayerToggle("activityDensity")}
+                  disabled
+                  badge="Soon"
+                />
+              </div>
             </>
           ) : null}
         </div>
+          </>
+        )}
       </aside>
-
-      <button
-        type="button"
-        onClick={() => navigate(APP_ROUTES.compare)}
-        className="absolute right-4 top-4 z-10 inline-flex items-center gap-2 rounded-full border border-white/80 bg-white/95 px-4 py-2 text-sm font-semibold text-slate-900 shadow-[0_14px_34px_rgba(16,24,40,0.16)] backdrop-blur-md transition active:scale-[0.98]"
-      >
-        <ArrowLeft className="h-4 w-4" />
-        Back
-      </button>
     </div>
   );
 }
 
 function Metric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-2xl bg-slate-50 p-4">
-      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{label}</p>
-      <p className="mt-2 text-xl font-semibold text-slate-950">{value}</p>
+    <div className={`rounded-2xl p-4 ${liquidGlassInteractiveClass}`} tabIndex={0}>
+      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#5f8682]">{label}</p>
+      <p className="mt-2 text-xl font-semibold text-[#17413f]">{value}</p>
     </div>
   );
 }
@@ -496,19 +694,19 @@ function PointRow({
   onDelete: () => void;
 }) {
   return (
-    <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3">
+    <div className={`flex items-center gap-3 rounded-2xl p-3 ${liquidGlassInteractiveClass}`} tabIndex={0}>
       <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${colorClass} text-xs font-bold text-white`}>
         {label[0]}
       </span>
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-semibold text-slate-950">{label}</p>
-        <p className="truncate text-xs text-slate-500">{point ? formatPoint(point) : "Not selected"}</p>
+        <p className="text-sm font-semibold text-[#17413f]">{label}</p>
+        <p className="truncate text-xs text-[#6b8582]">{point ? formatPoint(point) : "Not selected"}</p>
       </div>
       {point ? (
         <button
           type="button"
           onClick={onDelete}
-          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100 hover:text-red-600 active:scale-[0.98]"
+          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[#6b8582] transition hover:bg-white/48 hover:text-red-600 active:scale-[0.98]"
           title={`Delete ${label.toLowerCase()} point`}
         >
           <Trash2 className="h-4 w-4" />
@@ -517,5 +715,102 @@ function PointRow({
         <XCircle className="h-4 w-4 shrink-0 text-slate-300" />
       )}
     </div>
+  );
+}
+
+function LayerToggle({
+  label,
+  description,
+  checked,
+  onToggle,
+  disabled = false,
+  badge,
+}: {
+  label: string;
+  description: string;
+  checked: boolean;
+  onToggle: () => void;
+  disabled?: boolean;
+  badge?: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      disabled={disabled}
+      className={`flex items-center justify-between gap-3 rounded-2xl p-3 text-left ${liquidGlassInteractiveClass} ${disabled ? "cursor-not-allowed opacity-65" : ""}`}
+      aria-pressed={checked}
+    >
+      <div className="min-w-0">
+        <div className="flex items-center gap-2">
+          <p className="text-sm font-semibold text-[#17413f]">{label}</p>
+          {badge ? (
+            <span className="rounded-full border border-white/45 bg-white/42 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#5f8682]">
+              {badge}
+            </span>
+          ) : null}
+        </div>
+        <p className="mt-1 text-xs text-[#6b8582]">{description}</p>
+      </div>
+      <span
+        className={`relative inline-flex h-7 w-12 shrink-0 rounded-full border transition ${
+          checked
+            ? "border-[#3f8f87] bg-[#83c5be]/80"
+            : "border-white/45 bg-white/35"
+        }`}
+      >
+        <span
+          className={`absolute top-0.5 h-[22px] w-[22px] rounded-full bg-white shadow-[0_6px_14px_rgba(15,23,42,0.18)] transition ${
+            checked ? "left-[1.35rem]" : "left-0.5"
+          }`}
+        />
+      </span>
+    </button>
+  );
+}
+
+function PanelTabButton({
+  active,
+  icon,
+  label,
+  onClick,
+}: {
+  active: boolean;
+  icon: ReactNode;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`inline-flex items-center justify-center gap-2 rounded-full px-3 py-2 text-sm font-semibold transition active:scale-[0.98] ${
+        active ? "bg-white/72 text-[#17413f] shadow-[0_8px_18px_rgba(23,65,63,0.08),inset_0_1px_0_rgba(255,255,255,0.8)]" : "text-[#5f8682] hover:text-[#17413f]"
+      }`}
+    >
+      {icon}
+      {label}
+    </button>
+  );
+}
+
+function CollapsedPanelButton({
+  icon,
+  label,
+  onClick,
+}: {
+  icon: ReactNode;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="inline-flex h-12 items-center justify-center gap-2 rounded-[14px] border border-white/40 bg-white/28 px-3 text-sm font-semibold text-[#17413f] transition hover:bg-white/38 active:scale-[0.98]"
+    >
+      {icon}
+      {label}
+    </button>
   );
 }
