@@ -26,6 +26,26 @@ export default function AppTopNav({
 }: AppTopNavProps) {
   return (
     <div className={`app-top-nav app-top-nav--${variant} ${className}`.trim()}>
+      {variant === "landing" ? (
+        <svg aria-hidden="true" className="app-top-nav__liquid-filter">
+          <filter id="landing-nav-liquid-glass-filter" colorInterpolationFilters="sRGB">
+            <feTurbulence
+              type="fractalNoise"
+              baseFrequency="0.022 0.04"
+              numOctaves="2"
+              seed="21"
+              result="navNoise"
+            />
+            <feDisplacementMap
+              in="SourceGraphic"
+              in2="navNoise"
+              scale="13"
+              xChannelSelector="R"
+              yChannelSelector="G"
+            />
+          </filter>
+        </svg>
+      ) : null}
       <div className={`app-top-nav__inner${brand ? "" : " app-top-nav__inner--no-brand"}`}>
         {brand ? <div className="app-top-nav__brand">{brand}</div> : null}
         <nav className="app-top-nav__links" aria-label="Global navigation">
