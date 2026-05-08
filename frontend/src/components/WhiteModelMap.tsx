@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import { EASE_PLACES_DATA, easePlacesMarkerColor } from "../lib/easePlaces";
+import type { ActivityDensityFeature } from "../lib/api";
 
 export const MELBOURNE_CENTER: [number, number] = [144.9631, -37.8136];
 
@@ -13,6 +14,7 @@ const SOURCE_IDS = {
   parks: "parks-3d",
   waterbodies: "waterbodies-3d",
   easePlaces: "ease-places-3d",
+  activityDensity: "activity-density-3d",
 } as const;
 
 const LAYER_IDS = {
@@ -25,6 +27,8 @@ const LAYER_IDS = {
   easePlacesHalo: "ease-places-halo-3d",
   easePlacesCircle: "ease-places-circle-3d",
   easePlacesHitArea: "ease-places-hit-area-3d",
+  activityHeatmap: "activity-heatmap-3d",
+  activityCircle: "activity-circle-3d",
   buildings: "white-model-buildings",
 } as const;
 
@@ -62,6 +66,9 @@ type WhiteModelMapProps = {
   focusedStep: RouteStepItem | null;
   showEasePlaces: boolean;
   showNaturalPlaces: boolean;
+  showActivityDensity: boolean;
+  activityHour: number | null;
+  activityFeatures: ActivityDensityFeature[];
   onMapClick: (point: RoutePoint) => void;
   onMapError: (message: string) => void;
 };
@@ -157,6 +164,9 @@ export default function WhiteModelMap({
   focusedStep,
   showEasePlaces,
   showNaturalPlaces,
+  showActivityDensity,
+  activityHour,
+  activityFeatures,
   onMapClick,
   onMapError,
 }: WhiteModelMapProps) {
@@ -174,6 +184,7 @@ export default function WhiteModelMap({
   const routeRef = useRef(route);
   const showEasePlacesRef = useRef(showEasePlaces);
   const showNaturalPlacesRef = useRef(showNaturalPlaces);
+  const showActivityDensityRef = useRef(showActivityDensity);
 
   const removePopup = (popupRef: { current: mapboxgl.Popup | null }) => {
     popupRef.current?.remove();
@@ -187,6 +198,29 @@ export default function WhiteModelMap({
     if (source) {
       source.setData(data);
     }
+  };
+
+  const activityFeatureCollectionForHour = (hour: number | null, features: ActivityDensityFeature[]): FeatureCollection => {
+    if (hour === null) return toFeatureCollection([]);
+    return toFeatureCollection(
+      features
+        .filter((feature) => feature.hourday === hour)
+        .map((feature) => ({
+          type: "Feature" as const,
+          geometry: {
+            type: "Point" as const,
+            coordinates: [feature.lng, feature.lat],
+          },
+          properties: {
+            location_id: feature.location_id,
+            sensor_name: feature.sensor_name,
+            hourday: feature.hourday,
+            pedestrian_count: feature.pedestrian_count,
+            activity_level: feature.activity_level,
+            intensity: feature.pedestrian_count,
+          },
+        }))
+    );
   };
 
   const setLayerVisibility = (layerIds: string[], visible: boolean) => {
@@ -507,6 +541,119 @@ export default function WhiteModelMap({
     }
   };
 
+  const addActivityDensityLayers = (map: mapboxgl.Map) => {
+    if (!map.getSource(SOURCE_IDS.activityDensity)) {
+      map.addSource(SOURCE_IDS.activityDensity, {
+        type: "geojson",
+        data: toFeatureCollection([]),
+      });
+    }
+
+    if (!map.getLayer(LAYER_IDS.activityHeatmap)) {
+      map.addLayer({
+        id: LAYER_IDS.activityHeatmap,
+        type: "heatmap",
+        source: SOURCE_IDS.activityDensity,
+        maxzoom: 18,
+        paint: {
+          "heatmap-weight": [
+            "interpolate",
+            ["linear"],
+            ["coalesce", ["get", "intensity"], 0],
+            0,
+            0,
+            80,
+            0.18,
+            160,
+            0.42,
+            300,
+            0.72,
+            500,
+            1,
+          ],
+          "heatmap-intensity": [
+            "interpolate",
+            ["linear"],
+            ["zoom"],
+            12,
+            0.75,
+            16,
+            1.2,
+          ],
+          "heatmap-radius": [
+            "interpolate",
+            ["linear"],
+            ["zoom"],
+            12,
+            22,
+            16,
+            34,
+          ],
+          "heatmap-opacity": 0.48,
+          "heatmap-color": [
+            "interpolate",
+            ["linear"],
+            ["heatmap-density"],
+            0,
+            "rgba(255,236,179,0)",
+            0.2,
+            "rgba(255,236,179,0.45)",
+            0.45,
+            "rgba(255,183,77,0.68)",
+            0.7,
+            "rgba(255,112,67,0.82)",
+            1,
+            "rgba(198,40,40,0.9)",
+          ],
+        },
+      });
+    }
+
+    if (!map.getLayer(LAYER_IDS.activityCircle)) {
+      map.addLayer({
+        id: LAYER_IDS.activityCircle,
+        type: "circle",
+        source: SOURCE_IDS.activityDensity,
+        minzoom: 14,
+        paint: {
+          "circle-radius": [
+            "interpolate",
+            ["linear"],
+            ["coalesce", ["get", "intensity"], 0],
+            0,
+            0,
+            80,
+            4,
+            180,
+            7,
+            320,
+            10,
+            500,
+            12,
+          ],
+          "circle-color": [
+            "interpolate",
+            ["linear"],
+            ["coalesce", ["get", "intensity"], 0],
+            0,
+            "rgba(255,236,179,0)",
+            80,
+            "#ffd54f",
+            180,
+            "#ffb74d",
+            320,
+            "#ff7043",
+            500,
+            "#d84315",
+          ],
+          "circle-opacity": 0.72,
+          "circle-stroke-width": 1,
+          "circle-stroke-color": "rgba(255,248,232,0.86)",
+        },
+      });
+    }
+  };
+
   const bindNaturalPopup = (map: mapboxgl.Map, layerId: string, label: string, propertyKeys: string[]) => {
     map.on("mouseenter", layerId, () => {
       map.getCanvas().style.cursor = "pointer";
@@ -595,6 +742,10 @@ export default function WhiteModelMap({
   useEffect(() => {
     showNaturalPlacesRef.current = showNaturalPlaces;
   }, [showNaturalPlaces]);
+
+  useEffect(() => {
+    showActivityDensityRef.current = showActivityDensity;
+  }, [showActivityDensity]);
 
   useEffect(() => {
     fetch("/geoscape/waterbodies.geojson")
@@ -735,6 +886,7 @@ export default function WhiteModelMap({
       }
 
       addEasePlacesLayers(map, labelLayerId);
+      addActivityDensityLayers(map);
       bindNaturalPopup(map, LAYER_IDS.waterFill, "Waterbody", ["NAME_LABEL", "NAME"]);
       bindNaturalPopup(map, LAYER_IDS.parksFill, "Park", ["NAME_LABEL", "NAME"]);
       bindEasePlacesPopup(map);
@@ -746,6 +898,10 @@ export default function WhiteModelMap({
       setLayerVisibility(
         [LAYER_IDS.easePlacesHalo, LAYER_IDS.easePlacesCircle, LAYER_IDS.easePlacesHitArea],
         showEasePlacesRef.current
+      );
+      setLayerVisibility(
+        [LAYER_IDS.activityHeatmap, LAYER_IDS.activityCircle],
+        showActivityDensityRef.current
       );
 
       if (routeRef.current?.geometry) {
@@ -801,6 +957,20 @@ export default function WhiteModelMap({
     }
     ensureRouteOnTop();
   }, [showEasePlaces]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !map.isStyleLoaded()) return;
+    updateSource(
+      SOURCE_IDS.activityDensity,
+      activityFeatureCollectionForHour(activityHour, activityFeatures)
+    );
+    setLayerVisibility(
+      [LAYER_IDS.activityHeatmap, LAYER_IDS.activityCircle],
+      showActivityDensity && activityHour !== null && activityFeatures.length > 0
+    );
+    ensureRouteOnTop();
+  }, [activityFeatures, activityHour, showActivityDensity]);
 
   useEffect(() => {
     const map = mapRef.current;
