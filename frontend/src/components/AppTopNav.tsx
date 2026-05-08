@@ -12,6 +12,7 @@ type AppTopNavProps = {
 
 const navItems = [
   { to: APP_ROUTES.map, label: "Map" },
+  { to: APP_ROUTES.map3dRoute, label: "3D Route" },
   { to: APP_ROUTES.risks, label: "Risks" },
   { to: APP_ROUTES.compare, label: "Compare" },
   { to: APP_ROUTES.about, label: "About us" },

@@ -6,6 +6,7 @@ import AboutUsPage from "./pages/AboutUsPage.tsx";
 import ExtremeWeatherRisksPage from "./pages/ExtremeWeatherRisksPage.tsx";
 import ExtremeWeatherRiskDetailPage from "./pages/ExtremeWeatherRiskDetailPage.tsx";
 import ExtremeWeatherQuizPage from "./pages/ExtremeWeatherQuizPage.tsx";
+import Map3DExperimentPage from "./pages/Map3DExperimentPage.tsx";
 import "./styles/index.css";
 
 function AppRoutes() {
@@ -16,6 +17,8 @@ function AppRoutes() {
       <Route path="/" element={<HomePage key={location.key} />} />
       <Route path="/map" element={<App mode="view" />} />
       <Route path="/map/compare" element={<App mode="compare" />} />
+      <Route path="/map/3d-route" element={<Map3DExperimentPage />} />
+      <Route path="/map/3d-experiment" element={<Map3DExperimentPage />} />
       <Route path="/aboutus" element={<AboutUsPage />} />
       <Route path="/extreme-weather-risks" element={<ExtremeWeatherRisksPage />} />
       <Route
