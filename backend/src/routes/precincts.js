@@ -91,6 +91,12 @@ function deriveStaleFlag(timestamp) {
   return isStale(new Date(timestamp).getTime());
 }
 
+function getActivityLevel(activityCount) {
+  if (activityCount < 100) return 'Low';
+  if (activityCount < 300) return 'Medium';
+  return 'High';
+}
+
 function shouldUseWeatherFallback(precinctData) {
   const configPrecinct = precinctMap[precinctData.id];
   if (!configPrecinct) return false;
@@ -573,6 +579,69 @@ router.get('/furniture', async (req, res) => {
   } catch (err) {
     console.error('[GET /furniture] Fallback to static:', err.message);
     res.json(require('../../config/furniture.json'));
+  }
+});
+
+/** GET /api/activity/latest-day */
+router.get('/activity/latest-day', async (req, res) => {
+  try {
+    const latestDayResult = await query(`
+      SELECT MAX(sensing_date) AS latest_date
+      FROM pedestrian_counts
+    `);
+
+    const latestDate = latestDayResult.rows[0]?.latest_date ?? null;
+    if (!latestDate) {
+      return res.json({
+        date: null,
+        availableHours: [],
+        defaultHour: null,
+        features: []
+      });
+    }
+
+    const pointsResult = await query(`
+      SELECT
+        location_id,
+        sensor_name,
+        sensing_date,
+        hourday,
+        pedestrian_count,
+        lat,
+        lng,
+        precinct_id
+      FROM pedestrian_counts
+      WHERE sensing_date = $1
+        AND lat IS NOT NULL
+        AND lng IS NOT NULL
+      ORDER BY hourday ASC, pedestrian_count DESC, location_id ASC
+    `, [latestDate]);
+
+    const features = pointsResult.rows.map((row) => ({
+      location_id: Number(row.location_id),
+      sensor_name: row.sensor_name ?? '',
+      date: row.sensing_date,
+      hourday: Number(row.hourday),
+      pedestrian_count: Number(row.pedestrian_count ?? 0),
+      activity_level: getActivityLevel(Number(row.pedestrian_count ?? 0)),
+      lat: Number(row.lat),
+      lng: Number(row.lng),
+      precinct_id: row.precinct_id ?? null
+    }));
+
+    const availableHours = Array.from(
+      new Set(features.map((feature) => feature.hourday).filter((hour) => Number.isFinite(hour)))
+    ).sort((a, b) => a - b);
+
+    res.json({
+      date: latestDate,
+      availableHours,
+      defaultHour: availableHours.length > 0 ? availableHours[availableHours.length - 1] : null,
+      features
+    });
+  } catch (err) {
+    console.error('[GET /activity/latest-day]', err?.stack || err?.message || err);
+    res.status(500).json({ error: err.message, code: 500, timestamp: new Date().toISOString() });
   }
 });
 
