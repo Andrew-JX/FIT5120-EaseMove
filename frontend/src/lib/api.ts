@@ -61,6 +61,25 @@ export interface FurnitureFeatureCollection {
   features: FurnitureFeature[];
 }
 
+export interface ActivityDensityFeature {
+  location_id: number;
+  sensor_name: string;
+  date: string;
+  hourday: number;
+  pedestrian_count: number;
+  activity_level: string;
+  lat: number;
+  lng: number;
+  precinct_id: string | null;
+}
+
+export interface ActivityDensityResponse {
+  date: string | null;
+  availableHours: number[];
+  defaultHour: number | null;
+  features: ActivityDensityFeature[];
+}
+
 function weightsQuery(weights?: ComfortWeights): string {
   if (!weights) return '';
   const params = new URLSearchParams({
@@ -131,5 +150,11 @@ export async function fetchFurniture(
   const query = new URLSearchParams({ precinct, type, limit: String(limit) });
   const res = await fetch(`${BASE}/api/furniture?${query.toString()}`);
   if (!res.ok) throw new Error(`Furniture API error: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchLatestActivityDensity(): Promise<ActivityDensityResponse> {
+  const res = await fetch(`${BASE}/api/activity/latest-day`);
+  if (!res.ok) throw new Error(`Activity API error: ${res.status}`);
   return res.json();
 }

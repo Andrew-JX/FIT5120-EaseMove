@@ -21,6 +21,7 @@ import WhiteModelMap, {
   type RouteStepItem,
   type RouteSummary,
 } from "../components/WhiteModelMap";
+import { fetchLatestActivityDensity, type ActivityDensityFeature } from "../lib/api";
 import { APP_ROUTES } from "../lib/navigation";
 
 const MAPBOX_PUBLIC_TOKEN = (import.meta.env.VITE_MAPBOX_PUBLIC_TOKEN as string | undefined)?.trim() || null;
@@ -82,6 +83,16 @@ type GeolocationState =
   | { status: "warning"; message: string }
   | { status: "error"; message: string };
 
+type ActivityDensityState = {
+  date: string | null;
+  availableHours: number[];
+  selectedHour: number | null;
+  features: ActivityDensityFeature[];
+  loading: boolean;
+  loaded: boolean;
+  error: string | null;
+};
+
 function formatDistance(meters: number) {
   return meters >= 1000 ? `${(meters / 1000).toFixed(1)} km` : `${Math.round(meters)} m`;
 }
@@ -96,6 +107,10 @@ function formatDuration(seconds: number) {
 
 function formatPoint(point: RoutePoint) {
   return `${point.lat.toFixed(5)}, ${point.lng.toFixed(5)}`;
+}
+
+function formatHourLabel(hour: number) {
+  return `${hour.toString().padStart(2, "0")}:00`;
 }
 
 function buildRouteUrl(profile: RouteProfile, startPoint: RoutePoint, endPoint: RoutePoint) {
@@ -173,6 +188,15 @@ export default function Map3DExperimentPage() {
     easePlaces: false,
     naturalPlaces: false,
     activityDensity: false,
+  });
+  const [activityDensity, setActivityDensity] = useState<ActivityDensityState>({
+    date: null,
+    availableHours: [],
+    selectedHour: null,
+    features: [],
+    loading: false,
+    loaded: false,
+    error: null,
   });
   const [geolocation, setGeolocation] = useState<GeolocationState>({
     status: "idle",
@@ -365,6 +389,13 @@ export default function Map3DExperimentPage() {
   const activeLayerCount =
     Number(areaLayers.easePlaces) + Number(areaLayers.naturalPlaces) + Number(areaLayers.activityDensity);
   const panelCollapsed = activePanel === null;
+  const visibleActivityFeatures = useMemo(
+    () =>
+      activityDensity.selectedHour === null
+        ? []
+        : activityDensity.features.filter((feature) => feature.hourday === activityDensity.selectedHour),
+    [activityDensity.features, activityDensity.selectedHour]
+  );
 
   const handleBack = useCallback(() => {
     if (window.history.length > 1) {
@@ -390,9 +421,55 @@ export default function Map3DExperimentPage() {
     setActivePanel(null);
   }, []);
 
+  const handleActivityHourChange = useCallback((hour: number) => {
+    setActivityDensity((current) => ({
+      ...current,
+      selectedHour: hour,
+      error: null,
+    }));
+  }, []);
+
   useEffect(() => {
     setFocusedStepIndex(null);
   }, [route]);
+
+  useEffect(() => {
+    if (!areaLayers.activityDensity || activityDensity.loaded || activityDensity.loading) return;
+
+    let cancelled = false;
+    setActivityDensity((current) => ({
+      ...current,
+      loading: true,
+      error: null,
+    }));
+
+    void fetchLatestActivityDensity()
+      .then((data) => {
+        if (cancelled) return;
+        setActivityDensity({
+          date: data.date,
+          availableHours: data.availableHours,
+          selectedHour: data.defaultHour,
+          features: data.features,
+          loading: false,
+          loaded: true,
+          error: null,
+        });
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        setActivityDensity((current) => ({
+          ...current,
+          loading: false,
+          loaded: true,
+          error: error instanceof Error ? error.message : "Activity density could not be loaded.",
+        }));
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activityDensity.loaded, activityDensity.loading, areaLayers.activityDensity]);
 
   useEffect(() => {
     return () => {
@@ -416,6 +493,9 @@ export default function Map3DExperimentPage() {
         focusedStep={focusedStepIndex !== null && route ? route.steps[focusedStepIndex] ?? null : null}
         showEasePlaces={areaLayers.easePlaces}
         showNaturalPlaces={areaLayers.naturalPlaces}
+        showActivityDensity={areaLayers.activityDensity}
+        activityHour={activityDensity.selectedHour}
+        activityFeatures={activityDensity.features}
         onMapClick={handleMapClick}
         onMapError={handleMapError}
       />
@@ -656,13 +736,68 @@ export default function Map3DExperimentPage() {
                 />
                 <LayerToggle
                   label="Activity Density"
-                  description="Reserved for future crowd-density overlay."
+                  description="Hourly crowd-density heatmap based on pedestrian counting points."
                   checked={areaLayers.activityDensity}
                   onToggle={() => handleLayerToggle("activityDensity")}
-                  disabled
-                  badge="Soon"
                 />
               </div>
+
+              {areaLayers.activityDensity ? (
+                <div className={`mt-4 rounded-2xl p-4 ${liquidGlassCardClass}`}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#5f8682]">Time of day</p>
+                      <p className="mt-1 text-sm font-semibold text-[#17413f]">
+                        {activityDensity.date && activityDensity.selectedHour !== null
+                          ? `${activityDensity.date} · ${formatHourLabel(activityDensity.selectedHour)}`
+                          : "Latest day unavailable"}
+                      </p>
+                    </div>
+                  </div>
+
+                  {activityDensity.loading ? (
+                    <div className="mt-3 rounded-2xl border border-white/38 bg-white/34 p-3 text-sm text-[#456765] shadow-[inset_0_1px_0_rgba(255,255,255,0.72)]">
+                      Loading activity density for the latest available day...
+                    </div>
+                  ) : null}
+
+                  {activityDensity.error ? (
+                    <div className="mt-3 rounded-2xl border border-red-200/70 bg-red-50/72 p-3 text-sm text-red-800 shadow-[inset_0_1px_0_rgba(255,255,255,0.66)]">
+                      {activityDensity.error}
+                    </div>
+                  ) : null}
+
+                  {!activityDensity.loading && !activityDensity.error && activityDensity.availableHours.length > 0 ? (
+                    <>
+                      <label className="mt-3 block text-xs font-semibold uppercase tracking-[0.12em] text-[#5f8682]">
+                        Available hour
+                      </label>
+                      <select
+                        value={activityDensity.selectedHour ?? ""}
+                        onChange={(event) => handleActivityHourChange(Number(event.target.value))}
+                        className="mt-2 w-full rounded-2xl border border-white/42 bg-white/42 px-3 py-2 text-sm font-medium text-[#17413f] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] outline-none transition focus:border-[#83c5be] focus:ring-2 focus:ring-[#83c5be]/55"
+                      >
+                        {activityDensity.availableHours.map((hour) => (
+                          <option key={hour} value={hour}>
+                            {formatHourLabel(hour)}
+                          </option>
+                        ))}
+                      </select>
+                      <p className="mt-3 text-xs text-[#6b8582]">
+                        {visibleActivityFeatures.length > 0
+                          ? `${visibleActivityFeatures.length} pedestrian counter points visible for this hour.`
+                          : "No pedestrian counter points are available for this hour."}
+                      </p>
+                    </>
+                  ) : null}
+
+                  {!activityDensity.loading && !activityDensity.error && activityDensity.availableHours.length === 0 ? (
+                    <div className="mt-3 rounded-2xl border border-white/38 bg-white/34 p-3 text-sm text-[#456765] shadow-[inset_0_1px_0_rgba(255,255,255,0.72)]">
+                      No activity density data is available for the latest day yet.
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
             </>
           ) : null}
         </div>
