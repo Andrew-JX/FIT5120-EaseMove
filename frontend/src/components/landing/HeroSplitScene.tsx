@@ -369,14 +369,6 @@ export default function HeroSplitScene() {
           <div className="landing-video-scrim" />
         </motion.div>
 
-        <motion.div
-          className="landing-brand"
-          style={{ opacity: heroLabelOpacity, x: "-50%", y: heroLabelY }}
-          aria-hidden="true"
-        >
-          MoveComfortly
-        </motion.div>
-
         <motion.p
           className="landing-hero-caption"
           style={{ opacity: heroLabelOpacity, y: heroLabelY }}
