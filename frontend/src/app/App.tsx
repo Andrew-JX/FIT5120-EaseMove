@@ -1199,6 +1199,21 @@ export default function App({ mode }: { mode: "view" | "compare" }) {
                   </div>
 
                   <div className="sm:flex-[2]">
+                    <button
+                      type="button"
+                      onClick={() => navigate(APP_ROUTES.map3dRoute)}
+                      className="mb-4 w-full rounded-[20px] border border-[#83c5be]/28 bg-[rgba(247,255,253,0.92)] px-4 py-3 text-left shadow-[0_14px_36px_rgba(4,14,14,0.12)] transition-colors hover:bg-white"
+                    >
+                      <span className="block text-xs font-semibold uppercase tracking-[0.18em] text-[#5f8682]">
+                        3D Route
+                      </span>
+                      <span className="mt-1 block text-base font-semibold text-[#17413f]">
+                        Preview a walking or cycling route in 3D
+                      </span>
+                      <span className="mt-1 block text-sm text-[#456765]">
+                        Keep the original compare map unchanged while planning a default route on a dedicated page.
+                      </span>
+                    </button>
                     {!compareSelection1 && !compareSelection2 ? (
                       <div className="flex items-center justify-center h-full bg-[rgba(237,246,249,0.82)] rounded-[24px] border border-dashed border-[#83c5be]/34">
                         <div className="text-center p-6">

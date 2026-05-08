@@ -21,10 +21,24 @@
 
 .landing-global-nav-shell .app-top-nav__links {
   padding: 8px;
-  border-radius: 999px;
-  background: rgba(8, 21, 21, 0.16);
-  backdrop-filter: blur(14px);
-  box-shadow: 0 18px 42px rgba(8, 21, 21, 0.12);
+  border-radius: 0;
+  border: 0;
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: none;
+}
+
+.landing-global-nav-shell .app-top-nav__inner {
+  transform: translateX(clamp(24px, 4vw, 96px));
+}
+
+.landing-global-nav-shell .app-top-nav__links::before {
+  display: none;
+}
+
+.landing-global-nav-shell .app-top-nav__links::after {
+  display: none;
 }
 
 .landing-hero-scene {
@@ -284,6 +298,20 @@
   mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
 }
 
+.landing-walk-page-gif {
+  position: fixed;
+  right: -180px;
+  bottom: clamp(4px, 1.5vh, 18px);
+  z-index: 120;
+  width: clamp(132px, 13vw, 184px);
+  height: auto;
+  pointer-events: none;
+  opacity: 1;
+  transform: translate3d(0, 0, 0);
+  filter: drop-shadow(0 14px 24px rgba(0, 0, 0, 0.28));
+  animation: landing-walk-gif-cross 10.5s linear forwards;
+}
+
 .landing-icon-marquee-track {
   display: flex;
   width: max-content;
@@ -291,23 +319,81 @@
   animation: landing-marquee 22s linear infinite;
 }
 
+.landing-icon-marquee:hover .landing-icon-marquee-track {
+  animation-play-state: paused;
+}
+
 .landing-icon-marquee-item {
+  position: relative;
+  overflow: visible;
   display: inline-flex;
   align-items: center;
   gap: 8px;
   min-width: max-content;
-  border: 1px solid rgba(237, 246, 249, 0.22);
-  border-radius: 8px;
-  padding: 8px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 999px;
+  padding: 9px 15px;
   color: rgba(237, 246, 249, 0.86);
-  background: rgba(237, 246, 249, 0.07);
-  backdrop-filter: blur(10px);
+  background:
+    radial-gradient(circle at 18% 0%, rgba(255, 255, 255, 0.22), transparent 38%),
+    linear-gradient(135deg, rgba(247, 255, 253, 0.14), rgba(131, 197, 190, 0.08));
+  backdrop-filter: url(#landing-nav-liquid-glass-filter) blur(18px) saturate(1.5) brightness(1.06);
+  -webkit-backdrop-filter: blur(18px) saturate(1.5) brightness(1.06);
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.34),
+    inset 0 -10px 20px rgba(7, 17, 17, 0.1),
+    0 12px 28px rgba(8, 21, 21, 0.14);
   font-size: 0.82rem;
   font-weight: 600;
+  transform: translateY(0) scale(1);
+  transition:
+    color 0.22s ease,
+    border-color 0.22s ease,
+    background 0.22s ease,
+    box-shadow 0.28s ease,
+    transform 0.34s cubic-bezier(0.18, 1.35, 0.28, 1);
+}
+
+.landing-icon-marquee-item::before {
+  content: "";
+  position: absolute;
+  inset: 1px;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(110deg, rgba(255, 255, 255, 0.18), transparent 42%, rgba(255, 255, 255, 0.1));
+  opacity: 0.72;
+}
+
+.landing-icon-marquee-item:hover {
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.62);
+  background:
+    radial-gradient(circle at 18% 0%, rgba(255, 255, 255, 0.42), transparent 42%),
+    linear-gradient(135deg, rgba(247, 255, 253, 0.28), rgba(131, 197, 190, 0.16));
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.62),
+    inset 0 -12px 24px rgba(7, 17, 17, 0.08),
+    0 18px 38px rgba(8, 21, 21, 0.22);
+  transform: translateY(-4px) scale(1.06);
 }
 
 .landing-icon-marquee-item svg {
   color: var(--pearl-aqua, #83c5be);
+  position: relative;
+  z-index: 1;
+  transition:
+    color 0.22s ease,
+    transform 0.34s cubic-bezier(0.18, 1.35, 0.28, 1);
+}
+
+.landing-icon-marquee-item > span {
+  position: relative;
+  z-index: 1;
+}
+
+.landing-icon-marquee-item:hover svg {
+  color: #edf6f9;
+  transform: rotate(-6deg) scale(1.12);
 }
 
 .landing-mission-scene {
@@ -961,6 +1047,16 @@
   }
 }
 
+@keyframes landing-walk-gif-cross {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+
+  to {
+    transform: translate3d(calc(-100vw - 300px), 0, 0);
+  }
+}
+
 @keyframes landing-mission-character-reveal {
   0% {
     opacity: 0;
@@ -1048,6 +1144,10 @@
 
   .landing-global-nav-shell .app-top-nav__links {
     padding: 6px;
+  }
+
+  .landing-global-nav-shell .app-top-nav__inner {
+    transform: none;
   }
 
   .landing-how-grid {
