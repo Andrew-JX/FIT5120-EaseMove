@@ -588,6 +588,8 @@ router.get('/activity/latest-day', async (req, res) => {
     const latestDayResult = await query(`
       SELECT MAX(sensing_date) AS latest_date
       FROM pedestrian_counts
+      WHERE lat IS NOT NULL
+        AND lng IS NOT NULL
     `);
 
     const latestDate = latestDayResult.rows[0]?.latest_date ?? null;

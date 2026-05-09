@@ -155,6 +155,11 @@ export async function fetchFurniture(
 
 export async function fetchLatestActivityDensity(): Promise<ActivityDensityResponse> {
   const res = await fetch(`${BASE}/api/activity/latest-day`);
-  if (!res.ok) throw new Error(`Activity API error: ${res.status}`);
+  if (!res.ok) {
+    if (res.status === 404) {
+      throw new Error("Activity density endpoint is unavailable on the current backend deployment.");
+    }
+    throw new Error(`Activity API error: ${res.status}`);
+  }
   return res.json();
 }
