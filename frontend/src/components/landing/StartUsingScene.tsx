@@ -6,6 +6,7 @@ const wGifUrl = new URL("../../assets/W.gif", import.meta.url).href;
 export default function StartUsingScene() {
   const navigate = useNavigate();
   const openMap = () => navigate("/map");
+  const open3DRoute = () => navigate("/map/3d-route");
   const openCompare = () => navigate("/map/compare");
   const openRisks = () => navigate("/extreme-weather-risks");
   const gifStrip = Array.from({ length: 8 }, (_, index) => ({
@@ -28,6 +29,9 @@ export default function StartUsingScene() {
         <div className="landing-start-actions">
           <button className="landing-start-button" type="button" onClick={openMap}>
             Open the map
+          </button>
+          <button className="landing-start-button landing-start-button-secondary" type="button" onClick={open3DRoute}>
+            Open 3D route
           </button>
           <button className="landing-start-button landing-start-button-secondary" type="button" onClick={openCompare}>
             Go to compare
