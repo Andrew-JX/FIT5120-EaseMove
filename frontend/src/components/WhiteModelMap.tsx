@@ -32,6 +32,10 @@ const LAYER_IDS = {
   buildings: "white-model-buildings",
 } as const;
 
+function visibilityLayout(visible: boolean) {
+  return { visibility: visible ? "visible" : "none" } as const;
+}
+
 type FeatureCollection = GeoJSON.FeatureCollection<GeoJSON.Geometry, GeoJSON.GeoJsonProperties>;
 
 export type RouteProfile = "walking" | "cycling";
@@ -185,6 +189,8 @@ export default function WhiteModelMap({
   const showEasePlacesRef = useRef(showEasePlaces);
   const showNaturalPlacesRef = useRef(showNaturalPlaces);
   const showActivityDensityRef = useRef(showActivityDensity);
+  const activityHourRef = useRef(activityHour);
+  const activityFeaturesRef = useRef(activityFeatures);
 
   const removePopup = (popupRef: { current: mapboxgl.Popup | null }) => {
     popupRef.current?.remove();
@@ -221,6 +227,16 @@ export default function WhiteModelMap({
           },
         }))
     );
+  };
+
+  const updateActivityDensityPresentation = (hour: number | null, features: ActivityDensityFeature[], visible: boolean) => {
+    const hourSlice = activityFeatureCollectionForHour(hour, features);
+    updateSource(SOURCE_IDS.activityDensity, hourSlice);
+    setLayerVisibility(
+      [LAYER_IDS.activityHeatmap, LAYER_IDS.activityCircle],
+      visible && hour !== null && hourSlice.features.length > 0
+    );
+    ensureRouteOnTop();
   };
 
   const setLayerVisibility = (layerIds: string[], visible: boolean) => {
@@ -380,7 +396,7 @@ export default function WhiteModelMap({
     });
   };
 
-  const addNaturalLayers = (map: mapboxgl.Map, beforeLayerId?: string) => {
+  const addNaturalLayers = (map: mapboxgl.Map, visible: boolean, beforeLayerId?: string) => {
     if (!map.getSource(SOURCE_IDS.waterbodies)) {
       map.addSource(SOURCE_IDS.waterbodies, {
         type: "geojson",
@@ -394,6 +410,7 @@ export default function WhiteModelMap({
           id: LAYER_IDS.waterFill,
           type: "fill",
           source: SOURCE_IDS.waterbodies,
+          layout: visibilityLayout(visible),
           paint: {
             "fill-color": "#9ed7df",
             "fill-opacity": 0.4,
@@ -409,6 +426,7 @@ export default function WhiteModelMap({
           id: LAYER_IDS.waterLine,
           type: "line",
           source: SOURCE_IDS.waterbodies,
+          layout: visibilityLayout(visible),
           paint: {
             "line-color": "#2a7486",
             "line-width": 1.4,
@@ -432,6 +450,7 @@ export default function WhiteModelMap({
           id: LAYER_IDS.parksFill,
           type: "fill",
           source: SOURCE_IDS.parks,
+          layout: visibilityLayout(visible),
           paint: {
             "fill-color": "#b8d9a6",
             "fill-opacity": 0.24,
@@ -447,6 +466,7 @@ export default function WhiteModelMap({
           id: LAYER_IDS.parksLine,
           type: "line",
           source: SOURCE_IDS.parks,
+          layout: visibilityLayout(visible),
           paint: {
             "line-color": "#4b7b46",
             "line-width": 1.1,
@@ -458,7 +478,7 @@ export default function WhiteModelMap({
     }
   };
 
-  const addEasePlacesLayers = (map: mapboxgl.Map, beforeLayerId?: string) => {
+  const addEasePlacesLayers = (map: mapboxgl.Map, visible: boolean, beforeLayerId?: string) => {
     if (!map.getSource(SOURCE_IDS.easePlaces)) {
       map.addSource(SOURCE_IDS.easePlaces, {
         type: "geojson",
@@ -472,6 +492,7 @@ export default function WhiteModelMap({
           id: LAYER_IDS.easePlacesHalo,
           type: "circle",
           source: SOURCE_IDS.easePlaces,
+          layout: visibilityLayout(visible),
           paint: {
             "circle-radius": [
               "interpolate",
@@ -496,6 +517,7 @@ export default function WhiteModelMap({
           id: LAYER_IDS.easePlacesCircle,
           type: "circle",
           source: SOURCE_IDS.easePlaces,
+          layout: visibilityLayout(visible),
           paint: {
             "circle-radius": [
               "interpolate",
@@ -522,6 +544,7 @@ export default function WhiteModelMap({
           id: LAYER_IDS.easePlacesHitArea,
           type: "circle",
           source: SOURCE_IDS.easePlaces,
+          layout: visibilityLayout(visible),
           paint: {
             "circle-radius": [
               "interpolate",
@@ -541,7 +564,7 @@ export default function WhiteModelMap({
     }
   };
 
-  const addActivityDensityLayers = (map: mapboxgl.Map) => {
+  const addActivityDensityLayers = (map: mapboxgl.Map, visible: boolean) => {
     if (!map.getSource(SOURCE_IDS.activityDensity)) {
       map.addSource(SOURCE_IDS.activityDensity, {
         type: "geojson",
@@ -554,6 +577,7 @@ export default function WhiteModelMap({
         id: LAYER_IDS.activityHeatmap,
         type: "heatmap",
         source: SOURCE_IDS.activityDensity,
+        layout: visibilityLayout(visible),
         maxzoom: 18,
         paint: {
           "heatmap-weight": [
@@ -614,6 +638,7 @@ export default function WhiteModelMap({
         id: LAYER_IDS.activityCircle,
         type: "circle",
         source: SOURCE_IDS.activityDensity,
+        layout: visibilityLayout(visible),
         minzoom: 14,
         paint: {
           "circle-radius": [
@@ -748,6 +773,14 @@ export default function WhiteModelMap({
   }, [showActivityDensity]);
 
   useEffect(() => {
+    activityHourRef.current = activityHour;
+  }, [activityHour]);
+
+  useEffect(() => {
+    activityFeaturesRef.current = activityFeatures;
+  }, [activityFeatures]);
+
+  useEffect(() => {
     fetch("/geoscape/waterbodies.geojson")
       .then((response) => (response.ok ? response.json() : null))
       .then((data) => {
@@ -838,7 +871,7 @@ export default function WhiteModelMap({
           (layer as { layout?: { ["text-field"]?: unknown } }).layout?.["text-field"]
       )?.id;
 
-      addNaturalLayers(map, labelLayerId);
+      addNaturalLayers(map, showNaturalPlacesRef.current, labelLayerId);
 
       if (!map.getLayer(LAYER_IDS.buildings)) {
         map.addLayer(
@@ -885,8 +918,8 @@ export default function WhiteModelMap({
         );
       }
 
-      addEasePlacesLayers(map, labelLayerId);
-      addActivityDensityLayers(map);
+      addEasePlacesLayers(map, showEasePlacesRef.current, labelLayerId);
+      addActivityDensityLayers(map, false);
       bindNaturalPopup(map, LAYER_IDS.waterFill, "Waterbody", ["NAME_LABEL", "NAME"]);
       bindNaturalPopup(map, LAYER_IDS.parksFill, "Park", ["NAME_LABEL", "NAME"]);
       bindEasePlacesPopup(map);
@@ -901,6 +934,11 @@ export default function WhiteModelMap({
       );
       setLayerVisibility(
         [LAYER_IDS.activityHeatmap, LAYER_IDS.activityCircle],
+        showActivityDensityRef.current
+      );
+      updateActivityDensityPresentation(
+        activityHourRef.current,
+        activityFeaturesRef.current,
         showActivityDensityRef.current
       );
 
@@ -961,15 +999,7 @@ export default function WhiteModelMap({
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !map.isStyleLoaded()) return;
-    updateSource(
-      SOURCE_IDS.activityDensity,
-      activityFeatureCollectionForHour(activityHour, activityFeatures)
-    );
-    setLayerVisibility(
-      [LAYER_IDS.activityHeatmap, LAYER_IDS.activityCircle],
-      showActivityDensity && activityHour !== null && activityFeatures.length > 0
-    );
-    ensureRouteOnTop();
+    updateActivityDensityPresentation(activityHour, activityFeatures, showActivityDensity);
   }, [activityFeatures, activityHour, showActivityDensity]);
 
   useEffect(() => {
