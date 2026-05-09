@@ -2,23 +2,19 @@ import { useEffect, useRef } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { fetchFurniture, type FurnitureFeature, type Precinct } from '../lib/api';
+import {
+  EASE_PLACES_DATA as SHARED_EASE_PLACES_DATA,
+  easePlacesMarkerColor,
+  type EasePlacesFeature,
+} from '../lib/easePlaces';
+
+export type { EasePlacesFeature } from '../lib/easePlaces';
+
+const EASE_PLACES_DATA = SHARED_EASE_PLACES_DATA;
 
 // ─── Cool Places mock data ────────────────────────────────────────────────────
 
-export interface EasePlacesFeature {
-  id: string;
-  name: string;
-  category: 'Arts, Culture & Enrichment' | 'Recreation / Leisure & Open Spaces' | 'Shopping';
-  type: string;
-  airConditioned: boolean;
-  freeEntry: boolean;
-  address: string;
-  operatingHours: string;
-  lat: number;
-  lng: number;
-}
-
-export const EASE_PLACES_DATA: EasePlacesFeature[] = [
+const LEGACY_EASE_PLACES_DATA: EasePlacesFeature[] = [
   {
     id: 'cp-1', name: 'ACMI', category: 'Arts, Culture & Enrichment', type: 'Cinema',
     airConditioned: true, freeEntry: false,
@@ -400,7 +396,7 @@ export default function LeafletMap({
 
     // Ease Places markers (static mock data — visibility controlled by filter effects)
     EASE_PLACES_DATA.forEach(feature => {
-      const { core, halo } = cpMarkerColor(feature.category);
+      const { core, halo } = easePlacesMarkerColor(feature.category);
       const icon = L.divIcon({
         className: '',
         html: `<div style="width:14px;height:14px;border-radius:50%;background:${core};box-shadow:0 0 0 6px ${halo};cursor:pointer;"></div>`,

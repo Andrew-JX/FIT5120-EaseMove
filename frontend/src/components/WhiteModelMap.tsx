@@ -2,7 +2,12 @@ import { useEffect, useRef } from "react";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import { EASE_PLACES_DATA, easePlacesMarkerColor } from "../lib/easePlaces";
-import type { ActivityDensityFeature } from "../lib/api";
+import {
+  classifySupportedFacility,
+  fetchSupportedFacilitiesCatalog,
+  getSupportedFacilityTypeLabel,
+  type SupportedFacilityKind,
+} from "../lib/streetFacilities";
 
 export const MELBOURNE_CENTER: [number, number] = [144.9631, -37.8136];
 
@@ -14,7 +19,7 @@ const SOURCE_IDS = {
   parks: "parks-3d",
   waterbodies: "waterbodies-3d",
   easePlaces: "ease-places-3d",
-  activityDensity: "activity-density-3d",
+  streetFacilities: "street-facilities-3d",
 } as const;
 
 const LAYER_IDS = {
@@ -27,8 +32,8 @@ const LAYER_IDS = {
   easePlacesHalo: "ease-places-halo-3d",
   easePlacesCircle: "ease-places-circle-3d",
   easePlacesHitArea: "ease-places-hit-area-3d",
-  activityHeatmap: "activity-heatmap-3d",
-  activityCircle: "activity-circle-3d",
+  streetFacilitiesCircle: "street-facilities-circle-3d",
+  streetFacilitiesHitArea: "street-facilities-hit-area-3d",
   buildings: "white-model-buildings",
 } as const;
 
@@ -70,12 +75,24 @@ type WhiteModelMapProps = {
   focusedStep: RouteStepItem | null;
   showEasePlaces: boolean;
   showNaturalPlaces: boolean;
-  showActivityDensity: boolean;
-  activityHour: number | null;
-  activityFeatures: ActivityDensityFeature[];
+  showStreetFacilities: boolean;
   onMapClick: (point: RoutePoint) => void;
   onMapError: (message: string) => void;
 };
+
+function facilityStyle(kind: SupportedFacilityKind): {
+  label: string;
+  color: string;
+  halo: string;
+} {
+  if (kind === "bicycle") {
+    return { label: getSupportedFacilityTypeLabel(kind), color: "#c2410c", halo: "rgba(194,65,12,0.2)" };
+  }
+  if (kind === "drinking") {
+    return { label: getSupportedFacilityTypeLabel(kind), color: "#0891b2", halo: "rgba(8,145,178,0.2)" };
+  }
+  return { label: getSupportedFacilityTypeLabel(kind), color: "#7e22ce", halo: "rgba(126,34,206,0.2)" };
+}
 
 function toLngLat(point: RoutePoint): [number, number] {
   return [point.lng, point.lat];
@@ -168,9 +185,7 @@ export default function WhiteModelMap({
   focusedStep,
   showEasePlaces,
   showNaturalPlaces,
-  showActivityDensity,
-  activityHour,
-  activityFeatures,
+  showStreetFacilities,
   onMapClick,
   onMapError,
 }: WhiteModelMapProps) {
@@ -181,16 +196,16 @@ export default function WhiteModelMap({
   const focusedStepMarkerRef = useRef<mapboxgl.Marker | null>(null);
   const naturalPopupRef = useRef<mapboxgl.Popup | null>(null);
   const easePlacesPopupRef = useRef<mapboxgl.Popup | null>(null);
+  const streetFacilitiesPopupRef = useRef<mapboxgl.Popup | null>(null);
   const parksDataRef = useRef<FeatureCollection | null>(null);
   const waterDataRef = useRef<FeatureCollection | null>(null);
+  const streetFacilitiesDataRef = useRef<FeatureCollection | null>(null);
   const onMapClickRef = useRef(onMapClick);
   const onMapErrorRef = useRef(onMapError);
   const routeRef = useRef(route);
   const showEasePlacesRef = useRef(showEasePlaces);
   const showNaturalPlacesRef = useRef(showNaturalPlaces);
-  const showActivityDensityRef = useRef(showActivityDensity);
-  const activityHourRef = useRef(activityHour);
-  const activityFeaturesRef = useRef(activityFeatures);
+  const showStreetFacilitiesRef = useRef(showStreetFacilities);
 
   const removePopup = (popupRef: { current: mapboxgl.Popup | null }) => {
     popupRef.current?.remove();
@@ -204,39 +219,6 @@ export default function WhiteModelMap({
     if (source) {
       source.setData(data);
     }
-  };
-
-  const activityFeatureCollectionForHour = (hour: number | null, features: ActivityDensityFeature[]): FeatureCollection => {
-    if (hour === null) return toFeatureCollection([]);
-    return toFeatureCollection(
-      features
-        .filter((feature) => feature.hourday === hour)
-        .map((feature) => ({
-          type: "Feature" as const,
-          geometry: {
-            type: "Point" as const,
-            coordinates: [feature.lng, feature.lat],
-          },
-          properties: {
-            location_id: feature.location_id,
-            sensor_name: feature.sensor_name,
-            hourday: feature.hourday,
-            pedestrian_count: feature.pedestrian_count,
-            activity_level: feature.activity_level,
-            intensity: feature.pedestrian_count,
-          },
-        }))
-    );
-  };
-
-  const updateActivityDensityPresentation = (hour: number | null, features: ActivityDensityFeature[], visible: boolean) => {
-    const hourSlice = activityFeatureCollectionForHour(hour, features);
-    updateSource(SOURCE_IDS.activityDensity, hourSlice);
-    setLayerVisibility(
-      [LAYER_IDS.activityHeatmap, LAYER_IDS.activityCircle],
-      visible && hour !== null && hourSlice.features.length > 0
-    );
-    ensureRouteOnTop();
   };
 
   const setLayerVisibility = (layerIds: string[], visible: boolean) => {
@@ -564,118 +546,65 @@ export default function WhiteModelMap({
     }
   };
 
-  const addActivityDensityLayers = (map: mapboxgl.Map, visible: boolean) => {
-    if (!map.getSource(SOURCE_IDS.activityDensity)) {
-      map.addSource(SOURCE_IDS.activityDensity, {
+  const addStreetFacilitiesLayers = (map: mapboxgl.Map, visible: boolean, beforeLayerId?: string) => {
+    if (!map.getSource(SOURCE_IDS.streetFacilities)) {
+      map.addSource(SOURCE_IDS.streetFacilities, {
         type: "geojson",
-        data: toFeatureCollection([]),
+        data: streetFacilitiesDataRef.current ?? toFeatureCollection([]),
       });
     }
 
-    if (!map.getLayer(LAYER_IDS.activityHeatmap)) {
-      map.addLayer({
-        id: LAYER_IDS.activityHeatmap,
-        type: "heatmap",
-        source: SOURCE_IDS.activityDensity,
-        layout: visibilityLayout(visible),
-        maxzoom: 18,
-        paint: {
-          "heatmap-weight": [
-            "interpolate",
-            ["linear"],
-            ["coalesce", ["get", "intensity"], 0],
-            0,
-            0,
-            80,
-            0.18,
-            160,
-            0.42,
-            300,
-            0.72,
-            500,
-            1,
-          ],
-          "heatmap-intensity": [
-            "interpolate",
-            ["linear"],
-            ["zoom"],
-            12,
-            0.75,
-            16,
-            1.2,
-          ],
-          "heatmap-radius": [
-            "interpolate",
-            ["linear"],
-            ["zoom"],
-            12,
-            22,
-            16,
-            34,
-          ],
-          "heatmap-opacity": 0.48,
-          "heatmap-color": [
-            "interpolate",
-            ["linear"],
-            ["heatmap-density"],
-            0,
-            "rgba(255,236,179,0)",
-            0.2,
-            "rgba(255,236,179,0.45)",
-            0.45,
-            "rgba(255,183,77,0.68)",
-            0.7,
-            "rgba(255,112,67,0.82)",
-            1,
-            "rgba(198,40,40,0.9)",
-          ],
+    if (!map.getLayer(LAYER_IDS.streetFacilitiesCircle)) {
+      map.addLayer(
+        {
+          id: LAYER_IDS.streetFacilitiesCircle,
+          type: "circle",
+          source: SOURCE_IDS.streetFacilities,
+          layout: visibilityLayout(visible),
+          paint: {
+            "circle-radius": [
+              "interpolate",
+              ["linear"],
+              ["zoom"],
+              13,
+              4,
+              16,
+              6.5,
+            ],
+            "circle-color": ["coalesce", ["get", "color"], "#0f172a"],
+            "circle-stroke-width": 1.25,
+            "circle-stroke-color": "#f8fafc",
+            "circle-opacity": 0.96,
+            "circle-blur": 0.05,
+          },
         },
-      });
+        beforeLayerId
+      );
     }
 
-    if (!map.getLayer(LAYER_IDS.activityCircle)) {
-      map.addLayer({
-        id: LAYER_IDS.activityCircle,
-        type: "circle",
-        source: SOURCE_IDS.activityDensity,
-        layout: visibilityLayout(visible),
-        minzoom: 14,
-        paint: {
-          "circle-radius": [
-            "interpolate",
-            ["linear"],
-            ["coalesce", ["get", "intensity"], 0],
-            0,
-            0,
-            80,
-            4,
-            180,
-            7,
-            320,
-            10,
-            500,
-            12,
-          ],
-          "circle-color": [
-            "interpolate",
-            ["linear"],
-            ["coalesce", ["get", "intensity"], 0],
-            0,
-            "rgba(255,236,179,0)",
-            80,
-            "#ffd54f",
-            180,
-            "#ffb74d",
-            320,
-            "#ff7043",
-            500,
-            "#d84315",
-          ],
-          "circle-opacity": 0.72,
-          "circle-stroke-width": 1,
-          "circle-stroke-color": "rgba(255,248,232,0.86)",
+    if (!map.getLayer(LAYER_IDS.streetFacilitiesHitArea)) {
+      map.addLayer(
+        {
+          id: LAYER_IDS.streetFacilitiesHitArea,
+          type: "circle",
+          source: SOURCE_IDS.streetFacilities,
+          layout: visibilityLayout(visible),
+          paint: {
+            "circle-radius": [
+              "interpolate",
+              ["linear"],
+              ["zoom"],
+              13,
+              14,
+              16,
+              18,
+            ],
+            "circle-color": "#000000",
+            "circle-opacity": 0,
+          },
         },
-      });
+        beforeLayerId
+      );
     }
   };
 
@@ -748,6 +677,43 @@ export default function WhiteModelMap({
     });
   };
 
+  const bindStreetFacilitiesPopup = (map: mapboxgl.Map) => {
+    map.on("mouseenter", LAYER_IDS.streetFacilitiesHitArea, () => {
+      map.getCanvas().style.cursor = "pointer";
+    });
+
+    map.on("mouseleave", LAYER_IDS.streetFacilitiesHitArea, () => {
+      map.getCanvas().style.cursor = "";
+      removePopup(streetFacilitiesPopupRef);
+    });
+
+    map.on("mousemove", LAYER_IDS.streetFacilitiesHitArea, (event) => {
+      const feature = event.features?.[0];
+      if (!feature) return;
+      const label = String(feature.properties?.label ?? "").trim();
+      const location = String(feature.properties?.location_desc ?? "").trim();
+      if (!label) return;
+
+      if (!streetFacilitiesPopupRef.current) {
+        streetFacilitiesPopupRef.current = new mapboxgl.Popup({
+          closeButton: false,
+          closeOnClick: false,
+          offset: 12,
+          className: "mapboxgl-popup maplibre-tip-popup maplibre-furniture-popup",
+        });
+      }
+
+      streetFacilitiesPopupRef.current
+        .setLngLat(event.lngLat)
+        .setHTML(
+          location
+            ? `<span class="furniture-tip-label">${label}</span><span class="furniture-tip-location">${location}</span>`
+            : `<span class="furniture-tip-label">${label}</span>`
+        )
+        .addTo(map);
+    });
+  };
+
   useEffect(() => {
     onMapClickRef.current = onMapClick;
   }, [onMapClick]);
@@ -769,16 +735,8 @@ export default function WhiteModelMap({
   }, [showNaturalPlaces]);
 
   useEffect(() => {
-    showActivityDensityRef.current = showActivityDensity;
-  }, [showActivityDensity]);
-
-  useEffect(() => {
-    activityHourRef.current = activityHour;
-  }, [activityHour]);
-
-  useEffect(() => {
-    activityFeaturesRef.current = activityFeatures;
-  }, [activityFeatures]);
+    showStreetFacilitiesRef.current = showStreetFacilities;
+  }, [showStreetFacilities]);
 
   useEffect(() => {
     fetch("/geoscape/waterbodies.geojson")
@@ -802,6 +760,40 @@ export default function WhiteModelMap({
       .catch((error: unknown) => {
         console.error("[WhiteModelMap] failed to load parks layer", error);
       });
+
+    fetchSupportedFacilitiesCatalog()
+      .then((features) => {
+        const data = toFeatureCollection(
+          features
+            .map((feature) => {
+              const kind = classifySupportedFacility(feature.properties.asset_type);
+              if (!kind) return null;
+              const [lng, lat] = feature.geometry.coordinates;
+              if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+              const style = facilityStyle(kind);
+              return {
+                type: "Feature" as const,
+                geometry: {
+                  type: "Point" as const,
+                  coordinates: [lng, lat],
+                },
+                properties: {
+                  kind,
+                  label: style.label,
+                  location_desc: feature.properties.location_desc || "",
+                  color: style.color,
+                  halo: style.halo,
+                },
+              };
+            })
+            .filter((feature): feature is GeoJSON.Feature => feature !== null)
+        );
+        streetFacilitiesDataRef.current = data;
+        updateSource(SOURCE_IDS.streetFacilities, data);
+      })
+      .catch((error: unknown) => {
+        console.error("[WhiteModelMap] failed to load street facilities", error);
+      });
   }, []);
 
   useEffect(() => {
@@ -820,6 +812,14 @@ export default function WhiteModelMap({
     });
 
     mapRef.current = map;
+    map.dragPan.enable();
+    map.touchZoomRotate.enable();
+    map.touchZoomRotate.enableRotation();
+    if ("touchPitch" in map && map.touchPitch) {
+      map.touchPitch.enable();
+    }
+    map.getCanvas().style.touchAction = "none";
+    map.getContainer().style.touchAction = "none";
     map.addControl(new mapboxgl.NavigationControl({ visualizePitch: true }), "top-right");
 
     map.on("error", (event) => {
@@ -919,10 +919,11 @@ export default function WhiteModelMap({
       }
 
       addEasePlacesLayers(map, showEasePlacesRef.current, labelLayerId);
-      addActivityDensityLayers(map, false);
+      addStreetFacilitiesLayers(map, showStreetFacilitiesRef.current, labelLayerId);
       bindNaturalPopup(map, LAYER_IDS.waterFill, "Waterbody", ["NAME_LABEL", "NAME"]);
       bindNaturalPopup(map, LAYER_IDS.parksFill, "Park", ["NAME_LABEL", "NAME"]);
       bindEasePlacesPopup(map);
+      bindStreetFacilitiesPopup(map);
 
       setLayerVisibility(
         [LAYER_IDS.parksFill, LAYER_IDS.parksLine, LAYER_IDS.waterFill, LAYER_IDS.waterLine],
@@ -933,13 +934,8 @@ export default function WhiteModelMap({
         showEasePlacesRef.current
       );
       setLayerVisibility(
-        [LAYER_IDS.activityHeatmap, LAYER_IDS.activityCircle],
-        showActivityDensityRef.current
-      );
-      updateActivityDensityPresentation(
-        activityHourRef.current,
-        activityFeaturesRef.current,
-        showActivityDensityRef.current
+        [LAYER_IDS.streetFacilitiesCircle, LAYER_IDS.streetFacilitiesHitArea],
+        showStreetFacilitiesRef.current
       );
 
       if (routeRef.current?.geometry) {
@@ -952,6 +948,10 @@ export default function WhiteModelMap({
         layers: [LAYER_IDS.easePlacesHitArea],
       });
       if (easePlaceHits.length > 0) return;
+      const facilityHits = map.queryRenderedFeatures(event.point, {
+        layers: [LAYER_IDS.streetFacilitiesHitArea],
+      });
+      if (facilityHits.length > 0) return;
       onMapClickRef.current({ lng: event.lngLat.lng, lat: event.lngLat.lat });
     });
 
@@ -961,6 +961,7 @@ export default function WhiteModelMap({
       focusedStepMarkerRef.current?.remove();
       removePopup(naturalPopupRef);
       removePopup(easePlacesPopupRef);
+      removePopup(streetFacilitiesPopupRef);
       removeRoute();
       map.remove();
       mapRef.current = null;
@@ -999,8 +1000,15 @@ export default function WhiteModelMap({
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !map.isStyleLoaded()) return;
-    updateActivityDensityPresentation(activityHour, activityFeatures, showActivityDensity);
-  }, [activityFeatures, activityHour, showActivityDensity]);
+    setLayerVisibility(
+      [LAYER_IDS.streetFacilitiesCircle, LAYER_IDS.streetFacilitiesHitArea],
+      showStreetFacilities
+    );
+    if (!showStreetFacilities) {
+      removePopup(streetFacilitiesPopupRef);
+    }
+    ensureRouteOnTop();
+  }, [showStreetFacilities]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -1081,5 +1089,5 @@ export default function WhiteModelMap({
     focusStep(focusedStep);
   }, [focusedStep]);
 
-  return <div ref={containerRef} style={{ minHeight: "100dvh", width: "100%" }} />;
+  return <div ref={containerRef} style={{ minHeight: "100dvh", width: "100%", touchAction: "none" }} />;
 }
