@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import maplibregl, { type GeoJSONSource, type Popup } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { fetchFurniture, type FurnitureFeature, type Precinct } from "../lib/api";
-import { EASE_PLACES_DATA, type EasePlacesFeature } from "./LeafletMap";
+import { EASE_PLACES_DATA, easePlacesMarkerColor, type EasePlacesFeature } from "../lib/easePlaces";
 import type { MapViewportController } from "./mapTypes";
 
 type FeatureCollection = GeoJSON.FeatureCollection<GeoJSON.Geometry, GeoJSON.GeoJsonProperties>;
@@ -488,7 +488,7 @@ export default function MapLibreMap({
     easePlaceMarkersRef.current = [];
 
     EASE_PLACES_DATA.forEach((feature) => {
-      const { core, halo } = cpMarkerColor(feature.category);
+      const { core, halo } = easePlacesMarkerColor(feature.category);
       const el = document.createElement("button");
       el.type = "button";
       el.className = "maplibre-marker-button";
