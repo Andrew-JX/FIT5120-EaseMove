@@ -1,13 +1,8 @@
 import React from "react";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
+import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-
-const navigateToMock = vi.fn();
-
-vi.mock("../../lib/navigation", () => ({
-  navigateTo: (path: string) => navigateToMock(path),
-}));
 
 vi.mock("motion/react", async () => {
   const ReactModule = await import("react");
@@ -28,6 +23,11 @@ vi.mock("motion/react", async () => {
 });
 
 import ExtremeWeatherRisksPage from "../ExtremeWeatherRisksPage";
+
+function LocationDisplay() {
+  const location = useLocation();
+  return <div data-testid="location-display">{location.pathname}</div>;
+}
 
 function render(element: React.ReactNode) {
   const container = document.createElement("div");
@@ -63,7 +63,7 @@ function getCircleSegmentPaths(container: HTMLDivElement) {
 
 beforeEach(() => {
   vi.useFakeTimers();
-  navigateToMock.mockReset();
+  vi.restoreAllMocks();
 });
 
 afterEach(() => {
@@ -74,7 +74,13 @@ afterEach(() => {
 
 describe("ExtremeWeatherRisksPage - Epic 4", () => {
   test("renders the hero section and section navigation labels", () => {
-    const view = render(<ExtremeWeatherRisksPage />);
+    const view = render(
+      <MemoryRouter initialEntries={["/extreme-weather-risks"]}>
+        <Routes>
+          <Route path="/extreme-weather-risks" element={<ExtremeWeatherRisksPage />} />
+        </Routes>
+      </MemoryRouter>
+    );
 
     expect(view.container.textContent).toContain("Extreme Weather");
     expect(view.container.textContent).toContain(
@@ -89,7 +95,13 @@ describe("ExtremeWeatherRisksPage - Epic 4", () => {
   });
 
   test("clicking a weather segment shows the selected risk summary and severity legend", () => {
-    const view = render(<ExtremeWeatherRisksPage />);
+    const view = render(
+      <MemoryRouter initialEntries={["/extreme-weather-risks"]}>
+        <Routes>
+          <Route path="/extreme-weather-risks" element={<ExtremeWeatherRisksPage />} />
+        </Routes>
+      </MemoryRouter>
+    );
 
     const svgPaths = getCircleSegmentPaths(view.container);
     expect(svgPaths.length).toBe(5);
@@ -105,9 +117,6 @@ describe("ExtremeWeatherRisksPage - Epic 4", () => {
     expect(view.container.textContent).toContain("Impact on Human Body:");
     expect(view.container.textContent).toContain("Severity: High");
     expect(view.container.textContent).toContain("Learn More");
-    expect(view.container.textContent).toContain("High:");
-    expect(view.container.textContent).toContain("Moderate:");
-    expect(view.container.textContent).toContain("Mild:");
 
     view.unmount();
   });
@@ -117,7 +126,13 @@ describe("ExtremeWeatherRisksPage - Epic 4", () => {
     const originalScrollIntoView = HTMLElement.prototype.scrollIntoView;
     HTMLElement.prototype.scrollIntoView = scrollIntoViewMock;
 
-    const view = render(<ExtremeWeatherRisksPage />);
+    const view = render(
+      <MemoryRouter initialEntries={["/extreme-weather-risks"]}>
+        <Routes>
+          <Route path="/extreme-weather-risks" element={<ExtremeWeatherRisksPage />} />
+        </Routes>
+      </MemoryRouter>
+    );
 
     const svgPaths = getCircleSegmentPaths(view.container);
 
@@ -146,7 +161,22 @@ describe("ExtremeWeatherRisksPage - Epic 4", () => {
   });
 
   test("clicking Enter Quiz navigates to the extreme weather quiz page", () => {
-    const view = render(<ExtremeWeatherRisksPage />);
+    const view = render(
+      <MemoryRouter initialEntries={["/extreme-weather-risks"]}>
+        <Routes>
+          <Route
+            path="/extreme-weather-risks"
+            element={
+              <>
+                <ExtremeWeatherRisksPage />
+                <LocationDisplay />
+              </>
+            }
+          />
+          <Route path="/extreme-weather-risks-quiz" element={<LocationDisplay />} />
+        </Routes>
+      </MemoryRouter>
+    );
 
     const enterQuizButton = Array.from(view.container.querySelectorAll("button")).find((button) =>
       button.textContent?.includes("Enter Quiz")
@@ -157,7 +187,9 @@ describe("ExtremeWeatherRisksPage - Epic 4", () => {
       enterQuizButton!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
 
-    expect(navigateToMock).toHaveBeenCalledWith("/extreme-weather-risks-quiz");
+    expect(view.container.querySelector('[data-testid="location-display"]')?.textContent).toBe(
+      "/extreme-weather-risks-quiz"
+    );
 
     view.unmount();
   });

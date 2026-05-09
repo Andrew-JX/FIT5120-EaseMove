@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from "react";
+import { useLocation, useNavigate } from "react-router";
 import {
   Thermometer, Droplets, Users, X, Wind, Map, ArrowLeft,
   Layers, List, Plus, Minus, ZoomIn, Snowflake, Tag,
@@ -9,6 +10,7 @@ import logo from "../assets/logo-transparent.png";
 import ideaIcon from "../assets/idea.png";
 import questionMarkIcon from "../assets/question-mark.png";
 import warningIcon from "../assets/warning.png";
+import AppTopNav from "../components/AppTopNav";
 import LeafletMap, { type EasePlacesFeature } from "../components/LeafletMap";
 import DynamicLegendPanel from "../components/map/DynamicLegendPanel";
 import { usePrecincts } from "../hooks/usePrecincts";
@@ -22,7 +24,7 @@ import {
   type TodayRecommendation,
 } from "../lib/api";
 import { getAreaInfo, getAreaRecommendation } from "../lib/areaInfo";
-import { navigateTo } from "../lib/navigation";
+import { APP_ROUTES } from "../lib/navigation";
 import AreaDetailPage from "../pages/AreaDetailPage";
 import RecommendationFacilitiesPage from "../pages/RecommendationFacilitiesPage";
 
@@ -50,13 +52,13 @@ function formatDetailSensorStatus(p: Precinct): string {
   return '✅ Live Sensors';
 }
 
-function getAreaIdFromUrl(): string | null {
-  const areaId = new URLSearchParams(window.location.search).get("area");
+function getAreaIdFromSearch(search: string): string | null {
+  const areaId = new URLSearchParams(search).get("area");
   return getAreaInfo(areaId)?.id ?? null;
 }
 
-function getRecommendationIdFromUrl(): string | null {
-  const params = new URLSearchParams(window.location.search);
+function getRecommendationIdFromSearch(search: string): string | null {
+  const params = new URLSearchParams(search);
   const areaId = params.get("area");
   const recommendationId = params.get("place");
   return getAreaRecommendation(areaId, recommendationId)?.id ?? null;
@@ -373,13 +375,17 @@ function LegendPanel() {
 
 // ─── App ──────────────────────────────────────────────────────────────────────
 
-export default function App() {
+export default function App({ mode }: { mode: "view" | "compare" }) {
+  const navigate = useNavigate();
+  const location = useLocation();
   const [weights, setWeights] = useState<ComfortWeights>(() => loadWeights());
   const [debouncedWeights, setDebouncedWeights] = useState<ComfortWeights>(weights);
-  const [activeTab, setActiveTab] = useState<"view" | "compare">("view");
-  const [selectedAreaId, setSelectedAreaId] = useState<string | null>(() => getAreaIdFromUrl());
+  const activeTab = mode;
+  const [selectedAreaId, setSelectedAreaId] = useState<string | null>(() =>
+    getAreaIdFromSearch(location.search)
+  );
   const [selectedRecommendationId, setSelectedRecommendationId] = useState<string | null>(
-    () => getRecommendationIdFromUrl()
+    () => getRecommendationIdFromSearch(location.search)
   );
   const [mapFilters, setMapFilters] = useState<MapFilters>({
     easePlaces: false,
@@ -425,28 +431,29 @@ export default function App() {
   }, []);
 
   const handleBrandClick = useCallback(() => {
-    navigateTo("/");
-  }, []);
+    navigate(APP_ROUTES.home);
+  }, [navigate]);
 
   const handleAreaNavigation = useCallback((
     areaId: string | null,
     recommendationId: string | null = null
   ) => {
-    const url = new URL(window.location.href);
-    if (areaId) url.searchParams.set("area", areaId);
-    else url.searchParams.delete("area");
-    if (areaId && recommendationId) url.searchParams.set("place", recommendationId);
-    else url.searchParams.delete("place");
-    const nextUrl = `${url.pathname}${url.search}`;
-    const currentUrl = `${window.location.pathname}${window.location.search}`;
+    const params = new URLSearchParams(location.search);
+    const pathname = location.pathname;
+    if (areaId) params.set("area", areaId);
+    else params.delete("area");
+    if (areaId && recommendationId) params.set("place", recommendationId);
+    else params.delete("place");
+    const nextSearch = params.toString();
+    const nextUrl = `${pathname}${nextSearch ? `?${nextSearch}` : ""}`;
+    const currentUrl = `${pathname}${location.search}`;
     if (nextUrl === currentUrl) {
       setSelectedAreaId(areaId);
       setSelectedRecommendationId(recommendationId);
       return;
     }
-    window.history.pushState({}, "", nextUrl);
-    window.dispatchEvent(new PopStateEvent("popstate"));
-  }, []);
+    navigate(nextUrl);
+  }, [location.pathname, location.search, navigate]);
 
   const categories = [
     { name: "Comfortable", level: "low",     color: "#22c55e", bgColor: "bg-green-100",  textColor: "text-green-800" },
@@ -457,14 +464,9 @@ export default function App() {
   useEffect(() => { saveWeights(weights); }, [weights]);
 
   useEffect(() => {
-    const syncAreaFromUrl = () => {
-      setSelectedAreaId(getAreaIdFromUrl());
-      setSelectedRecommendationId(getRecommendationIdFromUrl());
-    };
-
-    window.addEventListener("popstate", syncAreaFromUrl);
-    return () => window.removeEventListener("popstate", syncAreaFromUrl);
-  }, []);
+    setSelectedAreaId(getAreaIdFromSearch(location.search));
+    setSelectedRecommendationId(getRecommendationIdFromSearch(location.search));
+  }, [location.search]);
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedWeights(weights), 800);
@@ -846,7 +848,7 @@ export default function App() {
       {/* Nav */}
       <nav className="bg-[#d9e8e3]/88 backdrop-blur-md mb-4 relative z-10 border-b border-[#17413f]/10">
         <div className="px-6 py-2">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-4">
             <button
               type="button"
               className="relative h-14 w-56 cursor-pointer border-0 bg-transparent p-0"
@@ -855,10 +857,11 @@ export default function App() {
             >
               <img src={logo} alt="EaseMove logo" className="absolute left-0 top-1/2 h-56 w-56 -translate-y-1/2 object-contain" />
             </button>
-            <div className="flex items-center gap-4">
+            <div className="flex min-w-0 flex-1 items-center justify-end gap-3 max-[980px]:flex-col max-[980px]:items-end">
+              <AppTopNav variant="app" className="app-map-top-nav" />
               {loading && <span className="text-sm text-gray-400 animate-pulse">Loading sensors…</span>}
               {error && <span className="text-sm text-red-500">⚠ {error}</span>}
-              <div className="flex items-center gap-2 text-xs text-gray-500">
+              <div className="shrink-0 flex items-center gap-2 text-xs text-gray-500">
                 <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
                 Live sensors
               </div>
@@ -880,7 +883,10 @@ export default function App() {
                     <button
                       type="button"
                       key={tab}
-                      onClick={() => { setActiveTab(tab); setShowCard(null); }}
+                      onClick={() => {
+                        setShowCard(null);
+                        navigate(tab === "view" ? APP_ROUTES.map : APP_ROUTES.compare);
+                      }}
                       className={`px-6 py-3 font-medium text-sm transition-all relative ${activeTab === tab ? 'text-[#006d77]' : 'text-[#5f8682] hover:text-[#17413f]'}`}
                     >
                       {tab.charAt(0).toUpperCase() + tab.slice(1)}
@@ -890,7 +896,7 @@ export default function App() {
                 </div>
                 <button
                   type="button"
-                  onClick={() => navigateTo('/extreme-weather-risks')}
+                  onClick={() => navigate(APP_ROUTES.risks)}
                   className="px-4 py-2 mb-2 rounded-xl border text-sm font-semibold transition-all flex items-center gap-2 border-[#e29578]/28 text-[#17413f] bg-[#fffaf6] hover:border-[#e29578]/56 hover:bg-[#fff3eb]"
                 >
                   <img src={warningIcon} alt="" className="h-4 w-4 object-contain" aria-hidden="true" />
@@ -1193,6 +1199,21 @@ export default function App() {
                   </div>
 
                   <div className="sm:flex-[2]">
+                    <button
+                      type="button"
+                      onClick={() => navigate(APP_ROUTES.map3dRoute)}
+                      className="mb-4 w-full rounded-[20px] border border-[#83c5be]/28 bg-[rgba(247,255,253,0.92)] px-4 py-3 text-left shadow-[0_14px_36px_rgba(4,14,14,0.12)] transition-colors hover:bg-white"
+                    >
+                      <span className="block text-xs font-semibold uppercase tracking-[0.18em] text-[#5f8682]">
+                        3D Route
+                      </span>
+                      <span className="mt-1 block text-base font-semibold text-[#17413f]">
+                        Preview a walking or cycling route in 3D
+                      </span>
+                      <span className="mt-1 block text-sm text-[#456765]">
+                        Keep the original compare map unchanged while planning a default route on a dedicated page.
+                      </span>
+                    </button>
                     {!compareSelection1 && !compareSelection2 ? (
                       <div className="flex items-center justify-center h-full bg-[rgba(237,246,249,0.82)] rounded-[24px] border border-dashed border-[#83c5be]/34">
                         <div className="text-center p-6">

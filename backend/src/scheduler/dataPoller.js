@@ -79,13 +79,38 @@ function assignPedestrianPrecinct(lat, lng) {
  */
 async function fetchPedestrianCounts() {
   const url = `${COM_BASE}/pedestrian-counting-system-monthly-counts-per-hour/records`;
-  const resp = await axios.get(url, {
-    // The monthly hourly dataset can lag behind the current local date, so pull
-    // the most recent published rows instead of assuming today's date exists.
-    params: { limit: 100, order_by: 'sensing_date DESC, hourday DESC', timezone: 'Australia/Melbourne' },
+  const latestResp = await axios.get(url, {
+    // The monthly hourly dataset can lag behind the current local date, so detect
+    // the latest published date first and then fetch that entire day's slice.
+    params: { limit: 1, order_by: 'sensing_date DESC, hourday DESC', timezone: 'Australia/Melbourne' },
     timeout: 12000
   });
-  return resp.data.results || [];
+  const latestRecord = latestResp.data.results?.[0] ?? null;
+  const latestDate = latestRecord?.sensing_date ?? null;
+  if (!latestDate) return [];
+
+  const pageSize = 100;
+  const records = [];
+  let offset = 0;
+
+  while (true) {
+    const resp = await axios.get(url, {
+      params: {
+        limit: pageSize,
+        offset,
+        where: `sensing_date='${latestDate}'`,
+        order_by: 'hourday DESC, location_id ASC',
+        timezone: 'Australia/Melbourne'
+      },
+      timeout: 12000
+    });
+    const batch = resp.data.results || [];
+    records.push(...batch);
+    if (batch.length < pageSize) break;
+    offset += batch.length;
+  }
+
+  return records;
 }
 
 async function storePedestrianCount(record) {
