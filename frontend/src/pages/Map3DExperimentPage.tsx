@@ -396,6 +396,14 @@ export default function Map3DExperimentPage() {
         : activityDensity.features.filter((feature) => feature.hourday === activityDensity.selectedHour),
     [activityDensity.features, activityDensity.selectedHour]
   );
+  const activityStatusLabel = useMemo(() => {
+    if (activityDensity.loading) return "Loading latest available day...";
+    if (activityDensity.date && activityDensity.selectedHour !== null) {
+      return `${activityDensity.date} at ${formatHourLabel(activityDensity.selectedHour)}`;
+    }
+    if (activityDensity.loaded) return "Latest day has no mappable activity data";
+    return "Turn on Activity Density to load the latest day";
+  }, [activityDensity.date, activityDensity.loaded, activityDensity.loading, activityDensity.selectedHour]);
 
   const handleBack = useCallback(() => {
     if (window.history.length > 1) {
@@ -750,14 +758,18 @@ export default function Map3DExperimentPage() {
                       <p className="mt-1 text-sm font-semibold text-[#17413f]">
                         {activityDensity.date && activityDensity.selectedHour !== null
                           ? `${activityDensity.date} · ${formatHourLabel(activityDensity.selectedHour)}`
-                          : "Latest day unavailable"}
+                          : activityDensity.loading
+                            ? "Loading latest available day..."
+                            : activityDensity.loaded
+                              ? "Latest day has no mappable activity data"
+                              : "Turn on Activity Density to load the latest day"}
                       </p>
                     </div>
                   </div>
 
                   {activityDensity.loading ? (
                     <div className="mt-3 rounded-2xl border border-white/38 bg-white/34 p-3 text-sm text-[#456765] shadow-[inset_0_1px_0_rgba(255,255,255,0.72)]">
-                      Loading activity density for the latest available day...
+                      {activityStatusLabel}
                     </div>
                   ) : null}
 
@@ -793,7 +805,7 @@ export default function Map3DExperimentPage() {
 
                   {!activityDensity.loading && !activityDensity.error && activityDensity.availableHours.length === 0 ? (
                     <div className="mt-3 rounded-2xl border border-white/38 bg-white/34 p-3 text-sm text-[#456765] shadow-[inset_0_1px_0_rgba(255,255,255,0.72)]">
-                      No activity density data is available for the latest day yet.
+                      The latest available day has no mappable activity density data yet.
                     </div>
                   ) : null}
                 </div>
