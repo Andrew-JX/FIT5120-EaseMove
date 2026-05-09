@@ -21,7 +21,6 @@ import WhiteModelMap, {
   type RouteStepItem,
   type RouteSummary,
 } from "../components/WhiteModelMap";
-import { fetchLatestActivityDensity, type ActivityDensityFeature } from "../lib/api";
 import { APP_ROUTES } from "../lib/navigation";
 
 const MAPBOX_PUBLIC_TOKEN = (import.meta.env.VITE_MAPBOX_PUBLIC_TOKEN as string | undefined)?.trim() || null;
@@ -29,18 +28,21 @@ const ROUTE_REQUEST_TIMEOUT_MS = 12000;
 const LOW_ACCURACY_THRESHOLD_METERS = 120;
 const liquidGlassPanelStyle: CSSProperties = {
   background:
-    "linear-gradient(135deg, rgba(247,255,253,0.46), rgba(237,246,249,0.26) 54%, rgba(255,248,232,0.22))",
+    "radial-gradient(circle at 18% 0%, rgba(255,255,255,0.52), transparent 36%), linear-gradient(135deg, rgba(247,255,253,0.5), rgba(237,246,249,0.32) 54%, rgba(255,248,232,0.24))",
   backdropFilter: "url(#route-liquid-glass-filter) blur(16px) saturate(1.42) brightness(1.06)",
   WebkitBackdropFilter: "blur(16px) saturate(1.42) brightness(1.06)",
   boxShadow:
-    "0 24px 60px rgba(4,14,14,0.14), inset 0 1px 0 rgba(255,255,255,0.58), inset 0 -18px 42px rgba(23,65,63,0.06)",
+    "0 26px 64px rgba(4,14,14,0.16), inset 0 1px 0 rgba(255,255,255,0.68), inset 0 -18px 42px rgba(23,65,63,0.08), inset 1px 0 0 rgba(255,255,255,0.24)",
 };
 
 const liquidGlassCardClass =
-  "border border-white/42 bg-[linear-gradient(145deg,rgba(255,255,255,0.34),rgba(237,246,249,0.18))] shadow-[inset_0_1px_0_rgba(255,255,255,0.58),0_12px_30px_rgba(4,14,14,0.055)]";
+  "border border-white/45 bg-[radial-gradient(circle_at_18%_0%,rgba(255,255,255,0.42),transparent_38%),linear-gradient(145deg,rgba(255,255,255,0.4),rgba(237,246,249,0.22))] shadow-[inset_0_1px_0_rgba(255,255,255,0.64),inset_0_-12px_24px_rgba(176,186,191,0.08),0_14px_32px_rgba(4,14,14,0.07)]";
 
 const liquidGlassInteractiveClass =
   `${liquidGlassCardClass} transition duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-0.5 hover:border-white/72 hover:bg-[linear-gradient(145deg,rgba(255,255,255,0.48),rgba(237,246,249,0.24))] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.78),0_18px_42px_rgba(4,14,14,0.12)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#83c5be]/70`;
+
+const floatingChromeButtonClass =
+  "inline-flex items-center justify-center gap-2 rounded-full border border-white/42 bg-white/72 text-sm font-semibold text-[#17413f] shadow-[inset_0_1px_0_rgba(255,255,255,0.82),0_10px_24px_rgba(23,65,63,0.14)] backdrop-blur-md transition hover:bg-white active:scale-[0.98]";
 
 type RouteError = {
   title: string;
@@ -50,6 +52,7 @@ type RouteError = {
 type AreaLayerState = {
   easePlaces: boolean;
   naturalPlaces: boolean;
+  streetFacilities: boolean;
   activityDensity: boolean;
 };
 
@@ -83,11 +86,11 @@ type GeolocationState =
   | { status: "warning"; message: string }
   | { status: "error"; message: string };
 
-type ActivityDensityState = {
+type DisabledActivityDensityState = {
   date: string | null;
   availableHours: number[];
   selectedHour: number | null;
-  features: ActivityDensityFeature[];
+  features: Array<{ hourday: number }>;
   loading: boolean;
   loaded: boolean;
   error: string | null;
@@ -112,6 +115,12 @@ function formatPoint(point: RoutePoint) {
 function formatHourLabel(hour: number) {
   return `${hour.toString().padStart(2, "0")}:00`;
 }
+
+type LayerLegendFilters = {
+  easePlaces: boolean;
+  naturalPlaces: boolean;
+  streetFacilities: boolean;
+};
 
 function buildRouteUrl(profile: RouteProfile, startPoint: RoutePoint, endPoint: RoutePoint) {
   const start = `${startPoint.lng},${startPoint.lat}`;
@@ -187,16 +196,8 @@ export default function Map3DExperimentPage() {
   const [areaLayers, setAreaLayers] = useState<AreaLayerState>({
     easePlaces: false,
     naturalPlaces: false,
+    streetFacilities: false,
     activityDensity: false,
-  });
-  const [activityDensity, setActivityDensity] = useState<ActivityDensityState>({
-    date: null,
-    availableHours: [],
-    selectedHour: null,
-    features: [],
-    loading: false,
-    loaded: false,
-    error: null,
   });
   const [geolocation, setGeolocation] = useState<GeolocationState>({
     status: "idle",
@@ -387,23 +388,22 @@ export default function Map3DExperimentPage() {
 
   const panelHasDenseContent = Boolean(route || routeError || isRouteLoading);
   const activeLayerCount =
-    Number(areaLayers.easePlaces) + Number(areaLayers.naturalPlaces) + Number(areaLayers.activityDensity);
+    Number(areaLayers.easePlaces) + Number(areaLayers.naturalPlaces) + Number(areaLayers.streetFacilities);
   const panelCollapsed = activePanel === null;
-  const visibleActivityFeatures = useMemo(
-    () =>
-      activityDensity.selectedHour === null
-        ? []
-        : activityDensity.features.filter((feature) => feature.hourday === activityDensity.selectedHour),
-    [activityDensity.features, activityDensity.selectedHour]
+  const activityDensity: DisabledActivityDensityState = useMemo(
+    () => ({
+      date: null,
+      availableHours: [],
+      selectedHour: null,
+      features: [],
+      loading: false,
+      loaded: false,
+      error: null,
+    }),
+    []
   );
-  const activityStatusLabel = useMemo(() => {
-    if (activityDensity.loading) return "Loading latest available day...";
-    if (activityDensity.date && activityDensity.selectedHour !== null) {
-      return `${activityDensity.date} at ${formatHourLabel(activityDensity.selectedHour)}`;
-    }
-    if (activityDensity.loaded) return "Latest day has no mappable activity data";
-    return "Turn on Activity Density to load the latest day";
-  }, [activityDensity.date, activityDensity.loaded, activityDensity.loading, activityDensity.selectedHour]);
+  const visibleActivityFeatures: Array<{ hourday: number }> = [];
+  const activityStatusLabel = "";
 
   const handleBack = useCallback(() => {
     if (window.history.length > 1) {
@@ -429,55 +429,11 @@ export default function Map3DExperimentPage() {
     setActivePanel(null);
   }, []);
 
-  const handleActivityHourChange = useCallback((hour: number) => {
-    setActivityDensity((current) => ({
-      ...current,
-      selectedHour: hour,
-      error: null,
-    }));
-  }, []);
+  const handleActivityHourChange = useCallback((_hour: number) => {}, []);
 
   useEffect(() => {
     setFocusedStepIndex(null);
   }, [route]);
-
-  useEffect(() => {
-    if (!areaLayers.activityDensity || activityDensity.loaded || activityDensity.loading) return;
-
-    let cancelled = false;
-    setActivityDensity((current) => ({
-      ...current,
-      loading: true,
-      error: null,
-    }));
-
-    void fetchLatestActivityDensity()
-      .then((data) => {
-        if (cancelled) return;
-        setActivityDensity({
-          date: data.date,
-          availableHours: data.availableHours,
-          selectedHour: data.defaultHour,
-          features: data.features,
-          loading: false,
-          loaded: true,
-          error: null,
-        });
-      })
-      .catch((error) => {
-        if (cancelled) return;
-        setActivityDensity((current) => ({
-          ...current,
-          loading: false,
-          loaded: true,
-          error: error instanceof Error ? error.message : "Activity density could not be loaded.",
-        }));
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [activityDensity.loaded, activityDensity.loading, areaLayers.activityDensity]);
 
   useEffect(() => {
     return () => {
@@ -501,26 +457,37 @@ export default function Map3DExperimentPage() {
         focusedStep={focusedStepIndex !== null && route ? route.steps[focusedStepIndex] ?? null : null}
         showEasePlaces={areaLayers.easePlaces}
         showNaturalPlaces={areaLayers.naturalPlaces}
-        showActivityDensity={areaLayers.activityDensity}
-        activityHour={activityDensity.selectedHour}
-        activityFeatures={activityDensity.features}
+        showStreetFacilities={areaLayers.streetFacilities}
         onMapClick={handleMapClick}
         onMapError={handleMapError}
       />
 
+      <div className="absolute left-3 top-3 z-20 sm:left-4 sm:top-4">
+        <button
+          type="button"
+          onClick={handleBack}
+          className={`${floatingChromeButtonClass} h-11 px-4 max-sm:w-11 max-sm:px-0`}
+          title="Back to previous page"
+          aria-label="Back to previous page"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          <span className="max-sm:hidden">Back</span>
+        </button>
+      </div>
+
       <aside
         style={liquidGlassPanelStyle}
-        className={`absolute left-4 top-4 z-10 flex max-w-[calc(100vw-2rem)] flex-col overflow-hidden border border-white/55 max-md:right-4 max-md:top-auto ${
+        className={`absolute left-4 top-20 z-10 flex max-w-[calc(100vw-2rem)] flex-col overflow-hidden border border-white/55 max-md:bottom-3 max-md:left-3 max-md:right-3 max-md:top-auto max-md:max-w-none max-md:pb-[max(env(safe-area-inset-bottom),0px)] ${
           panelCollapsed
-            ? "w-[184px] rounded-[18px]"
+            ? "w-[184px] rounded-[18px] max-md:w-auto"
             : panelHasDenseContent
-              ? "bottom-4 w-[386px] rounded-[24px] max-md:max-h-[62dvh] max-md:w-auto"
-              : "w-[386px] rounded-[24px] max-md:w-auto"
+              ? "bottom-4 w-[386px] rounded-[24px] max-md:max-h-[58dvh] max-md:w-auto"
+              : "w-[386px] rounded-[24px] max-md:max-h-[58dvh] max-md:w-auto"
         }`}
       >
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_0%,rgba(255,255,255,0.48),transparent_34%),linear-gradient(120deg,rgba(255,255,255,0.12),transparent_42%,rgba(255,255,255,0.1)_68%,transparent)]" />
         {panelCollapsed ? (
-          <div className="grid grid-cols-2 gap-2 p-2">
+          <div className="grid grid-cols-2 gap-2 p-2 max-sm:grid-cols-1">
             <CollapsedPanelButton
               label="Route"
               icon={<Navigation className="h-4 w-4" />}
@@ -534,22 +501,13 @@ export default function Map3DExperimentPage() {
           </div>
         ) : (
           <>
-        <div className="relative border-b border-white/38 px-5 py-4 shadow-[inset_0_-1px_0_rgba(23,65,63,0.06)]">
-          <div className="flex items-start justify-between gap-3">
+        <div className="relative border-b border-white/38 px-4 py-4 shadow-[inset_0_-1px_0_rgba(23,65,63,0.06)] sm:px-5">
+          <div className="flex items-start justify-between gap-3 max-sm:flex-col">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#5f8682]">MoveComfortly route</p>
               <h1 className="mt-1 text-xl font-semibold text-[#17413f]">3D Route Preview</h1>
             </div>
-            <div className="flex shrink-0 items-center gap-2">
-              <button
-                type="button"
-                onClick={handleBack}
-                className="inline-flex h-10 items-center justify-center gap-2 rounded-full border border-white/42 bg-white/42 px-3 text-sm font-semibold text-[#17413f] shadow-[inset_0_1px_0_rgba(255,255,255,0.7),0_8px_18px_rgba(23,65,63,0.08)] transition hover:bg-white/62 active:scale-[0.98]"
-                title="Back to previous page"
-              >
-                <ArrowLeft className="h-4 w-4" />
-                Back
-              </button>
+            <div className="flex shrink-0 items-center gap-2 self-end max-sm:w-full max-sm:justify-end">
               <button
                 type="button"
                 onClick={handleUseCurrentLocation}
@@ -590,7 +548,7 @@ export default function Map3DExperimentPage() {
           </div>
         </div>
 
-        <div className={`relative ${panelHasDenseContent ? "flex-1 overflow-y-auto" : ""} px-5 py-4`}>
+        <div className={`relative ${panelHasDenseContent ? "flex-1 overflow-y-auto" : ""} px-4 py-4 sm:px-5`}>
           {activePanel === "route" ? (
             <>
               <div className={`mb-4 rounded-2xl p-4 text-sm text-[#456765] ${liquidGlassInteractiveClass}`} tabIndex={0}>
@@ -611,7 +569,7 @@ export default function Map3DExperimentPage() {
                 <button
                   type="button"
                   onClick={() => handleProfileChange("walking")}
-                  className={`inline-flex items-center justify-center gap-2 rounded-full px-3 py-2 text-sm font-semibold transition active:scale-[0.98] ${
+                  className={`inline-flex items-center justify-center gap-2 rounded-full px-3 py-2 text-sm font-semibold transition active:scale-[0.98] max-sm:min-h-11 ${
                     profile === "walking" ? "bg-white/72 text-[#17413f] shadow-[0_8px_18px_rgba(23,65,63,0.08),inset_0_1px_0_rgba(255,255,255,0.8)]" : "text-[#5f8682] hover:text-[#17413f]"
                   }`}
                 >
@@ -621,7 +579,7 @@ export default function Map3DExperimentPage() {
                 <button
                   type="button"
                   onClick={() => handleProfileChange("cycling")}
-                  className={`inline-flex items-center justify-center gap-2 rounded-full px-3 py-2 text-sm font-semibold transition active:scale-[0.98] ${
+                  className={`inline-flex items-center justify-center gap-2 rounded-full px-3 py-2 text-sm font-semibold transition active:scale-[0.98] max-sm:min-h-11 ${
                     profile === "cycling" ? "bg-white/72 text-[#17413f] shadow-[0_8px_18px_rgba(23,65,63,0.08),inset_0_1px_0_rgba(255,255,255,0.8)]" : "text-[#5f8682] hover:text-[#17413f]"
                   }`}
                 >
@@ -660,7 +618,7 @@ export default function Map3DExperimentPage() {
               </div>
 
               {isRouteLoading ? (
-                <div className="mb-4 grid grid-cols-2 gap-3">
+                <div className="mb-4 grid grid-cols-2 gap-3 max-sm:grid-cols-1">
                   <div className={`h-[86px] animate-pulse rounded-2xl ${liquidGlassCardClass}`} />
                   <div className={`h-[86px] animate-pulse rounded-2xl ${liquidGlassCardClass}`} />
                 </div>
@@ -668,7 +626,7 @@ export default function Map3DExperimentPage() {
 
               {route ? (
                 <>
-                  <div className="mb-4 grid grid-cols-2 gap-3">
+                  <div className="mb-4 grid grid-cols-2 gap-3 max-sm:grid-cols-1">
                     <Metric label="Distance" value={formatDistance(route.distanceMeters)} />
                     <Metric label="Time" value={formatDuration(route.durationSeconds)} />
                   </div>
@@ -690,7 +648,7 @@ export default function Map3DExperimentPage() {
                               : ""
                           }`}
                         >
-                          <div className="flex items-start justify-between gap-3">
+                          <div className="flex items-start justify-between gap-3 max-sm:flex-col">
                             <div>
                               <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#5f8682]">
                                 {step.modifier ?? step.type}
@@ -698,7 +656,7 @@ export default function Map3DExperimentPage() {
                               <p className="mt-1 text-sm font-semibold text-[#17413f]">{step.instruction}</p>
                               {step.roadName ? <p className="mt-1 text-xs text-[#6b8582]">{step.roadName}</p> : null}
                             </div>
-                            <span className="shrink-0 rounded-full bg-[#e3f3ef] px-2 py-1 text-xs font-semibold text-[#456765]">
+                            <span className="shrink-0 rounded-full bg-[#e3f3ef] px-2 py-1 text-xs font-semibold text-[#456765] max-sm:self-start">
                               {formatDistance(step.distanceMeters)}
                             </span>
                           </div>
@@ -743,12 +701,20 @@ export default function Map3DExperimentPage() {
                   onToggle={() => handleLayerToggle("easePlaces")}
                 />
                 <LayerToggle
-                  label="Activity Density"
-                  description="Hourly crowd-density heatmap based on pedestrian counting points."
-                  checked={areaLayers.activityDensity}
-                  onToggle={() => handleLayerToggle("activityDensity")}
+                  label="Public Facilities"
+                  description="Bicycle racks, drinking fountains, and public seating from the map page."
+                  checked={areaLayers.streetFacilities}
+                  onToggle={() => handleLayerToggle("streetFacilities")}
                 />
               </div>
+
+              <ActiveLayerLegends
+                filters={{
+                  easePlaces: areaLayers.easePlaces,
+                  naturalPlaces: areaLayers.naturalPlaces,
+                  streetFacilities: areaLayers.streetFacilities,
+                }}
+              />
 
               {areaLayers.activityDensity ? (
                 <div className={`mt-4 rounded-2xl p-4 ${liquidGlassCardClass}`}>
@@ -885,7 +851,7 @@ function LayerToggle({
       type="button"
       onClick={onToggle}
       disabled={disabled}
-      className={`flex items-center justify-between gap-3 rounded-2xl p-3 text-left ${liquidGlassInteractiveClass} ${disabled ? "cursor-not-allowed opacity-65" : ""}`}
+      className={`flex items-center justify-between gap-3 rounded-2xl p-3 text-left ${liquidGlassInteractiveClass} ${disabled ? "cursor-not-allowed opacity-65" : ""} max-sm:items-start`}
       aria-pressed={checked}
     >
       <div className="min-w-0">
@@ -916,6 +882,83 @@ function LayerToggle({
   );
 }
 
+function ActiveLayerLegends({ filters }: { filters: LayerLegendFilters }) {
+  const sections = [
+    filters.easePlaces ? "easePlaces" : null,
+    filters.naturalPlaces ? "naturalPlaces" : null,
+    filters.streetFacilities ? "streetFacilities" : null,
+  ].filter(Boolean);
+
+  if (sections.length === 0) return null;
+
+  const showDividerBefore = (section: string) => sections[0] !== section;
+
+  return (
+    <div className={`mt-4 rounded-2xl p-4 ${liquidGlassCardClass}`}>
+      <div className="flex items-start gap-3">
+        <Layers3 className="mt-0.5 h-4 w-4 shrink-0 text-[#17413f]" />
+        <div className="min-w-0">
+          <p className="font-semibold text-[#17413f]">Layer legend</p>
+          <p className="mt-1 text-xs text-[#6b8582]">Only active layers are shown here.</p>
+        </div>
+      </div>
+
+      <div className="mt-4 space-y-4 text-sm text-[#456765]">
+        {filters.easePlaces ? (
+          <div className={showDividerBefore("easePlaces") ? "border-t border-white/35 pt-4" : ""}>
+            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#5f8682]">Ease Places</p>
+            <div className="mt-3 space-y-2">
+              <LegendRow swatchClassName="bg-[#6a5ca5] shadow-[0_0_0_5px_rgba(106,92,165,0.22)]" label="Arts, Culture & Enrichment" />
+              <LegendRow swatchClassName="bg-[#1f9d68] shadow-[0_0_0_5px_rgba(31,157,104,0.22)]" label="Recreation / Leisure & Open Spaces" />
+              <LegendRow swatchClassName="bg-[#d975a4] shadow-[0_0_0_5px_rgba(217,117,164,0.22)]" label="Shopping" />
+            </div>
+          </div>
+        ) : null}
+
+        {filters.naturalPlaces ? (
+          <div className={showDividerBefore("naturalPlaces") ? "border-t border-white/35 pt-4" : ""}>
+            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#5f8682]">Natural Places</p>
+            <div className="mt-3 space-y-2">
+              <LegendRow swatchClassName="border-2 border-[#2a7486] bg-[#9ed7df]" label="Waterbody" square />
+              <LegendRow swatchClassName="border-2 border-[#4b7b46] bg-[#b8d9a6]" label="Park" square />
+            </div>
+          </div>
+        ) : null}
+
+        {filters.streetFacilities ? (
+          <div className={showDividerBefore("streetFacilities") ? "border-t border-white/35 pt-4" : ""}>
+            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#5f8682]">Public Facilities</p>
+            <div className="mt-3 space-y-2">
+              <LegendRow swatchClassName="bg-[#0891b2]" label="Drinking Fountain" />
+              <LegendRow swatchClassName="bg-[#c2410c]" label="Bicycle Rack" />
+              <LegendRow swatchClassName="bg-[#7e22ce]" label="Seat" />
+            </div>
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function LegendRow({
+  swatchClassName,
+  label,
+  square = false,
+}: {
+  swatchClassName: string;
+  label: string;
+  square?: boolean;
+}) {
+  return (
+    <div className="flex items-center gap-3">
+      <span
+        className={`block h-3 w-3 shrink-0 ${square ? "rounded-[3px]" : "rounded-full"} ${swatchClassName}`}
+      />
+      <span>{label}</span>
+    </div>
+  );
+}
+
 function PanelTabButton({
   active,
   icon,
@@ -931,7 +974,7 @@ function PanelTabButton({
     <button
       type="button"
       onClick={onClick}
-      className={`inline-flex items-center justify-center gap-2 rounded-full px-3 py-2 text-sm font-semibold transition active:scale-[0.98] ${
+      className={`inline-flex items-center justify-center gap-2 rounded-full px-3 py-2 text-sm font-semibold transition active:scale-[0.98] max-sm:min-h-11 ${
         active ? "bg-white/72 text-[#17413f] shadow-[0_8px_18px_rgba(23,65,63,0.08),inset_0_1px_0_rgba(255,255,255,0.8)]" : "text-[#5f8682] hover:text-[#17413f]"
       }`}
     >
@@ -954,7 +997,7 @@ function CollapsedPanelButton({
     <button
       type="button"
       onClick={onClick}
-      className="inline-flex h-12 items-center justify-center gap-2 rounded-[14px] border border-white/40 bg-white/28 px-3 text-sm font-semibold text-[#17413f] transition hover:bg-white/38 active:scale-[0.98]"
+      className="inline-flex h-12 items-center justify-center gap-2 rounded-[14px] border border-white/40 bg-white/28 px-3 text-sm font-semibold text-[#17413f] transition hover:bg-white/38 active:scale-[0.98] max-sm:h-11"
     >
       {icon}
       {label}

@@ -11,7 +11,7 @@ import ideaIcon from "../assets/idea.png";
 import questionMarkIcon from "../assets/question-mark.png";
 import warningIcon from "../assets/warning.png";
 import AppTopNav from "../components/AppTopNav";
-import LeafletMap, { type EasePlacesFeature } from "../components/LeafletMap";
+import LeafletMap from "../components/LeafletMap";
 import DynamicLegendPanel from "../components/map/DynamicLegendPanel";
 import { usePrecincts } from "../hooks/usePrecincts";
 import {
@@ -24,6 +24,7 @@ import {
   type TodayRecommendation,
 } from "../lib/api";
 import { getAreaInfo, getAreaRecommendation } from "../lib/areaInfo";
+import { type EasePlacesFeature } from "../lib/easePlaces";
 import { APP_ROUTES } from "../lib/navigation";
 import AreaDetailPage from "../pages/AreaDetailPage";
 import RecommendationFacilitiesPage from "../pages/RecommendationFacilitiesPage";
@@ -133,6 +134,75 @@ function Pm25Info() {
           <p className="mt-1"><span className="font-semibold">Extremely Poor (&gt;150 ug/m3):</span> Everyone should avoid all outdoor exertion.</p>
         </div>
       )}
+    </div>
+  );
+}
+
+function SensorStatusBadge({
+  children,
+  tone = 'neutral',
+  pulse = false,
+  invisible = false,
+}: {
+  children: React.ReactNode;
+  tone?: 'neutral' | 'success' | 'error';
+  pulse?: boolean;
+  invisible?: boolean;
+}) {
+  const toneClass =
+    tone === 'success'
+      ? 'border-[#83c5be]/38 text-[#17413f]'
+      : tone === 'error'
+        ? 'border-[#e29578]/38 text-[#8f3d24]'
+        : 'border-[#17413f]/10 text-[#5f8682]';
+
+  return (
+    <div
+      className={`inline-flex min-h-10 items-center gap-2 rounded-full border px-4 text-xs font-semibold shadow-[inset_0_1px_0_rgba(255,255,255,0.6),0_12px_28px_rgba(16,32,31,0.08)] backdrop-blur-md ${
+        invisible ? 'invisible' : ''
+      } ${toneClass}`}
+      style={{
+        background:
+          'radial-gradient(circle at 18% 0%, rgba(255,255,255,0.4), transparent 38%), linear-gradient(135deg, rgba(255,255,255,0.72), rgba(237,246,249,0.52))',
+      }}
+    >
+      <span
+        className={`h-2.5 w-2.5 rounded-full ${
+          tone === 'success' ? 'bg-green-500' : tone === 'error' ? 'bg-[#e29578]' : 'bg-[#83c5be]'
+        } ${pulse ? 'animate-pulse' : ''}`}
+      />
+      <span className="whitespace-nowrap">{children}</span>
+    </div>
+  );
+}
+
+function SensorStatusRow({
+  loading,
+  error,
+}: {
+  loading: boolean;
+  error: string | null;
+  }) {
+    return (
+      <div className="flex shrink-0 items-center justify-end gap-2 whitespace-nowrap">
+        <div className="w-[126px] shrink-0 sm:w-[174px]">
+          {loading ? (
+            <SensorStatusBadge tone="neutral" pulse>
+              Loading sensors...
+          </SensorStatusBadge>
+        ) : error ? (
+          <SensorStatusBadge tone="error">
+            Sensor load issue
+          </SensorStatusBadge>
+        ) : (
+          <SensorStatusBadge invisible>
+            Loading sensors...
+          </SensorStatusBadge>
+        )}
+      </div>
+      <SensorStatusBadge tone="success" pulse>
+        Live sensors
+      </SensorStatusBadge>
     </div>
   );
 }
@@ -644,15 +714,17 @@ export default function App({ mode }: { mode: "view" | "compare" }) {
     const destName = destPrecinct?.name ?? selectedDestId;
 
     return (
-      <div className="min-h-screen bg-[#eef6f3] relative overflow-hidden text-[#10201f]">
+      <div className="relative min-h-[100dvh] overflow-hidden bg-[#f7fbfa] text-[#10201f]">
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_78%_16%,rgba(131,197,190,0.18),transparent_26%),linear-gradient(180deg,#eef6f3_0%,#f7fbfa_52%,#e3f0ec_100%)]" />
-          <div className="absolute -top-36 -right-28 h-80 w-80 rounded-full bg-[#83c5be]/14 blur-3xl" />
-          <div className="absolute -bottom-44 -left-24 h-96 w-96 rounded-full bg-[#ffddd2]/12 blur-3xl" />
+          <div className="absolute inset-0 bg-[linear-gradient(180deg,#122d2b_0%,#edf8f5_17%,#f7fbfa_74%,#dfeee9_100%)]" />
+          <div className="absolute inset-x-0 top-0 h-[26vh] bg-[radial-gradient(circle_at_50%_0%,rgba(131,197,190,0.26),transparent_62%)]" />
+          <div className="absolute inset-x-0 bottom-0 h-[24vh] bg-[radial-gradient(circle_at_50%_100%,rgba(23,65,63,0.14),transparent_66%)]" />
+          <div className="absolute -top-36 -right-28 h-80 w-80 rounded-full bg-[#83c5be]/10 blur-3xl" />
+          <div className="absolute -bottom-44 -left-24 h-96 w-96 rounded-full bg-[#83c5be]/12 blur-3xl" />
         </div>
 
-        <nav className="bg-[#d9e8e3]/88 backdrop-blur-md mb-6 relative z-10 border-b border-[#17413f]/10">
-          <div className="px-6 py-2">
+        <nav className="relative z-10 mb-6 px-4 pt-4 sm:px-6">
+          <div className="mx-auto max-w-[1400px] rounded-[28px] border border-white/40 bg-[radial-gradient(circle_at_18%_0%,rgba(255,255,255,0.52),transparent_36%),linear-gradient(135deg,rgba(255,255,255,0.72),rgba(237,246,249,0.54))] px-4 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.62),0_18px_40px_rgba(16,32,31,0.08)] backdrop-blur-md">
             <div className="flex items-center justify-between">
               <button
                 type="button"
@@ -721,7 +793,7 @@ export default function App({ mode }: { mode: "view" | "compare" }) {
                       <div className="grid grid-cols-2 gap-3 mt-3">
                         <div className="bg-white/70 rounded-lg p-2 text-xs"><span className="text-gray-600">Temperature:</span><span className="font-bold ml-1">{destPrecinct.temperature !== null ? `${destPrecinct.temperature}°C` : 'N/A'}</span></div>
                         <div className="bg-white/70 rounded-lg p-2 text-xs"><span className="text-gray-600">Humidity:</span><span className="font-bold ml-1">{destPrecinct.humidity !== null ? `${destPrecinct.humidity}%` : 'N/A'}</span></div>
-                        <div className="bg-white/70 rounded-lg p-2 text-xs"><span className="text-gray-600">Activity Level:</span><span className="font-bold ml-1">{destPrecinct.activity_level}</span></div>
+                        <div className="bg-white/70 rounded-lg p-2 text-xs"><span className="text-gray-600">Crowd Density:</span><span className="font-bold ml-1">{destPrecinct.activity_level}</span></div>
                         <div className="bg-white/70 rounded-lg p-2 text-xs"><span className="text-gray-600">Wind Speed:</span><span className="font-bold ml-1">{destPrecinct.wind_speed !== null ? `${destPrecinct.wind_speed} m/s` : 'N/A'}</span></div>
                       </div>
                     </div>
@@ -838,30 +910,33 @@ export default function App({ mode }: { mode: "view" | "compare" }) {
   }
 
   return (
-    <div className="min-h-screen bg-[#eef6f3] relative overflow-hidden text-[#10201f]">
+    <div className="relative min-h-[100dvh] overflow-hidden bg-[#f7fbfa] text-[#10201f]">
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_78%_16%,rgba(131,197,190,0.18),transparent_26%),linear-gradient(180deg,#eef6f3_0%,#f7fbfa_52%,#e3f0ec_100%)]" />
-        <div className="absolute -top-36 -right-28 h-80 w-80 rounded-full bg-[#83c5be]/14 blur-3xl" />
-        <div className="absolute -bottom-44 -left-24 h-96 w-96 rounded-full bg-[#ffddd2]/12 blur-3xl" />
+        <div className="absolute inset-0 bg-[linear-gradient(180deg,#122d2b_0%,#edf8f5_17%,#f7fbfa_74%,#dfeee9_100%)]" />
+        <div className="absolute inset-x-0 top-0 h-[26vh] bg-[radial-gradient(circle_at_50%_0%,rgba(131,197,190,0.26),transparent_62%)]" />
+        <div className="absolute inset-x-0 bottom-0 h-[24vh] bg-[radial-gradient(circle_at_50%_100%,rgba(23,65,63,0.14),transparent_66%)]" />
+        <div className="absolute -top-36 -right-28 h-80 w-80 rounded-full bg-[#83c5be]/10 blur-3xl" />
+        <div className="absolute -bottom-44 -left-24 h-96 w-96 rounded-full bg-[#83c5be]/12 blur-3xl" />
       </div>
 
       {/* Nav */}
-      <nav className="bg-[#d9e8e3]/88 backdrop-blur-md mb-4 relative z-10 border-b border-[#17413f]/10">
-        <div className="px-6 py-2">
-          <div className="flex items-center justify-between gap-4">
-            <button
-              type="button"
-              className="relative h-14 w-56 cursor-pointer border-0 bg-transparent p-0"
-              onClick={handleBrandClick}
-              aria-label="Return to EaseMove landing"
-            >
-              <img src={logo} alt="EaseMove logo" className="absolute left-0 top-1/2 h-56 w-56 -translate-y-1/2 object-contain" />
-            </button>
-            <div className="flex min-w-0 flex-1 items-center justify-end gap-3 max-[980px]:flex-col max-[980px]:items-end">
-              <AppTopNav variant="app" className="app-map-top-nav" />
-              {loading && <span className="text-sm text-gray-400 animate-pulse">Loading sensors…</span>}
-              {error && <span className="text-sm text-red-500">⚠ {error}</span>}
-              <div className="shrink-0 flex items-center gap-2 text-xs text-gray-500">
+        <nav className="relative z-[130] mb-0 px-4 pt-4 sm:px-6">
+          <div className="w-full rounded-t-[26px] rounded-b-none border border-white/36 border-b-0 bg-[radial-gradient(circle_at_18%_0%,rgba(255,255,255,0.42),transparent_36%),linear-gradient(135deg,rgba(247,250,251,0.84),rgba(232,238,241,0.66))] px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.6),0_18px_40px_rgba(56,71,77,0.08)] backdrop-blur-md sm:px-6 sm:py-4">
+            <div className="flex flex-nowrap items-center justify-between gap-3 max-[720px]:gap-2">
+              <button
+                type="button"
+                className="relative h-16 w-60 shrink-0 max-w-full cursor-pointer border-0 bg-transparent p-0 max-[980px]:h-14 max-[980px]:w-52 max-[720px]:h-12 max-[720px]:w-40"
+                onClick={handleBrandClick}
+                aria-label="Return to EaseMove landing"
+              >
+                <img src={logo} alt="EaseMove logo" className="absolute left-0 top-1/2 h-60 w-60 -translate-y-1/2 object-contain max-[980px]:h-56 max-[980px]:w-56 max-[720px]:h-44 max-[720px]:w-44" />
+              </button>
+              <div className="map-nav-status-shell ml-auto flex min-w-0 shrink-0 items-center justify-end gap-2 sm:gap-3">
+                <AppTopNav variant="app" className="app-map-top-nav" />
+                <SensorStatusRow loading={loading} error={error} />
+                {loading && <span className="text-sm text-gray-400 animate-pulse">Loading sensors…</span>}
+                {error && <span className="text-sm text-red-500">⚠ {error}</span>}
+                <div className="hidden shrink-0 items-center gap-2 text-xs text-gray-500">
                 <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
                 Live sensors
               </div>
@@ -871,12 +946,12 @@ export default function App({ mode }: { mode: "view" | "compare" }) {
       </nav>
 
       {/* Main */}
-      <div className="px-6 pb-4 relative z-10">
+      <div className="relative z-10 px-4 pb-4 sm:px-6">
         <div className="grid grid-cols-1 gap-6">
-          <div className="bg-[rgba(247,255,253,0.78)] backdrop-blur-md rounded-[28px] shadow-[0_24px_60px_rgba(16,32,31,0.14)] border border-[#83c5be]/14 overflow-hidden" id="map-container">
+          <div className="-mt-px overflow-hidden rounded-b-[28px] rounded-t-none border border-white/36 border-t-0 bg-[radial-gradient(circle_at_18%_0%,rgba(255,255,255,0.42),transparent_36%),linear-gradient(135deg,rgba(247,250,251,0.84),rgba(232,238,241,0.66))] shadow-[0_24px_60px_rgba(16,32,31,0.14)] backdrop-blur-md" id="map-container">
 
             {/* Tabs */}
-            <div className="border-b border-[#17413f]/10 bg-[linear-gradient(180deg,rgba(131,197,190,0.08),rgba(255,255,255,0))]">
+            <div className="border-b border-[#17413f]/10 bg-[radial-gradient(circle_at_18%_0%,rgba(255,255,255,0.36),transparent_38%),linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0.02))]">
               <div className="flex items-center justify-between px-6 pt-4">
                 <div className="flex items-center">
                   {(['view', 'compare'] as const).map(tab => (
@@ -970,7 +1045,7 @@ export default function App({ mode }: { mode: "view" | "compare" }) {
                         {([
                           ['temperature', 'Temperature'],
                           ['humidity', 'Humidity'],
-                          ['activity', 'Activity'],
+                          ['activity', 'Crowd Density'],
                         ] as const).map(([key, label]) => (
                           <label key={key} className="block mb-3">
                             <div className="flex items-center justify-between text-xs text-[#5f8682] mb-1">
@@ -1135,7 +1210,7 @@ export default function App({ mode }: { mode: "view" | "compare" }) {
                             <p className={`text-xl font-bold ${isStale(showCardPrecinct) ? 'text-gray-600' : 'text-blue-700'}`}>{showCardPrecinct.humidity !== null ? `${showCardPrecinct.humidity}%` : 'N/A'}</p>
                           </div>
                           <div className={`bg-gradient-to-br rounded-2xl p-3 border ${isStale(showCardPrecinct) ? 'from-gray-50 to-gray-100 border-gray-300' : 'from-[#f5f8f8] to-[#eef8f5] border-[#83c5be]/20'}`}>
-                            <div className="flex items-center gap-2 mb-1"><Users className={`w-4 h-4 ${isStale(showCardPrecinct) ? 'text-gray-500' : 'text-purple-600'}`} /><p className="text-sm text-gray-600">Activity Level</p></div>
+                            <div className="flex items-center gap-2 mb-1"><Users className={`w-4 h-4 ${isStale(showCardPrecinct) ? 'text-gray-500' : 'text-purple-600'}`} /><p className="text-sm text-gray-600">Crowd Density</p></div>
                             <p className={`text-lg font-bold ${isStale(showCardPrecinct) ? 'text-gray-600' : 'text-purple-700'}`}>{showCardPrecinct.activity_level}</p>
                           </div>
                           <div className={`bg-gradient-to-br rounded-2xl p-3 border ${isStale(showCardPrecinct) ? 'from-gray-50 to-gray-100 border-gray-300' : 'from-[#eef8f5] to-[#edf6f9] border-[#83c5be]/24'}`}>
@@ -1290,7 +1365,7 @@ export default function App({ mode }: { mode: "view" | "compare" }) {
                                     <p className="text-[10px] text-gray-500 mt-1">Recommended: 40-60%</p>
                                   </div>
                                   <div className="bg-[#f5f8f8] rounded-xl p-2 border border-[#83c5be]/18">
-                                    <div className="flex items-center gap-1 mb-1"><Users className="w-3 h-3 text-purple-600" /><p className="text-[10px] text-gray-600">Activity</p></div>
+                                    <div className="flex items-center gap-1 mb-1"><Users className="w-3 h-3 text-purple-600" /><p className="text-[10px] text-gray-600">Crowd Density</p></div>
                                     <p className="text-sm font-bold text-purple-700">{p.activity_level}</p>
                                     <p className="text-[10px] text-gray-500 mt-1">Recommended: Low / Medium</p>
                                   </div>
