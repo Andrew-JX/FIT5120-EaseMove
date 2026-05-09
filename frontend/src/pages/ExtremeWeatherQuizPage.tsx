@@ -1,11 +1,12 @@
 import { useMemo, useState } from "react";
 import { ArrowLeft } from "lucide-react";
-import { navigateTo } from "../lib/navigation";
+import { useNavigate } from "react-router";
 import { extremeWeatherQuizQuestions } from "../data/extremeWeather";
 
 type AnswerMap = Record<string, number | null>;
 
 export default function ExtremeWeatherQuizPage() {
+  const navigate = useNavigate();
   const createInitialAnswers = (): AnswerMap =>
     Object.fromEntries(extremeWeatherQuizQuestions.map((q) => [q.id, null]));
 
@@ -33,7 +34,7 @@ export default function ExtremeWeatherQuizPage() {
         <div className="px-6 py-3 flex items-center justify-between">
           <button
             type="button"
-            onClick={() => navigateTo("/extreme-weather-risks")}
+            onClick={() => navigate("/extreme-weather-risks")}
             className="flex items-center gap-2 text-white hover:text-gray-300 transition-colors"
           >
             <ArrowLeft className="w-4 h-4" />

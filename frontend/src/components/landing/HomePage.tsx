@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect } from "react";
+import AppTopNav from "../AppTopNav";
 import FooterScene from "./FooterScene";
 import HeroSplitScene from "./HeroSplitScene";
 import HowToUseScene from "./HowToUseScene";
@@ -13,7 +14,9 @@ function resetLandingEntryState() {
   document.body.style.overflow = "";
 }
 
-export default function HomePage({ entryId }: { entryId: number }) {
+export default function HomePage() {
+  const scrollTop = () => window.scrollTo({ top: 0, left: 0, behavior: "smooth" });
+
   useLayoutEffect(() => {
     resetLandingEntryState();
     window.scrollTo({ top: 0, left: 0, behavior: "auto" });
@@ -21,7 +24,7 @@ export default function HomePage({ entryId }: { entryId: number }) {
     return () => {
       resetLandingEntryState();
     };
-  }, [entryId]);
+  }, []);
 
   useEffect(() => {
     const previousScrollRestoration =
@@ -40,10 +43,13 @@ export default function HomePage({ entryId }: { entryId: number }) {
 
   return (
     <main className="landing-home" aria-label="EaseMove home">
+      <div className="landing-global-nav-shell">
+        <AppTopNav variant="landing" onBackToTop={scrollTop} />
+      </div>
       <HeroSplitScene />
-      <MissionGalleryScene />
       <HowToUseScene />
       <StartUsingScene />
+      <MissionGalleryScene />
       <FooterScene />
     </main>
   );

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { navigateTo } from "../lib/navigation";
+import { ArrowLeft } from "lucide-react";
+import { useNavigate } from "react-router";
 import "./aboutus.css";
 
 const PORTFOLIO_URL =
@@ -46,6 +47,8 @@ function PortfolioEmbed() {
 }
 
 export default function AboutUsPage() {
+  const navigate = useNavigate();
+
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "auto" });
   }, []);
@@ -54,6 +57,15 @@ export default function AboutUsPage() {
     <div className="aboutus-page">
       {/* Hero */}
       <section className="aboutus-hero">
+        <button
+          type="button"
+          className="aboutus-back-button"
+          onClick={() => navigate(-1)}
+          aria-label="Go back"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          <span>Back</span>
+        </button>
         <p className="aboutus-hero-kicker">MoveComfortly Melbourne</p>
         <h1>About MoveComfortly</h1>
         <p className="aboutus-hero-sub">
@@ -62,10 +74,10 @@ export default function AboutUsPage() {
           inner Melbourne during hotter days.
         </p>
         <div className="aboutus-hero-actions">
-          <button className="aboutus-btn-primary" onClick={() => navigateTo("/")}>
+          <button className="aboutus-btn-primary" onClick={() => navigate("/")}>
             Back to home
           </button>
-          <button className="aboutus-btn-ghost" onClick={() => navigateTo("/map")}>
+          <button className="aboutus-btn-ghost" onClick={() => navigate("/map")}>
             Open the map
           </button>
         </div>
@@ -159,10 +171,10 @@ export default function AboutUsPage() {
           experience.
         </p>
         <div className="aboutus-cta-actions">
-          <button className="aboutus-btn-primary" onClick={() => navigateTo("/")}>
+          <button className="aboutus-btn-primary" onClick={() => navigate("/")}>
             Back to home
           </button>
-          <button className="aboutus-btn-ghost" onClick={() => navigateTo("/map")}>
+          <button className="aboutus-btn-ghost" onClick={() => navigate("/map")}>
             Open the map
           </button>
         </div>

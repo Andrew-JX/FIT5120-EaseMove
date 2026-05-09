@@ -1,15 +1,12 @@
 import { ArrowLeft } from "lucide-react";
-import { navigateTo } from "../lib/navigation";
+import { useSearchParams, useNavigate } from "react-router";
 import { extremeWeatherRisks } from "../data/extremeWeather";
 import heroImage from "../assets/Heat.png";
 
-function getSelectedRiskIdFromUrl(): string {
-  const params = new URLSearchParams(window.location.search);
-  return params.get("risk") ?? extremeWeatherRisks[0].id;
-}
-
 export default function ExtremeWeatherRiskDetailPage() {
-  const selectedRiskId = getSelectedRiskIdFromUrl();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const selectedRiskId = searchParams.get("risk") ?? extremeWeatherRisks[0].id;
   const selectedRisk = extremeWeatherRisks.find((risk) => risk.id === selectedRiskId) ?? extremeWeatherRisks[0];
 
   return (
@@ -26,7 +23,7 @@ export default function ExtremeWeatherRiskDetailPage() {
         <header className="absolute top-0 left-0 w-full p-4 sm:p-5 flex items-center justify-start z-20">
           <button
             type="button"
-            onClick={() => navigateTo("/extreme-weather-risks")}
+            onClick={() => navigate("/extreme-weather-risks")}
             className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-white hover:bg-white/10 transition-colors"
             aria-label="Back"
           >
