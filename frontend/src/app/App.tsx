@@ -11,7 +11,7 @@ import ideaIcon from "../assets/idea.png";
 import questionMarkIcon from "../assets/question-mark.png";
 import warningIcon from "../assets/warning.png";
 import AppTopNav from "../components/AppTopNav";
-import LeafletMap, { type EasePlacesFeature } from "../components/LeafletMap";
+import LeafletMap from "../components/LeafletMap";
 import DynamicLegendPanel from "../components/map/DynamicLegendPanel";
 import { usePrecincts } from "../hooks/usePrecincts";
 import {
@@ -24,6 +24,7 @@ import {
   type TodayRecommendation,
 } from "../lib/api";
 import { getAreaInfo, getAreaRecommendation } from "../lib/areaInfo";
+import { type EasePlacesFeature } from "../lib/easePlaces";
 import { APP_ROUTES } from "../lib/navigation";
 import AreaDetailPage from "../pages/AreaDetailPage";
 import RecommendationFacilitiesPage from "../pages/RecommendationFacilitiesPage";
