@@ -42,7 +42,7 @@ export default function DynamicLegendPanel({
   return (
     <div className="map-right-panel">
       <div className="map-panel-header">Legend</div>
-      <div className="legend-body">
+      <div className="legend-body legend-body-scrollable" data-testid="dynamic-legend-body">
         {filters.easePlaces ? (
           <>
             <div className="legend-section-label">Ease Places</div>
@@ -57,6 +57,10 @@ export default function DynamicLegendPanel({
             <div className="legend-row">
               <div className="cp-dot cp-dot-shopping" />
               <span>Shopping</span>
+            </div>
+            <div className="legend-row">
+              <div className="cp-dot cp-dot-food" />
+              <span>Food &amp; Dining</span>
             </div>
           </>
         ) : null}
