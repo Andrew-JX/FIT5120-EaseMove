@@ -137,6 +137,12 @@
   gap: 10px;
 }
 
+.legend-body-scrollable {
+  max-height: min(52vh, 420px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
 .legend-row {
   display: flex;
   align-items: center;
@@ -166,6 +172,11 @@
 .cp-dot-shopping {
   background: #e197b9;
   box-shadow: 0 0 0 5px rgba(225, 151, 185, 0.25);
+}
+
+.cp-dot-food {
+  background: #dd6b20;
+  box-shadow: 0 0 0 5px rgba(221, 107, 32, 0.25);
 }
 
 .comfort-dot {
