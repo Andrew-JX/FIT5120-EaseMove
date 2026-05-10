@@ -12,6 +12,7 @@ import questionMarkIcon from "../assets/question-mark.png";
 import warningIcon from "../assets/warning.png";
 import AppTopNav from "../components/AppTopNav";
 import LeafletMap from "../components/LeafletMap";
+import EasePlacesDetailPopup from "../components/map/EasePlacesDetailPopup";
 import DynamicLegendPanel from "../components/map/DynamicLegendPanel";
 import { usePrecincts } from "../hooks/usePrecincts";
 import {
@@ -80,6 +81,7 @@ function adjustWeights(current: ComfortWeights, key: keyof ComfortWeights, nextV
 function cpDotClass(category: string): string {
   if (category.includes('Arts')) return 'cp-dot cp-dot-arts';
   if (category.includes('Recreation')) return 'cp-dot cp-dot-recreation';
+  if (category.includes('Food') || category.includes('Dining')) return 'cp-dot cp-dot-food';
   return 'cp-dot cp-dot-shopping';
 }
 
@@ -275,6 +277,18 @@ function EasePlacesPopup({
               <span className="cpp-detail-label">Opening Hours</span>
               <span className="cpp-detail-value">{feature.operatingHours}</span>
             </div>
+            {feature.reviewSource ? (
+              <div className="cpp-detail-row">
+                <span className="cpp-detail-label">Recommended by</span>
+                <span className="cpp-detail-value">{feature.reviewSource}</span>
+              </div>
+            ) : null}
+            {feature.reviewNote ? (
+              <div className="cpp-detail-row">
+                <span className="cpp-detail-label">Why it stands out</span>
+                <span className="cpp-detail-value">{feature.reviewNote}</span>
+              </div>
+            ) : null}
           </div>
         </div>
       )}
@@ -484,7 +498,11 @@ export default function App({ mode }: { mode: "view" | "compare" }) {
   const [openPanel, setOpenPanel] = useState<'layers' | 'legend' | null>('legend');
 
   // Ease Places popup
-  const [easePlacesPopup, setEasePlacesPopup] = useState<{ feature: EasePlacesFeature; point: { x: number; y: number } } | null>(null);
+  const [easePlacesPopup, setEasePlacesPopup] = useState<{
+    feature: EasePlacesFeature;
+    point: { x: number; y: number };
+    viewport: { width: number; height: number };
+  } | null>(null);
 
   // Time recommendation state
   const [selectedDestId, setSelectedDestId] = useState<string | null>(null);
@@ -602,8 +620,12 @@ export default function App({ mode }: { mode: "view" | "compare" }) {
     }
   }, [activeTab, handleCompareClick]);
 
-  const handleEasePlacesClick = useCallback((feature: EasePlacesFeature, point: { x: number; y: number }) => {
-    setEasePlacesPopup({ feature, point });
+  const handleEasePlacesClick = useCallback((
+    feature: EasePlacesFeature,
+    point: { x: number; y: number },
+    viewport: { width: number; height: number }
+  ) => {
+    setEasePlacesPopup({ feature, point, viewport });
   }, []);
 
   const handleZoomTo = useCallback((feature: EasePlacesFeature) => {
@@ -925,11 +947,15 @@ export default function App({ mode }: { mode: "view" | "compare" }) {
             <div className="flex flex-nowrap items-center justify-between gap-3 max-[720px]:gap-2">
               <button
                 type="button"
-                className="relative h-16 w-60 shrink-0 max-w-full cursor-pointer border-0 bg-transparent p-0 max-[980px]:h-14 max-[980px]:w-52 max-[720px]:h-12 max-[720px]:w-40"
+                className="relative h-16 w-60 shrink-0 max-w-full overflow-hidden cursor-pointer border-0 bg-transparent p-0 max-[980px]:h-14 max-[980px]:w-52 max-[720px]:h-12 max-[720px]:w-40"
                 onClick={handleBrandClick}
                 aria-label="Return to EaseMove landing"
               >
-                <img src={logo} alt="EaseMove logo" className="absolute left-0 top-1/2 h-60 w-60 -translate-y-1/2 object-contain max-[980px]:h-56 max-[980px]:w-56 max-[720px]:h-44 max-[720px]:w-44" />
+                <img
+                  src={logo}
+                  alt="EaseMove logo"
+                  className="pointer-events-none absolute left-0 top-1/2 h-60 w-60 -translate-y-1/2 object-contain max-[980px]:h-56 max-[980px]:w-56 max-[720px]:h-44 max-[720px]:w-44"
+                />
               </button>
               <div className="map-nav-status-shell ml-auto flex min-w-0 shrink-0 items-center justify-end gap-2 sm:gap-3">
                 <AppTopNav variant="app" className="app-map-top-nav" />
@@ -1128,9 +1154,10 @@ export default function App({ mode }: { mode: "view" | "compare" }) {
 
                     {/* Ease Places popup */}
                     {easePlacesPopup && mapFilters.easePlaces && (
-                      <EasePlacesPopup
+                      <EasePlacesDetailPopup
                         feature={easePlacesPopup.feature}
                         anchorPoint={easePlacesPopup.point}
+                        viewport={easePlacesPopup.viewport}
                         onClose={() => setEasePlacesPopup(null)}
                         onZoomTo={handleZoomTo}
                       />

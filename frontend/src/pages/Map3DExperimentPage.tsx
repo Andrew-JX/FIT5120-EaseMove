@@ -21,6 +21,8 @@ import WhiteModelMap, {
   type RouteStepItem,
   type RouteSummary,
 } from "../components/WhiteModelMap";
+import EasePlacesDetailPopup from "../components/map/EasePlacesDetailPopup";
+import { type EasePlacesFeature } from "../lib/easePlaces";
 import { APP_ROUTES } from "../lib/navigation";
 
 const MAPBOX_PUBLIC_TOKEN = (import.meta.env.VITE_MAPBOX_PUBLIC_TOKEN as string | undefined)?.trim() || null;
@@ -199,6 +201,11 @@ export default function Map3DExperimentPage() {
     streetFacilities: false,
     activityDensity: false,
   });
+  const [selectedEasePlace, setSelectedEasePlace] = useState<{
+    feature: EasePlacesFeature;
+    point: { x: number; y: number };
+    viewport: { width: number; height: number };
+  } | null>(null);
   const [geolocation, setGeolocation] = useState<GeolocationState>({
     status: "idle",
     message: null,
@@ -377,6 +384,14 @@ export default function Map3DExperimentPage() {
     });
   }, []);
 
+  const handleEasePlaceSelect = useCallback((
+    feature: EasePlacesFeature,
+    point: { x: number; y: number },
+    viewport: { width: number; height: number }
+  ) => {
+    setSelectedEasePlace({ feature, point, viewport });
+  }, []);
+
   const currentInstruction = useMemo(() => {
     if (!canUseRouteApi) return "Configure the Mapbox public token before using the 3D route preview.";
     if (!startPoint) return "Click the map once to set a start point.";
@@ -436,6 +451,12 @@ export default function Map3DExperimentPage() {
   }, [route]);
 
   useEffect(() => {
+    if (!areaLayers.easePlaces) {
+      setSelectedEasePlace(null);
+    }
+  }, [areaLayers.easePlaces]);
+
+  useEffect(() => {
     return () => {
       requestIdRef.current += 1;
     };
@@ -460,7 +481,16 @@ export default function Map3DExperimentPage() {
         showStreetFacilities={areaLayers.streetFacilities}
         onMapClick={handleMapClick}
         onMapError={handleMapError}
+        onEasePlaceSelect={handleEasePlaceSelect}
       />
+      {selectedEasePlace && areaLayers.easePlaces ? (
+        <EasePlacesDetailPopup
+          feature={selectedEasePlace.feature}
+          anchorPoint={selectedEasePlace.point}
+          viewport={selectedEasePlace.viewport}
+          onClose={() => setSelectedEasePlace(null)}
+        />
+      ) : null}
 
       <div className="absolute left-3 top-3 z-20 sm:left-4 sm:top-4">
         <button
@@ -894,7 +924,10 @@ function ActiveLayerLegends({ filters }: { filters: LayerLegendFilters }) {
   const showDividerBefore = (section: string) => sections[0] !== section;
 
   return (
-    <div className={`mt-4 rounded-2xl p-4 ${liquidGlassCardClass}`}>
+    <div
+      data-testid="active-layer-legends"
+      className={`mt-4 max-h-[min(38vh,18rem)] overflow-y-auto rounded-2xl p-4 pr-3 ${liquidGlassCardClass}`}
+    >
       <div className="flex items-start gap-3">
         <Layers3 className="mt-0.5 h-4 w-4 shrink-0 text-[#17413f]" />
         <div className="min-w-0">
@@ -911,6 +944,7 @@ function ActiveLayerLegends({ filters }: { filters: LayerLegendFilters }) {
               <LegendRow swatchClassName="bg-[#6a5ca5] shadow-[0_0_0_5px_rgba(106,92,165,0.22)]" label="Arts, Culture & Enrichment" />
               <LegendRow swatchClassName="bg-[#1f9d68] shadow-[0_0_0_5px_rgba(31,157,104,0.22)]" label="Recreation / Leisure & Open Spaces" />
               <LegendRow swatchClassName="bg-[#d975a4] shadow-[0_0_0_5px_rgba(217,117,164,0.22)]" label="Shopping" />
+              <LegendRow swatchClassName="bg-[#dd6b20] shadow-[0_0_0_5px_rgba(221,107,32,0.22)]" label="Food & Dining" />
             </div>
           </div>
         ) : null}

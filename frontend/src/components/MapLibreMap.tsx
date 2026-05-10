@@ -510,7 +510,7 @@ export default function MapLibreMap({
           className: "maplibre-tip-popup",
         })
           .setLngLat([feature.lng, feature.lat])
-          .setHTML(feature.name)
+          .setHTML(`<strong>${feature.name}</strong><br/>${feature.category} | ${feature.type}`)
           .addTo(map);
       });
       el.addEventListener("mouseleave", () => {

@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
-import { EASE_PLACES_DATA, easePlacesMarkerColor } from "../lib/easePlaces";
+import { EASE_PLACES_DATA, easePlacesMarkerColor, type EasePlacesFeature } from "../lib/easePlaces";
 import {
   classifySupportedFacility,
   fetchSupportedFacilitiesCatalog,
@@ -78,6 +78,11 @@ type WhiteModelMapProps = {
   showStreetFacilities: boolean;
   onMapClick: (point: RoutePoint) => void;
   onMapError: (message: string) => void;
+  onEasePlaceSelect?: (
+    feature: EasePlacesFeature,
+    point: { x: number; y: number },
+    viewport: { width: number; height: number }
+  ) => void;
 };
 
 function facilityStyle(kind: SupportedFacilityKind): {
@@ -188,6 +193,7 @@ export default function WhiteModelMap({
   showStreetFacilities,
   onMapClick,
   onMapError,
+  onEasePlaceSelect,
 }: WhiteModelMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
@@ -202,6 +208,7 @@ export default function WhiteModelMap({
   const streetFacilitiesDataRef = useRef<FeatureCollection | null>(null);
   const onMapClickRef = useRef(onMapClick);
   const onMapErrorRef = useRef(onMapError);
+  const onEasePlaceSelectRef = useRef(onEasePlaceSelect);
   const routeRef = useRef(route);
   const showEasePlacesRef = useRef(showEasePlaces);
   const showNaturalPlacesRef = useRef(showNaturalPlaces);
@@ -675,6 +682,23 @@ export default function WhiteModelMap({
         .setHTML(detailLine ? `<strong>${name}</strong><br/>${detailLine}` : `<strong>${name}</strong>`)
         .addTo(map);
     });
+
+    map.on("click", LAYER_IDS.easePlacesHitArea, (event) => {
+      const feature = event.features?.[0];
+      if (!feature || !onEasePlaceSelectRef.current) return;
+      const id = String(feature.properties?.id ?? "").trim();
+      const selectedFeature = EASE_PLACES_DATA.find((item) => item.id === id);
+      if (!selectedFeature) return;
+
+      onEasePlaceSelectRef.current(
+        selectedFeature,
+        { x: event.point.x, y: event.point.y },
+        {
+          width: map.getContainer().clientWidth,
+          height: map.getContainer().clientHeight,
+        }
+      );
+    });
   };
 
   const bindStreetFacilitiesPopup = (map: mapboxgl.Map) => {
@@ -721,6 +745,10 @@ export default function WhiteModelMap({
   useEffect(() => {
     onMapErrorRef.current = onMapError;
   }, [onMapError]);
+
+  useEffect(() => {
+    onEasePlaceSelectRef.current = onEasePlaceSelect;
+  }, [onEasePlaceSelect]);
 
   useEffect(() => {
     routeRef.current = route;
