@@ -37,6 +37,24 @@ type WhiteModelMapProps = {
   showStreetFacilities: boolean;
   onMapClick: (point: MockRoutePoint) => void;
   onMapError: (message: string) => void;
+  onEasePlaceSelect?: (
+    feature: {
+      id: string;
+      name: string;
+      category: string;
+      type: string;
+      airConditioned: boolean;
+      freeEntry: boolean;
+      address: string;
+      operatingHours: string;
+      reviewSource?: string;
+      reviewNote?: string;
+      lat: number;
+      lng: number;
+    },
+    point: { x: number; y: number },
+    viewport: { width: number; height: number }
+  ) => void;
 };
 
 let latestMapProps: WhiteModelMapProps | null = null;
@@ -88,6 +106,31 @@ vi.mock("../../components/WhiteModelMap", async () => {
         </button>
         <button type="button" onClick={() => props.onMapError("Simulated map failure")}>
           Raise map error
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            props.onEasePlaceSelect?.(
+              {
+                id: "cp-22",
+                name: "Gimlet at Cavendish House",
+                category: "Food & Dining",
+                type: "Restaurant recommendation",
+                airConditioned: true,
+                freeEntry: false,
+                address: "33 Russell St, Melbourne VIC 3000",
+                operatingHours: "Mon-Sun 12:00 pm - late",
+                reviewSource: "Broadsheet",
+                reviewNote: "Recognised for polished CBD dining.",
+                lat: -37.816,
+                lng: 144.9693,
+              },
+              { x: 180, y: 520 },
+              { width: 900, height: 600 }
+            )
+          }
+        >
+          Select ease place
         </button>
         {props.startPoint ? <p data-testid="mock-start-marker">start:{props.startPoint.lat},{props.startPoint.lng}</p> : null}
         {props.endPoint ? <p data-testid="mock-end-marker">end:{props.endPoint.lat},{props.endPoint.lng}</p> : null}
@@ -404,6 +447,14 @@ describe("Map3DExperimentPage - Epic 5", () => {
     clickByText(view.container, "Ease Places");
     expect(latestMapProps?.showEasePlaces).toBe(true);
     expect(view.container.textContent).toContain("Arts, Culture & Enrichment");
+    expect(view.container.textContent).toContain("Food & Dining");
+
+    clickByText(view.container, "Public Facilities");
+    expect(latestMapProps?.showStreetFacilities).toBe(true);
+
+    const legendPanel = view.container.querySelector('[data-testid="active-layer-legends"]');
+    expect(legendPanel).toBeTruthy();
+    expect(legendPanel?.className).toContain("overflow-y-auto");
 
     clickByText(view.container, "Natural Places");
     expect(latestMapProps?.showNaturalPlaces).toBe(false);
@@ -458,6 +509,28 @@ describe("Map3DExperimentPage - Epic 5", () => {
 
     expect(view.container.textContent).toContain("3D map problem");
     expect(view.container.textContent).toContain("Simulated map failure");
+
+    view.unmount();
+  });
+
+  test("additional Epic 5 coverage: clicking an Ease Place on the 3D map opens the shared detail popup", async () => {
+    const Map3DExperimentPage = await loadPageWithToken();
+    const view = render(
+      <MemoryRouter initialEntries={["/map/3d-route"]}>
+        <Routes>
+          <Route path="/map/3d-route" element={<Map3DExperimentPage />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    clickByText(view.container, "Layers");
+    clickByText(view.container, "Ease Places");
+    clickByText(view.container, "Select ease place");
+
+    expect(view.container.textContent).toContain("Gimlet at Cavendish House");
+    expect(view.container.textContent).toContain("Recommended by");
+    expect(view.container.textContent).toContain("Broadsheet");
+    expect(view.container.textContent).toContain("Why it stands out");
 
     view.unmount();
   });
