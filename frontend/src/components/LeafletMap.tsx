@@ -64,6 +64,7 @@ const LEGACY_EASE_PLACES_DATA: EasePlacesFeature[] = [
 function cpMarkerColor(category: string): { core: string; halo: string } {
   if (category.includes('Arts')) return { core: '#5b5b9b', halo: 'rgba(91,91,155,0.3)' };
   if (category.includes('Recreation')) return { core: '#00a859', halo: 'rgba(0,168,89,0.3)' };
+  if (category.includes('Food') || category.includes('Dining')) return { core: '#dd6b20', halo: 'rgba(221,107,32,0.3)' };
   return { core: '#e197b9', halo: 'rgba(225,151,185,0.3)' };
 }
 
@@ -165,7 +166,11 @@ interface LeafletMapProps {
   showStreetFacilities?: boolean;
   showNaturalPlaces?: boolean;
   onMapReady?: (map: L.Map) => void;
-  onEasePlacesClick?: (feature: EasePlacesFeature, point: { x: number; y: number }) => void;
+  onEasePlacesClick?: (
+    feature: EasePlacesFeature,
+    point: { x: number; y: number },
+    viewport: { width: number; height: number }
+  ) => void;
 }
 
 export default function LeafletMap({
@@ -404,10 +409,22 @@ export default function LeafletMap({
         iconAnchor: [7, 7],
       });
       const marker = L.marker([feature.lat, feature.lng], { icon, pane: 'coolPlacesPane' })
-        .bindTooltip(feature.name, { direction: 'top', offset: [0, -8], className: 'cp-marker-tip' })
+        .bindTooltip(`<strong>${feature.name}</strong><br/>${feature.category} | ${feature.type}`, {
+          direction: 'top',
+          offset: [0, -8],
+          className: 'cp-marker-tip',
+        })
         .on('click', (e: L.LeafletMouseEvent) => {
+          const mapSize = mapRef.current?.getSize();
           if (onEasePlacesClickRef.current)
-            onEasePlacesClickRef.current(feature, { x: e.containerPoint.x, y: e.containerPoint.y });
+            onEasePlacesClickRef.current(
+              feature,
+              { x: e.containerPoint.x, y: e.containerPoint.y },
+              {
+                width: mapSize?.x ?? containerRef.current?.clientWidth ?? 0,
+                height: mapSize?.y ?? containerRef.current?.clientHeight ?? 0,
+              }
+            );
         });
       if (showEasePlacesRef.current) marker.addTo(mapRef.current!);
       coolPlacesMarkersRef.current.push(marker);
