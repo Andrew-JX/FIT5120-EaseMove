@@ -19,6 +19,17 @@ export type AreaRecommendation = RecommendationPoint & {
   description: string;
 };
 
+export type AreaRoutePoint = RecommendationPoint & {
+  name: string;
+};
+
+export type AreaComfortRoute = ComfortRoute & {
+  id: string;
+  start: AreaRoutePoint | null;
+  end: AreaRoutePoint;
+  autoLocateStart: boolean;
+};
+
 export type AreaInfo = {
   id: string;
   name: string;
@@ -663,12 +674,214 @@ const AREA_RECOMMENDATION_POINTS: Record<string, RecommendationPoint[]> = {
   ],
 };
 
+const AREA_ROUTE_EXTRA_POINTS: Record<string, AreaRoutePoint[]> = {
+  "southbank": [
+    { id: "flinders-street-station", name: "Flinders Street Station", lat: -37.8183, lng: 144.9671 },
+  ],
+  "north-melbourne": [
+    { id: "north-melbourne-station", name: "North Melbourne Station", lat: -37.8063, lng: 144.9418 },
+  ],
+};
+
+type ComfortRouteNavigationSpec = {
+  startId?: string;
+  endId: string;
+};
+
+const AREA_COMFORT_ROUTE_NAVIGATION: Record<string, Record<string, ComfortRouteNavigationSpec>> = {
+  "docklands": {
+    "library at the dock victoria harbour": {
+      startId: "library-at-the-dock",
+      endId: "victoria-harbour-promenade",
+    },
+    "ron barassi snr park loop": { endId: "ron-barassi-snr-park" },
+    "marvel stadium the district docklands": {
+      startId: "marvel-stadium",
+      endId: "the-district-docklands",
+    },
+    "newquay promenade ride": { endId: "victoria-harbour-promenade" },
+  },
+  "southbank": {
+    "flinders street southbank promenade": {
+      startId: "flinders-street-station",
+      endId: "southbank-promenade",
+    },
+    "ngv arts centre hamer hall": {
+      startId: "ngv-international",
+      endId: "hamer-hall",
+    },
+    "eureka skydeck riverside return loop": {
+      startId: "eureka-skydeck",
+      endId: "southbank-promenade",
+    },
+    "southbank evening stroll": { endId: "southbank-promenade" },
+  },
+  "north-melbourne": {
+    "errol street recreation reserve": {
+      startId: "errol-street",
+      endId: "north-melbourne-recreation-reserve",
+    },
+    "north melbourne station queen victoria market": {
+      startId: "north-melbourne-station",
+      endId: "queen-victoria-market-north-edge",
+    },
+    "royal park connector ride": { endId: "royal-park-access" },
+    "heritage terrace walk": { endId: "errol-street" },
+  },
+  "west-melbourne": {
+    "flagstaff gardens queen victoria market": {
+      startId: "flagstaff-gardens",
+      endId: "queen-victoria-market",
+    },
+    "spencer street cafe strip market grid": {
+      startId: "spencer-street-fringe-cafes",
+      endId: "queen-victoria-market",
+    },
+    "west melbourne warehouse circuit": { endId: "warehouse-laneways" },
+    "station connector walk": { endId: "north-melbourne-station-precinct" },
+  },
+  "east-melbourne": {
+    "treasury gardens fitzroy gardens": {
+      startId: "treasury-gardens",
+      endId: "fitzroy-gardens",
+    },
+    "parliament precinct cathedral approach": {
+      startId: "parliament-gardens-precinct",
+      endId: "st-patricks-cathedral",
+    },
+    "mcg edge loop": { endId: "melbourne-cricket-ground" },
+    "garden to garden ride": { endId: "fitzroy-gardens" },
+  },
+  "south-melbourne": {
+    "south melbourne market clarendon street": {
+      startId: "south-melbourne-market",
+      endId: "clarendon-street",
+    },
+    "town hall eastern road heritage walk": {
+      startId: "south-melbourne-town-hall",
+      endId: "eastern-road-streetscape",
+    },
+    "clarendon street albert park edge": {
+      startId: "clarendon-street",
+      endId: "albert-park-edge",
+    },
+    "weekend food loop": { endId: "south-melbourne-market" },
+  },
+  "fitzroy": {
+    "brunswick street rose street market": {
+      startId: "brunswick-street",
+      endId: "rose-street-artists-market",
+    },
+    "smith street food and browse walk": { endId: "smith-street" },
+    "town hall atherton gardens reset": {
+      startId: "fitzroy-town-hall",
+      endId: "atherton-gardens",
+    },
+    "fitzroy evening circuit": { endId: "brunswick-street" },
+  },
+  "kensington": {
+    "bellair street kensington station": {
+      startId: "bellair-street-village",
+      endId: "kensington-station-precinct",
+    },
+    "j j holland park loop": { endId: "jj-holland-park" },
+    "macaulay road bellair street": {
+      startId: "macaulay-road-strip",
+      endId: "bellair-street-village",
+    },
+    "historic terrace walk": { endId: "historic-terrace-streets" },
+  },
+  "flemington": {
+    "racecourse road food walk": { endId: "racecourse-road" },
+    "newmarket plaza debneys park": {
+      startId: "newmarket-plaza-precinct",
+      endId: "debneys-park-and-river-trails",
+    },
+    "racecourse edge circuit": { endId: "flemington-racecourse" },
+    "river trail connector ride": { endId: "debneys-park-and-river-trails" },
+  },
+  "melbourne-cbd": {
+    "flinders street station federation square": {
+      startId: "flinders-street-station",
+      endId: "federation-square",
+    },
+    "state library bourke street mall": {
+      startId: "state-library-victoria",
+      endId: "bourke-street-mall",
+    },
+    "laneway arts loop": { endId: "hosier-lane" },
+    "off peak cbd comfort circuit": { endId: "state-library-victoria" },
+  },
+  "south-yarra": {
+    "chapel street toorak road": {
+      startId: "chapel-street",
+      endId: "toorak-road-dining-area",
+    },
+    "como house botanic gardens connector": {
+      startId: "como-house-and-garden",
+      endId: "royal-botanic-gardens-access",
+    },
+    "yarra trail leisure ride": { endId: "yarra-river-trail" },
+    "south yarra social circuit": { endId: "chapel-street" },
+  },
+  "carlton": {
+    "lygon street carlton gardens": {
+      startId: "lygon-street",
+      endId: "carlton-gardens",
+    },
+    "museum exhibition building walk": {
+      startId: "melbourne-museum",
+      endId: "royal-exhibition-building",
+    },
+    "university edge circuit": { endId: "university-of-melbourne-precinct" },
+    "cafe and garden loop": { endId: "carlton-gardens" },
+  },
+};
+
 function parseRecommendationText(text: string): { name: string; description: string } {
   const [name, ...rest] = text.split(" - ");
   return {
     name: name.trim(),
     description: rest.join(" - ").trim(),
   };
+}
+
+function normalizeLookupKey(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/&/g, " and ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim()
+    .replace(/\s+/g, " ");
+}
+
+function toSlug(value: string): string {
+  return normalizeLookupKey(value).replace(/\s+/g, "-");
+}
+
+function buildRoutePointCatalog(area: AreaInfo): Record<string, AreaRoutePoint> {
+  const catalog: Record<string, AreaRoutePoint> = {};
+  const recommendations = getAreaRecommendationItems(area);
+  const extras = AREA_ROUTE_EXTRA_POINTS[area.id] ?? [];
+
+  for (const point of [...recommendations, ...extras]) {
+    if (!Number.isFinite(point.lat) || !Number.isFinite(point.lng)) continue;
+    const routePoint: AreaRoutePoint = {
+      id: point.id,
+      name: point.name,
+      lat: point.lat,
+      lng: point.lng,
+    };
+    catalog[point.id] = routePoint;
+    catalog[normalizeLookupKey(point.name)] = routePoint;
+  }
+
+  return catalog;
+}
+
+function resolveRoutePoint(catalog: Record<string, AreaRoutePoint>, pointId: string | undefined): AreaRoutePoint | null {
+  if (!pointId) return null;
+  return catalog[pointId] ?? catalog[normalizeLookupKey(pointId)] ?? null;
 }
 
 export function getAreaInfo(areaId: string | null | undefined): AreaInfo | null {
@@ -691,6 +904,39 @@ export function getAreaRecommendationItems(area: AreaInfo): AreaRecommendation[]
       lng: point?.lng ?? Number.NaN,
     };
   });
+}
+
+export function getAreaComfortRouteItems(area: AreaInfo): AreaComfortRoute[] {
+  const pointCatalog = buildRoutePointCatalog(area);
+  const navigationSpecs = AREA_COMFORT_ROUTE_NAVIGATION[area.id] ?? {};
+  const fallbackEnd = getAreaRecommendationItems(area).find((point) =>
+    Number.isFinite(point.lat) && Number.isFinite(point.lng)
+  );
+
+  return area.comfortRoutes
+    .map((route, index) => {
+      const routeId = `${area.id}-comfort-route-${toSlug(route.title) || index + 1}`;
+      const spec = navigationSpecs[normalizeLookupKey(route.title)];
+      const end = resolveRoutePoint(pointCatalog, spec?.endId) ?? (fallbackEnd ? {
+        id: fallbackEnd.id,
+        name: fallbackEnd.name,
+        lat: fallbackEnd.lat,
+        lng: fallbackEnd.lng,
+      } : null);
+
+      if (!end) return null;
+
+      const start = resolveRoutePoint(pointCatalog, spec?.startId);
+
+      return {
+        ...route,
+        id: routeId,
+        start,
+        end,
+        autoLocateStart: !start,
+      };
+    })
+    .filter((route): route is AreaComfortRoute => route !== null);
 }
 
 export function getAreaRecommendation(
