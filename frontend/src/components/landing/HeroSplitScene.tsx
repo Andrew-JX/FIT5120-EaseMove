@@ -1,6 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { motion, useMotionValue, useSpring, useTransform } from "framer-motion";
-import { useNavigate } from "react-router";
 import IconMarquee from "./IconMarquee";
 import {
   acquire,
@@ -117,7 +116,6 @@ function LoadingGlyphs() {
 }
 
 export default function HeroSplitScene() {
-  const navigate = useNavigate();
   const [isCompactScreen, setIsCompactScreen] = useState(() =>
     typeof window !== "undefined" ? window.innerWidth <= 820 : false
   );
@@ -403,7 +401,6 @@ export default function HeroSplitScene() {
 
   const marqueeOpacity = useTransform(smoothedProgress, [0.28, 0.55, 0.72], [0, 0.82, 1]);
   const marqueeY = useTransform(smoothedProgress, [0.28, 0.72], ["24px", "0px"]);
-  const openMap = () => navigate("/map");
   const shouldShowVideoPlaceholder = !isVideoReady;
   const scrollToNextSection = () => {
     completedRef.current = true;
@@ -489,9 +486,9 @@ export default function HeroSplitScene() {
             className="landing-copy-panel"
             style={{ opacity: copyOpacity, x: copyX, y: copyY }}
           >
-            <button className="landing-hero-title" type="button" onClick={openMap}>
+            <div className="landing-hero-title" role="heading" aria-level={1}>
               Helping young Melburnians move through their city, comfortably.
-            </button>
+            </div>
             <p>
               Compare precincts, tune comfort priorities, and choose better travel times with
               live city conditions.

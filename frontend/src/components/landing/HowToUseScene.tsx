@@ -1,16 +1,12 @@
-import { useEffect, useRef, useState } from "react";
-import { motion } from "framer-motion";
+import { useState } from "react";
 import { useLocation, useNavigate } from "react-router";
-import { useIsMobile } from "../../app/components/ui/use-mobile";
 
 const screenshotUrls = [
   new URL("../../assets/landing/5.png", import.meta.url).href,
   new URL("../../assets/landing/6.png", import.meta.url).href,
   new URL("../../assets/landing/7.png", import.meta.url).href,
   new URL("../../assets/landing/8.png", import.meta.url).href,
-  new URL("../../assets/landing/9.png", import.meta.url).href,
 ] as const;
-const areaDetailExamplePath = "/map?area=melbourne-cbd";
 
 function HowActionButton({
   label,
@@ -31,129 +27,106 @@ function HowActionButton({
 
 const steps = [
   {
+    shortLabel: "Landing",
     eyebrow: "Step 1",
-    title: "Explore cool spots and support places",
+    title: "Landing Page overview and project story",
     body:
-      "Start with the default Ease Places layer to discover places that can support a more comfortable trip.",
+      "Start on the landing page to understand what MoveComfortly does, how the project is informed, and where each major feature lives before you head into the tools.",
     details: [
-      "Click markers for details",
-      "Check opening hours",
-      "Find air conditioning support",
-      "Browse place categories",
+      "Read the project overview and introduction",
+      "See the data and feature story at a glance",
+      "Open the About Us page for team and concept context",
+      "Jump into the map, risks, or route tools from clear entry points",
     ],
     chips: [
-      "Arts, Culture & Enrichment",
-      "Recreation / Leisure & Open Spaces",
-      "Shopping",
-      "Street Furniture",
-      "Drinking Water",
-      "Bicycle Rack",
-      "Seat",
+      "Project overview",
+      "Feature story",
+      "Data context",
+      "About Us",
     ],
-    callout: "Ease Places helps you find practical support before the trip starts.",
+    callout: "Use the landing page as the orientation layer before opening the tools.",
   },
   {
+    shortLabel: "Map",
     eyebrow: "Step 2",
-    title: "Switch to Comfort Area for live conditions",
+    title: "Map tools for places, comfort, compare, and area guides",
     body:
-      "Move to the Comfort Area layer to view area-level comfort conditions across the city.",
+      "Open the main map to explore Ease Places, switch to Comfort Area, compare precincts, review recommendation text, and open area guide details in one flow.",
     details: [
-      "Use the Comfort Preferences panel",
-      "Read the comfort legend",
-      "Comfortable (70-100)",
-      "Caution (40-69)",
-      "High Risk (0-39)",
-      "No sensor data",
+      "Browse support places and public comfort facilities",
+      "Switch to Comfort Area for live comfort conditions",
+      "Compare areas and review better-time recommendations",
+      "Open Area Guide details for deeper precinct context",
     ],
-    chips: ["Comfort score", "Temperature", "Humidity", "Pedestrian density", "Wind speed"],
-    callout: "Tap a place or area to check what conditions feel like right now.",
+    chips: ["Ease Places", "Comfort Area", "Compare", "Time recommendations", "Area Guide"],
+    callout: "This is the main decision-making workspace for everyday route and place planning.",
   },
   {
+    shortLabel: "Risks",
     eyebrow: "Step 3",
-    title: "Compare places and choose better times",
+    title: "Extreme weather risks and safety guidance",
     body:
-      "Compare two locations, review differences, then use suggestions and recommended time windows to decide where and when to go.",
+      "Open the risks page to learn how heat, rain, storms, cold, and dry conditions affect outdoor comfort and what safer actions you can take before your trip.",
     details: [
-      "Compare two places",
-      "Review side-by-side differences",
-      "Read suggestion text",
-      "Choose recommended times",
+      "Review major risk types and why they matter",
+      "Read health and comfort impacts in plain language",
+      "Check practical safety actions before heading out",
+      "Use the quiz and follow-up pages to reinforce understanding",
     ],
-    chips: ["Side-by-side view", "Suggestion", "Recommended times"],
-    callout: "Pick the better-feeling option, then choose the time window that works best.",
+    chips: ["Heat", "Rain", "Storm", "Cold", "Dry conditions", "Safety actions"],
+    callout: "The risks page helps you understand whether conditions are just uncomfortable or genuinely unsafe.",
   },
   {
+    shortLabel: "3D Route",
     eyebrow: "Step 4",
-    title: "Check extreme weather risks before heading out",
+    title: "3D route planning and route comparison tools",
     body:
-      "Open the extreme weather page to understand major weather-related risks, health impacts, and what actions help you stay safer outdoors.",
+      "Use the 3D route page to build a route, adjust travel settings, compare alternatives, and inspect route conditions with a more immersive planning view.",
     details: [
-      "Review heat, storm, rain, cold, and dry-condition risks",
-      "See why each risk happens",
-      "Read practical safety actions",
-      "Try the quick quiz to test your understanding",
+      "Set start and destination points for a route",
+      "Review route results and alternative choices",
+      "Adjust travel mode or route-related controls",
+      "Inspect route guidance in the dedicated 3D planning view",
     ],
-    chips: ["Extreme weather", "Health impacts", "Safety actions", "Quiz"],
-    callout:
-      "Use the extreme weather guide to spot risks early and choose safer actions before your trip.",
-  },
-  {
-    eyebrow: "Step 5",
-    title: "Open area details and nearby public facilities",
-    body:
-      "Select an interactive area on the map to open its area introduction, neighbourhood tags, comfort route ideas, and recommended places.",
-    details: [
-      "Open an area detail page from the map",
-      "Read the area character and quick tags",
-      "Tap a recommended place in that area",
-      "Check nearby bike racks, drinking fountains, and seats",
-    ],
-    chips: ["Area introduction", "Recommendation", "Comfort routes", "Nearby facilities"],
-    callout:
-      "Use the area detail flow to understand a precinct first, then open a recommended place to see nearby public comfort support.",
+    chips: ["3D route", "Route planning", "Alternatives", "Travel mode", "Route tools"],
+    callout: "The 3D route page is for focused route planning once you already know where you want to go.",
   },
 ] as const;
 
 export default function HowToUseScene() {
   const navigate = useNavigate();
   const location = useLocation();
-  const isMobile = useIsMobile();
   const [activeStepIndex, setActiveStepIndex] = useState(0);
-  const activeCallout = steps[activeStepIndex].callout;
+  const [isDetailFlipped, setIsDetailFlipped] = useState(false);
+  const [imageAspectRatio, setImageAspectRatio] = useState<number>(16 / 10);
+  const activeStep = steps[activeStepIndex];
+  const activeCallout = activeStep.callout;
   const activeScreenshotUrl = screenshotUrls[activeStepIndex];
-  const isExtremeWeatherStep = activeStepIndex === 3;
-  const isAreaDetailStep = activeStepIndex === 4;
-  const viewportRef = useRef<HTMLDivElement | null>(null);
-  const wheelLockRef = useRef(false);
-  const touchStartYRef = useRef<number | null>(null);
-  const touchDeltaYRef = useRef(0);
-  const isMapStep = activeStepIndex < 2;
-  const isCompareStep = activeStepIndex === 2;
-  const openExtremeWeatherPage = () => {
-    navigate("/extreme-weather-risks");
+  const openLandingPage = () => {
+    if (`${location.pathname}${location.search}` === "/") return;
+    navigate("/");
   };
   const openMapPage = () => {
     navigate("/map");
   };
-  const openComparePage = () => {
-    navigate("/map/compare");
+  const openExtremeWeatherPage = () => {
+    navigate("/extreme-weather-risks");
   };
-  const openAreaDetailExample = () => {
-    if (`${location.pathname}${location.search}` === areaDetailExamplePath) return;
-    navigate(areaDetailExamplePath);
+  const open3DRoutePage = () => {
+    navigate("/map/3d-route");
   };
   const activateStep = (index: number) => {
+    setIsDetailFlipped(false);
     setActiveStepIndex(Math.max(0, Math.min(steps.length - 1, index)));
   };
-  const activeAction = isMapStep
-    ? { label: "Open the Map", onClick: openMapPage }
-    : isCompareStep
-      ? { label: "Open Compare", onClick: openComparePage }
-      : isAreaDetailStep
-        ? { label: "Area Guide", onClick: openAreaDetailExample }
-        : isExtremeWeatherStep
-          ? { label: "Weather Risks", onClick: openExtremeWeatherPage }
-          : null;
+  const activeAction =
+    activeStepIndex === 0
+      ? { label: "Open Landing", onClick: openLandingPage }
+      : activeStepIndex === 1
+        ? { label: "Open Map", onClick: openMapPage }
+        : activeStepIndex === 2
+          ? { label: "Open Risks", onClick: openExtremeWeatherPage }
+          : { label: "Open 3D Route", onClick: open3DRoutePage };
   const handleStepKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
     if (event.key === "ArrowDown" || event.key === "PageDown") {
       event.preventDefault();
@@ -165,169 +138,6 @@ export default function HowToUseScene() {
       activateStep(activeStepIndex - 1);
     }
   };
-  const getStepMotion = (index: number) => {
-    if (isMobile) {
-      return {
-        y:
-          index === activeStepIndex
-            ? 0
-            : index < activeStepIndex
-              ? -88
-              : index === activeStepIndex + 1
-                ? 88
-                : 112,
-        z: 0,
-        scale:
-          index === activeStepIndex
-            ? 1
-            : index === activeStepIndex + 1 || index === activeStepIndex - 1
-              ? 0.94
-              : 0.9,
-        opacity:
-          index === activeStepIndex ? 1 : index === activeStepIndex + 1 ? 0.44 : 0,
-        rotateX: 0,
-        zIndex:
-          index === activeStepIndex
-            ? 4
-            : index === activeStepIndex + 1
-              ? 3
-              : index === activeStepIndex - 1
-                ? 2
-                : 1,
-      };
-    }
-
-    return {
-      y:
-        index === activeStepIndex
-          ? 0
-          : index < activeStepIndex
-            ? -110
-            : index === activeStepIndex + 1
-              ? 110
-              : 150,
-      z:
-        index === activeStepIndex
-          ? 0
-          : index < activeStepIndex
-            ? -120
-            : index === activeStepIndex + 1
-              ? -80
-              : -140,
-      scale:
-        index === activeStepIndex
-          ? 1
-          : index < activeStepIndex
-            ? 0.82
-            : index === activeStepIndex + 1
-              ? 0.86
-              : 0.78,
-      opacity:
-        index === activeStepIndex
-          ? 1
-          : index < activeStepIndex
-            ? 0
-            : index === activeStepIndex + 1
-              ? 0.52
-              : 0,
-      rotateX:
-        index === activeStepIndex
-          ? 0
-          : index < activeStepIndex
-            ? 18
-            : index === activeStepIndex + 1
-              ? -12
-              : -16,
-      zIndex:
-        index === activeStepIndex
-          ? 4
-          : index === activeStepIndex + 1
-            ? 3
-            : index === activeStepIndex - 1
-              ? 2
-              : 1,
-    };
-  };
-
-  useEffect(() => {
-    const viewport = viewportRef.current;
-    if (!viewport) return;
-
-    const handleWheel = (event: WheelEvent) => {
-      event.preventDefault();
-      event.stopPropagation();
-
-      if (wheelLockRef.current || Math.abs(event.deltaY) < 12) return;
-
-      wheelLockRef.current = true;
-      activateStep(activeStepIndex + (event.deltaY > 0 ? 1 : -1));
-
-      window.setTimeout(() => {
-        wheelLockRef.current = false;
-      }, 520);
-    };
-
-    viewport.addEventListener("wheel", handleWheel, { passive: false });
-
-    return () => {
-      viewport.removeEventListener("wheel", handleWheel);
-    };
-  }, [activeStepIndex]);
-
-  useEffect(() => {
-    const viewport = viewportRef.current;
-    if (!viewport) return;
-
-    const handleTouchStart = (event: TouchEvent) => {
-      touchStartYRef.current = event.touches[0]?.clientY ?? null;
-      touchDeltaYRef.current = 0;
-    };
-
-    const handleTouchMove = (event: TouchEvent) => {
-      const startY = touchStartYRef.current;
-      const currentY = event.touches[0]?.clientY;
-      if (startY === null || currentY === undefined) return;
-
-      touchDeltaYRef.current = currentY - startY;
-
-      if (Math.abs(touchDeltaYRef.current) > 8) {
-        event.preventDefault();
-        event.stopPropagation();
-      }
-    };
-
-    const handleTouchEnd = (event: TouchEvent) => {
-      const changedY = event.changedTouches[0]?.clientY;
-      const startY = touchStartYRef.current;
-      const deltaY =
-        changedY !== undefined && startY !== null ? changedY - startY : touchDeltaYRef.current;
-
-      touchStartYRef.current = null;
-      touchDeltaYRef.current = 0;
-
-      if (wheelLockRef.current || Math.abs(deltaY) < 36) return;
-
-      event.preventDefault();
-      event.stopPropagation();
-
-      wheelLockRef.current = true;
-      activateStep(activeStepIndex + (deltaY < 0 ? 1 : -1));
-
-      window.setTimeout(() => {
-        wheelLockRef.current = false;
-      }, 520);
-    };
-
-    viewport.addEventListener("touchstart", handleTouchStart, { passive: true });
-    viewport.addEventListener("touchmove", handleTouchMove, { passive: false });
-    viewport.addEventListener("touchend", handleTouchEnd, { passive: false });
-
-    return () => {
-      viewport.removeEventListener("touchstart", handleTouchStart);
-      viewport.removeEventListener("touchmove", handleTouchMove);
-      viewport.removeEventListener("touchend", handleTouchEnd);
-    };
-  }, [activeStepIndex]);
 
   return (
     <section
@@ -340,72 +150,104 @@ export default function HowToUseScene() {
           <div className="landing-how-copy">
             <p className="landing-how-kicker">Plan with confidence</p>
             <h2>How to Use MoveComfortly</h2>
-            <p className="landing-how-steps-hint">Scroll to move through the steps</p>
 
             <div className="landing-how-steps-wrap">
               <div
-                ref={viewportRef}
                 className="landing-how-steps-viewport"
                 role="region"
-                aria-label="MoveComfortly step cards"
+                aria-label="MoveComfortly step navigator"
                 tabIndex={0}
                 onKeyDown={handleStepKeyDown}
               >
-                <ol className="landing-how-steps">
-                  {steps.map((step, index) => (
-                    <motion.li
-                      key={step.title}
-                      className="landing-how-step-item"
-                      initial={false}
-                      animate={getStepMotion(index)}
-                      transition={{
-                        duration: 0.62,
-                        ease: [0.25, 1, 0.5, 1],
-                      }}
-                    >
+                <div className="landing-how-step-grid-shell">
+                  <div className="landing-how-step-grid">
+                    {steps.map((step, index) => (
                       <button
-                        className={`landing-how-step${activeStepIndex === index ? " is-active" : ""}`}
+                        key={step.title}
+                        className={`landing-how-step-tile landing-how-step-tile-${index + 1}${
+                          activeStepIndex === index ? " is-active" : ""
+                        }`}
                         type="button"
+                        style={{ ["--tile-index" as string]: index }}
                         aria-pressed={activeStepIndex === index}
                         aria-current={activeStepIndex === index ? "step" : undefined}
                         onClick={() => activateStep(index)}
                       >
-                        <span className="landing-how-step-eyebrow">{step.eyebrow}</span>
-                        <h3>{step.title}</h3>
-                        <p>{step.body}</p>
-                        <ul className="landing-how-detail-list" aria-label={`${step.title} details`}>
-                          {step.details.map((detail) => (
-                            <li key={detail}>{detail}</li>
-                          ))}
-                        </ul>
-                        <div className="landing-how-chips" aria-label={`${step.title} highlights`}>
-                          {step.chips.map((chip) => (
-                            <span key={chip}>{chip}</span>
-                          ))}
-                        </div>
+                        <span className="landing-how-step-tile-label">{step.shortLabel}</span>
                       </button>
-                    </motion.li>
-                  ))}
-                </ol>
+                    ))}
+                  </div>
+                </div>
+                <div className="landing-how-step-preview" aria-live="polite">
+                  <span className="landing-how-step-preview-eyebrow">{activeStep.eyebrow}</span>
+                  <h3>{activeStep.title}</h3>
+                  <p>{activeCallout}</p>
+                </div>
               </div>
             </div>
           </div>
 
           <div className="landing-how-product">
-            <figure className="landing-how-screenshot">
-              <img
-                src={activeScreenshotUrl}
-                alt="MoveComfortly map interface with places and comfort data"
-              />
-            </figure>
+            <div
+              className={`landing-how-flip-scene${isDetailFlipped ? " is-flipped" : ""}`}
+              style={{ aspectRatio: imageAspectRatio }}
+            >
+              <button
+                className="landing-how-flip-card"
+                type="button"
+                onClick={() => setIsDetailFlipped((current) => !current)}
+                aria-pressed={isDetailFlipped}
+                aria-label={
+                  isDetailFlipped
+                    ? "Show the screenshot side of this MoveComfortly step"
+                    : "Show the detail side of this MoveComfortly step"
+                }
+              >
+                <span className="landing-how-flip-face landing-how-flip-face-front">
+                  <figure className="landing-how-screenshot">
+                    <img
+                      src={activeScreenshotUrl}
+                      alt="MoveComfortly map interface with places and comfort data"
+                      onLoad={(event) => {
+                        const { naturalWidth, naturalHeight } = event.currentTarget;
+                        setImageAspectRatio(naturalWidth / Math.max(1, naturalHeight));
+                      }}
+                    />
+                  </figure>
+                </span>
+                <span className="landing-how-flip-face landing-how-flip-face-back">
+                  <span className="landing-how-detail-shell">
+                    <span className="landing-how-detail-topline">
+                      <span>{activeStep.eyebrow}</span>
+                      <strong>{activeStep.shortLabel}</strong>
+                    </span>
+                    <span className="landing-how-detail-copy">
+                      <h3>{activeStep.title}</h3>
+                      <p>{activeStep.body}</p>
+                    </span>
+                    <span className="landing-how-detail-list-wrap">
+                      <span className="landing-how-detail-list-title">What to do</span>
+                      <ul
+                        className="landing-how-detail-list"
+                        aria-label={`${activeStep.title} details`}
+                      >
+                        {activeStep.details.map((detail) => (
+                          <li key={detail}>{detail}</li>
+                        ))}
+                      </ul>
+                    </span>
+                    <span className="landing-how-chips" aria-label={`${activeStep.title} highlights`}>
+                      {activeStep.chips.map((chip) => (
+                        <span key={chip}>{chip}</span>
+                      ))}
+                    </span>
+                  </span>
+                </span>
+              </button>
+            </div>
             <div className="landing-how-action-bar" aria-live="polite">
-              <div className="landing-how-callout">
-                <span>Using MoveComfortly</span>
-                <p>{activeCallout}</p>
-              </div>
-              {activeAction ? (
-                <HowActionButton label={activeAction.label} onClick={activeAction.onClick} />
-              ) : null}
+              <span className="landing-how-flip-chip">Tap card for details</span>
+              <HowActionButton label={activeAction.label} onClick={activeAction.onClick} />
             </div>
           </div>
         </div>
