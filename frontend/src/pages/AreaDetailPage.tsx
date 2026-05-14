@@ -5,21 +5,25 @@ import {
   Footprints,
   MapPinned,
   MoveRight,
+  Route,
 } from "lucide-react";
-import { getAreaRecommendationItems, type AreaInfo } from "../lib/areaInfo";
+import { getAreaComfortRouteItems, getAreaRecommendationItems, type AreaComfortRoute, type AreaInfo } from "../lib/areaInfo";
 
 type AreaDetailPageProps = {
   area: AreaInfo;
   onBack: () => void;
   onRecommendationClick: (recommendationId: string) => void;
+  onComfortRouteClick: (route: AreaComfortRoute) => void;
 };
 
 export default function AreaDetailPage({
   area,
   onBack,
   onRecommendationClick,
+  onComfortRouteClick,
 }: AreaDetailPageProps) {
   const recommendations = getAreaRecommendationItems(area);
+  const comfortRoutes = getAreaComfortRouteItems(area);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-cyan-50/30 to-white">
@@ -161,16 +165,29 @@ export default function AreaDetailPage({
               </div>
 
               <div className="space-y-4">
-                {area.comfortRoutes.map((route) => (
-                  <article
-                    key={route.title}
-                    className="rounded-2xl border border-white/80 bg-white/85 p-4 shadow-sm ring-1 ring-emerald-100/70"
+                {comfortRoutes.map((route) => (
+                  <button
+                    key={route.id}
+                    type="button"
+                    onClick={() => onComfortRouteClick(route)}
+                    className="group w-full cursor-pointer rounded-2xl border border-white/80 bg-white/85 p-4 text-left shadow-sm ring-1 ring-emerald-100/70 transition-all duration-200 hover:-translate-y-1 hover:border-emerald-300 hover:bg-white hover:shadow-lg active:translate-y-0 active:scale-[0.995] focus:outline-none focus:ring-2 focus:ring-emerald-300"
                   >
-                    <h3 className="text-lg font-semibold text-gray-900">{route.title}</h3>
-                    <p className="mt-2 text-sm leading-7 text-gray-700 sm:text-base">
-                      {route.description}
-                    </p>
-                  </article>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <h3 className="text-lg font-semibold text-gray-900 transition-colors duration-200 group-hover:text-emerald-800">
+                          {route.title}
+                        </h3>
+                        <p className="mt-2 text-sm leading-7 text-gray-700 sm:text-base">
+                          {route.description}
+                        </p>
+                        <div className="mt-3 flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-emerald-700">
+                          <Route className="h-4 w-4" />
+                          <span>Open in 3D Route</span>
+                        </div>
+                      </div>
+                      <MoveRight className="mt-1 h-5 w-5 flex-shrink-0 text-emerald-500 transition-all duration-200 group-hover:translate-x-1.5 group-hover:text-emerald-600" />
+                    </div>
+                  </button>
                 ))}
               </div>
             </section>
