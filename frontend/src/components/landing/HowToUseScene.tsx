@@ -178,7 +178,7 @@ export default function HowToUseScene() {
                     ))}
                   </div>
                 </div>
-                <div className="landing-how-step-preview" aria-live="polite">
+                <div className="landing-how-step-preview is-glass-finish" aria-live="polite">
                   <span className="landing-how-step-preview-eyebrow">{activeStep.eyebrow}</span>
                   <h3>{activeStep.title}</h3>
                   <p>{activeCallout}</p>

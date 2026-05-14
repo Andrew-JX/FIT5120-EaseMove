@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 
 const bGifUrl = new URL("../../assets/B.gif", import.meta.url).href;
@@ -138,19 +139,22 @@ function AnimatedLandingButton({
 
 export default function StartUsingScene() {
   const navigate = useNavigate();
+  const sceneRef = useRef<HTMLElement | null>(null);
+  const titleShellRef = useRef<HTMLDivElement | null>(null);
+  const [isTitleRevealed, setIsTitleRevealed] = useState(false);
   const openMap = () => navigate("/map");
   const open3DRoute = () => navigate("/map/3d-route");
   const actions = [
     {
       label: "Map",
       nextLabel: "Open",
-      description: "Compare precinct comfort, tune your preferences, and spot nearby support places.",
+      description: "Compare comfort, adjust preferences, and find support places nearby.",
       onClick: openMap,
     },
     {
       label: "3D Route",
       nextLabel: "Go",
-      description: "Preview the path in 3D, inspect the route shape, and rehearse your next trip.",
+      description: "Preview your route in 3D and rehearse the trip before you go.",
       onClick: open3DRoute,
     },
   ];
@@ -160,27 +164,97 @@ export default function StartUsingScene() {
   }));
   const marqueeItems = [...gifStrip, ...gifStrip];
 
+  useEffect(() => {
+    const node = titleShellRef.current ?? sceneRef.current;
+    if (!node || isTitleRevealed) return;
+    if (typeof IntersectionObserver === "undefined") {
+      setIsTitleRevealed(true);
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const [entry] = entries;
+        if (!entry?.isIntersecting) return;
+        setIsTitleRevealed(true);
+        observer.disconnect();
+      },
+      {
+        threshold: 0.72,
+        rootMargin: "-4% 0px -18% 0px",
+      }
+    );
+
+    observer.observe(node);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [isTitleRevealed]);
+
   return (
-    <section className="landing-start-scene" aria-label="Start using EaseMove">
+    <section
+      ref={sceneRef}
+      className={`landing-start-scene${isTitleRevealed ? " is-title-revealed" : ""}`}
+      aria-label="Start using EaseMove"
+    >
       <div className="landing-start-inner">
-        <div className="landing-start-title-shell">
+        <div ref={titleShellRef} className="landing-start-title-shell">
           <p className="landing-start-title-tag">Choose your next step</p>
           <h2 className="landing-start-title">
-            <span className="landing-start-title-main">Pick your path</span>
-            <span className="landing-start-title-echo" data-text="MoveComfortly">
+            <span className="landing-start-title-main back-in-left">Pick your path</span>
+            <span className="landing-start-title-echo back-in-right" data-text="MoveComfortly">
               MoveComfortly
             </span>
           </h2>
         </div>
         <div className="landing-start-actions">
-          {actions.map((action) => (
-            <div className="landing-start-action-card" key={action.label}>
+          {actions.map((action, index) => (
+            <div
+              className={`landing-start-action-card landing-start-action-card-${
+                index === 0 ? "left" : "right"
+              }`}
+              key={action.label}
+            >
               <AnimatedLandingButton
                 label={action.label}
                 nextLabel={action.nextLabel}
                 onClick={action.onClick}
               />
-              <p className="landing-start-action-copy">{action.description}</p>
+              <div
+                className={`landing-start-action-note landing-start-action-note-${
+                  index === 0 ? "left" : "right"
+                }`}
+              >
+                <svg
+                  className="landing-start-action-curve"
+                  viewBox="0 0 440 168"
+                  aria-hidden="true"
+                  preserveAspectRatio="none"
+                >
+                  <path
+                    className="landing-start-action-curve-line"
+                    d={
+                      index === 0
+                        ? "M220 12 C 220 42, 212 64, 190 82 C 156 110, 106 104, 72 128 C 46 146, 22 154, -12 142"
+                        : "M220 12 C 220 42, 228 64, 250 82 C 284 110, 334 104, 368 128 C 394 146, 418 154, 452 142"
+                    }
+                  />
+                  <circle className="landing-start-action-curve-glow" r="4.5">
+                    <animateMotion
+                      dur={index === 0 ? "6.4s" : "6.9s"}
+                      repeatCount="indefinite"
+                      rotate="auto"
+                      path={
+                        index === 0
+                          ? "M220 12 C 220 42, 212 64, 190 82 C 156 110, 106 104, 72 128 C 46 146, 22 154, -12 142"
+                          : "M220 12 C 220 42, 228 64, 250 82 C 284 110, 334 104, 368 128 C 394 146, 418 154, 452 142"
+                      }
+                    />
+                  </circle>
+                </svg>
+                <p className="landing-start-action-copy">{action.description}</p>
+              </div>
             </div>
           ))}
         </div>

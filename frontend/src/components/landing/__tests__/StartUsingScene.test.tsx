@@ -49,4 +49,23 @@ describe("StartUsingScene", () => {
 
     view.unmount();
   });
+
+  test("uses compact helper copy for the two primary actions", () => {
+    const view = render(
+      <MemoryRouter>
+        <StartUsingScene />
+      </MemoryRouter>
+    );
+
+    const copyBlocks = Array.from(view.container.querySelectorAll(".landing-start-action-copy")).map(
+      (node) => node.textContent?.trim()
+    );
+
+    expect(copyBlocks).toEqual([
+      "Compare comfort, adjust preferences, and find support places nearby.",
+      "Preview your route in 3D and rehearse the trip before you go.",
+    ]);
+
+    view.unmount();
+  });
 });
