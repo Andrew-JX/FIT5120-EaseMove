@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { useLocation, useNavigate } from "react-router";
+import { useIsMobile } from "../../app/components/ui/use-mobile";
 
 const screenshotUrls = [
   new URL("../../assets/landing/5.png", import.meta.url).href,
@@ -10,6 +11,23 @@ const screenshotUrls = [
   new URL("../../assets/landing/9.png", import.meta.url).href,
 ] as const;
 const areaDetailExamplePath = "/map?area=melbourne-cbd";
+
+function HowActionButton({
+  label,
+  onClick,
+}: {
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button className="landing-how-learn-more" type="button" onClick={onClick}>
+      <span className="landing-how-learn-more-circle" aria-hidden="true">
+        <span className="landing-how-learn-more-icon landing-how-learn-more-arrow"></span>
+      </span>
+      <span className="landing-how-learn-more-text">{label}</span>
+    </button>
+  );
+}
 
 const steps = [
   {
@@ -99,6 +117,7 @@ const steps = [
 export default function HowToUseScene() {
   const navigate = useNavigate();
   const location = useLocation();
+  const isMobile = useIsMobile();
   const [activeStepIndex, setActiveStepIndex] = useState(0);
   const activeCallout = steps[activeStepIndex].callout;
   const activeScreenshotUrl = screenshotUrls[activeStepIndex];
@@ -126,6 +145,15 @@ export default function HowToUseScene() {
   const activateStep = (index: number) => {
     setActiveStepIndex(Math.max(0, Math.min(steps.length - 1, index)));
   };
+  const activeAction = isMapStep
+    ? { label: "Open the Map", onClick: openMapPage }
+    : isCompareStep
+      ? { label: "Open Compare", onClick: openComparePage }
+      : isAreaDetailStep
+        ? { label: "Area Guide", onClick: openAreaDetailExample }
+        : isExtremeWeatherStep
+          ? { label: "Weather Risks", onClick: openExtremeWeatherPage }
+          : null;
   const handleStepKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
     if (event.key === "ArrowDown" || event.key === "PageDown") {
       event.preventDefault();
@@ -136,6 +164,89 @@ export default function HowToUseScene() {
       event.preventDefault();
       activateStep(activeStepIndex - 1);
     }
+  };
+  const getStepMotion = (index: number) => {
+    if (isMobile) {
+      return {
+        y:
+          index === activeStepIndex
+            ? 0
+            : index < activeStepIndex
+              ? -88
+              : index === activeStepIndex + 1
+                ? 88
+                : 112,
+        z: 0,
+        scale:
+          index === activeStepIndex
+            ? 1
+            : index === activeStepIndex + 1 || index === activeStepIndex - 1
+              ? 0.94
+              : 0.9,
+        opacity:
+          index === activeStepIndex ? 1 : index === activeStepIndex + 1 ? 0.44 : 0,
+        rotateX: 0,
+        zIndex:
+          index === activeStepIndex
+            ? 4
+            : index === activeStepIndex + 1
+              ? 3
+              : index === activeStepIndex - 1
+                ? 2
+                : 1,
+      };
+    }
+
+    return {
+      y:
+        index === activeStepIndex
+          ? 0
+          : index < activeStepIndex
+            ? -110
+            : index === activeStepIndex + 1
+              ? 110
+              : 150,
+      z:
+        index === activeStepIndex
+          ? 0
+          : index < activeStepIndex
+            ? -120
+            : index === activeStepIndex + 1
+              ? -80
+              : -140,
+      scale:
+        index === activeStepIndex
+          ? 1
+          : index < activeStepIndex
+            ? 0.82
+            : index === activeStepIndex + 1
+              ? 0.86
+              : 0.78,
+      opacity:
+        index === activeStepIndex
+          ? 1
+          : index < activeStepIndex
+            ? 0
+            : index === activeStepIndex + 1
+              ? 0.52
+              : 0,
+      rotateX:
+        index === activeStepIndex
+          ? 0
+          : index < activeStepIndex
+            ? 18
+            : index === activeStepIndex + 1
+              ? -12
+              : -16,
+      zIndex:
+        index === activeStepIndex
+          ? 4
+          : index === activeStepIndex + 1
+            ? 3
+            : index === activeStepIndex - 1
+              ? 2
+              : 1,
+    };
   };
 
   useEffect(() => {
@@ -246,56 +357,7 @@ export default function HowToUseScene() {
                       key={step.title}
                       className="landing-how-step-item"
                       initial={false}
-                      animate={{
-                        y:
-                          index === activeStepIndex
-                            ? 0
-                            : index < activeStepIndex
-                              ? -110
-                              : index === activeStepIndex + 1
-                                ? 110
-                                : 150,
-                        z:
-                          index === activeStepIndex
-                            ? 0
-                            : index < activeStepIndex
-                              ? -120
-                              : index === activeStepIndex + 1
-                                ? -80
-                                : -140,
-                        scale:
-                          index === activeStepIndex
-                            ? 1
-                            : index < activeStepIndex
-                              ? 0.82
-                              : index === activeStepIndex + 1
-                                ? 0.86
-                                : 0.78,
-                        opacity:
-                          index === activeStepIndex
-                            ? 1
-                            : index < activeStepIndex
-                              ? 0
-                              : index === activeStepIndex + 1
-                                ? 0.52
-                                : 0,
-                        rotateX:
-                          index === activeStepIndex
-                            ? 0
-                            : index < activeStepIndex
-                              ? 18
-                              : index === activeStepIndex + 1
-                                ? -12
-                                : -16,
-                        zIndex:
-                          index === activeStepIndex
-                            ? 4
-                            : index === activeStepIndex + 1
-                              ? 3
-                              : index === activeStepIndex - 1
-                                ? 2
-                                : 1,
-                      }}
+                      animate={getStepMotion(index)}
                       transition={{
                         duration: 0.62,
                         ease: [0.25, 1, 0.5, 1],
@@ -336,38 +398,15 @@ export default function HowToUseScene() {
                 alt="MoveComfortly map interface with places and comfort data"
               />
             </figure>
-            <div className="landing-how-callout" aria-live="polite">
-              <span>Using MoveComfortly</span>
-              <p>{activeCallout}</p>
+            <div className="landing-how-action-bar" aria-live="polite">
+              <div className="landing-how-callout">
+                <span>Using MoveComfortly</span>
+                <p>{activeCallout}</p>
+              </div>
+              {activeAction ? (
+                <HowActionButton label={activeAction.label} onClick={activeAction.onClick} />
+              ) : null}
             </div>
-            {isMapStep ? (
-              <button className="landing-how-action" type="button" onClick={openMapPage}>
-                Open the Map
-              </button>
-            ) : null}
-            {isCompareStep ? (
-              <button className="landing-how-action" type="button" onClick={openComparePage}>
-                Open Compare
-              </button>
-            ) : null}
-            {isAreaDetailStep ? (
-              <button
-                className="landing-how-action"
-                type="button"
-                onClick={openAreaDetailExample}
-              >
-                Explore an Area Detail Example
-              </button>
-            ) : null}
-            {isExtremeWeatherStep ? (
-              <button
-                className="landing-how-action"
-                type="button"
-                onClick={openExtremeWeatherPage}
-              >
-                Explore Extreme Weather Risks
-              </button>
-            ) : null}
           </div>
         </div>
       </div>
