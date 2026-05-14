@@ -14,7 +14,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { type CSSProperties, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router";
+import { useLocation, useNavigate } from "react-router";
 import WhiteModelMap, {
   type RoutePoint,
   type RouteProfile,
@@ -118,6 +118,21 @@ function formatHourLabel(hour: number) {
   return `${hour.toString().padStart(2, "0")}:00`;
 }
 
+function parsePointFromSearch(search: string, prefix: "start" | "end"): RoutePoint | null {
+  const params = new URLSearchParams(search);
+  const rawLat = params.get(`${prefix}Lat`);
+  const rawLng = params.get(`${prefix}Lng`);
+  if (rawLat === null || rawLng === null) return null;
+  const lat = Number(rawLat);
+  const lng = Number(rawLng);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  return { lat, lng };
+}
+
+function shouldAutoLocateStart(search: string): boolean {
+  return new URLSearchParams(search).get("autoLocateStart") === "1";
+}
+
 type LayerLegendFilters = {
   easePlaces: boolean;
   naturalPlaces: boolean;
@@ -180,6 +195,7 @@ function geolocationMessage(error: GeolocationPositionError) {
 
 export default function Map3DExperimentPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [profile, setProfile] = useState<RouteProfile>("walking");
   const [startPoint, setStartPoint] = useState<RoutePoint | null>(null);
   const [endPoint, setEndPoint] = useState<RoutePoint | null>(null);
@@ -211,6 +227,7 @@ export default function Map3DExperimentPage() {
     message: null,
   });
   const requestIdRef = useRef(0);
+  const hasAppliedSearchRef = useRef(false);
 
   const routeReady = Boolean(route && startPoint && endPoint);
   const canUseRouteApi = Boolean(MAPBOX_PUBLIC_TOKEN);
@@ -327,7 +344,7 @@ export default function Map3DExperimentPage() {
     setRouteError(null);
   }, [clearRouteOnly]);
 
-  const handleUseCurrentLocation = useCallback(() => {
+  const handleUseCurrentLocation = useCallback((targetEndPoint: RoutePoint | null = endPoint) => {
     setActivePanel("route");
     setFocusedStepIndex(null);
     if (!navigator.geolocation) {
@@ -347,8 +364,10 @@ export default function Map3DExperimentPage() {
         };
         clearRouteOnly();
         setStartPoint(point);
-        setEndPoint(null);
         setRouteError(null);
+        if (targetEndPoint) {
+          void requestRoute(profile, point, targetEndPoint);
+        }
 
         if (position.coords.accuracy > LOW_ACCURACY_THRESHOLD_METERS) {
           setGeolocation({
@@ -375,7 +394,7 @@ export default function Map3DExperimentPage() {
         maximumAge: 30000,
       }
     );
-  }, [clearRouteOnly]);
+  }, [clearRouteOnly, endPoint, profile, requestRoute]);
 
   const handleMapError = useCallback((message: string) => {
     setRouteError({
@@ -449,6 +468,38 @@ export default function Map3DExperimentPage() {
   useEffect(() => {
     setFocusedStepIndex(null);
   }, [route]);
+
+  useEffect(() => {
+    if (hasAppliedSearchRef.current) return;
+
+    const endFromSearch = parsePointFromSearch(location.search, "end");
+    const startFromSearch = parsePointFromSearch(location.search, "start");
+    const autoLocate = shouldAutoLocateStart(location.search);
+
+    if (!endFromSearch && !startFromSearch && !autoLocate) return;
+
+    hasAppliedSearchRef.current = true;
+    setActivePanel("route");
+    setFocusedStepIndex(null);
+    setRouteError(null);
+    clearRouteOnly();
+
+    if (endFromSearch) {
+      setEndPoint(endFromSearch);
+    }
+
+    if (startFromSearch) {
+      setStartPoint(startFromSearch);
+      if (endFromSearch) {
+        void requestRoute(profile, startFromSearch, endFromSearch);
+      }
+      return;
+    }
+
+    if (autoLocate) {
+      handleUseCurrentLocation(endFromSearch);
+    }
+  }, [clearRouteOnly, handleUseCurrentLocation, location.search, profile, requestRoute]);
 
   useEffect(() => {
     if (!areaLayers.easePlaces) {

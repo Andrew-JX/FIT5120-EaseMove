@@ -534,4 +534,59 @@ describe("Map3DExperimentPage - Epic 5", () => {
 
     view.unmount();
   });
+
+  test("top-five guide navigation preloads only the end point and still triggers current-location flow", async () => {
+    const geolocationMock = vi.fn((success: PositionCallback) => {
+      success({
+        coords: {
+          latitude: -37.8136,
+          longitude: 144.9631,
+          accuracy: 24,
+          altitude: null,
+          altitudeAccuracy: null,
+          heading: null,
+          speed: null,
+          toJSON: () => ({}),
+        },
+        timestamp: Date.now(),
+        toJSON: () => ({}),
+      } as GeolocationPosition);
+    });
+
+    vi.stubGlobal("navigator", {
+      ...window.navigator,
+      geolocation: {
+        getCurrentPosition: geolocationMock,
+      },
+    });
+
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => createRouteResponse("walking"),
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const Map3DExperimentPage = await loadPageWithToken();
+    const view = render(
+      <MemoryRouter
+        initialEntries={[
+          "/map/3d-route?endLat=-37.82230&endLng=144.95220&endName=Docklands&autoLocateStart=1",
+        ]}
+      >
+        <Routes>
+          <Route path="/map/3d-route" element={<Map3DExperimentPage />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    await view.flush();
+
+    expect(geolocationMock).toHaveBeenCalledTimes(1);
+    expect(view.container.textContent).not.toContain("0.00000, 0.00000");
+    expect(view.container.textContent).toContain("-37.81360, 144.96310");
+    expect(view.container.textContent).toContain("-37.82230, 144.95220");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    view.unmount();
+  });
 });
