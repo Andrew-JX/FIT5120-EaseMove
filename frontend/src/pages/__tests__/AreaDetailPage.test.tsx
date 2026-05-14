@@ -35,7 +35,12 @@ describe("AreaDetailPage - Epic 3.1", () => {
     expect(area).not.toBeNull();
 
     const view = render(
-      <AreaDetailPage area={area!} onBack={vi.fn()} onRecommendationClick={vi.fn()} />
+      <AreaDetailPage
+        area={area!}
+        onBack={vi.fn()}
+        onRecommendationClick={vi.fn()}
+        onComfortRouteClick={vi.fn()}
+      />
     );
 
     expect(view.container.textContent).toContain("Area Introduction");
@@ -54,7 +59,12 @@ describe("AreaDetailPage - Epic 3.1", () => {
     expect(area).not.toBeNull();
 
     const view = render(
-      <AreaDetailPage area={area!} onBack={onBack} onRecommendationClick={vi.fn()} />
+      <AreaDetailPage
+        area={area!}
+        onBack={onBack}
+        onRecommendationClick={vi.fn()}
+        onComfortRouteClick={vi.fn()}
+      />
     );
 
     const backButton = Array.from(view.container.querySelectorAll("button")).find((button) =>
@@ -80,6 +90,7 @@ describe("AreaDetailPage - Epic 3.1", () => {
         area={area!}
         onBack={vi.fn()}
         onRecommendationClick={onRecommendationClick}
+        onComfortRouteClick={vi.fn()}
       />
     );
 
@@ -92,6 +103,40 @@ describe("AreaDetailPage - Epic 3.1", () => {
       recommendationButtons[0].dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
     expect(onRecommendationClick).toHaveBeenCalledWith("library-at-the-dock");
+
+    view.unmount();
+  });
+
+  test("clicking a comfort route opens the selected route for 3D preview", () => {
+    const onComfortRouteClick = vi.fn();
+    const area = getAreaInfo("east-melbourne");
+    expect(area).not.toBeNull();
+
+    const view = render(
+      <AreaDetailPage
+        area={area!}
+        onBack={vi.fn()}
+        onRecommendationClick={vi.fn()}
+        onComfortRouteClick={onComfortRouteClick}
+      />
+    );
+
+    const routeButton = Array.from(view.container.querySelectorAll("button")).find((button) =>
+      button.textContent?.includes("Treasury Gardens → Fitzroy Gardens")
+    );
+
+    expect(routeButton).toBeTruthy();
+    act(() => {
+      routeButton!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(onComfortRouteClick).toHaveBeenCalledTimes(1);
+    expect(onComfortRouteClick.mock.calls[0][0]).toMatchObject({
+      title: "Treasury Gardens → Fitzroy Gardens",
+      autoLocateStart: false,
+      start: { id: "treasury-gardens" },
+      end: { id: "fitzroy-gardens" },
+    });
 
     view.unmount();
   });
