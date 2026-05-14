@@ -512,6 +512,7 @@ export default function App({ mode }: { mode: "view" | "compare" }) {
   const [showTimeRecommendation, setShowTimeRecommendation] = useState(false);
   const [loadingToday, setLoadingToday] = useState(false);
   const nextCompareReplaceSlotRef = useRef<1 | 2>(1);
+  const previousPathnameRef = useRef<string | null>(null);
 
   // Leaflet map instance for programmatic zoom / flyTo
   const mapInstanceRef = useRef<L.Map | null>(null);
@@ -523,6 +524,30 @@ export default function App({ mode }: { mode: "view" | "compare" }) {
   const handleBrandClick = useCallback(() => {
     navigate(APP_ROUTES.home);
   }, [navigate]);
+
+  useEffect(() => {
+    const previousPathname = previousPathnameRef.current;
+    const isEnteringPrimaryMap =
+      location.pathname === APP_ROUTES.map && previousPathname !== APP_ROUTES.map;
+
+    if (
+      isEnteringPrimaryMap &&
+      activeTab === "view" &&
+      !selectedAreaId &&
+      !selectedRecommendationId &&
+      !showTimeRecommendation
+    ) {
+      setShowMapGuide(true);
+    }
+
+    previousPathnameRef.current = location.pathname;
+  }, [
+    activeTab,
+    location.pathname,
+    selectedAreaId,
+    selectedRecommendationId,
+    showTimeRecommendation,
+  ]);
 
   const handleAreaNavigation = useCallback((
     areaId: string | null,
