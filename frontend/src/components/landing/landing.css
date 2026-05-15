@@ -3097,6 +3097,7 @@
   }
 
   .landing-start-action-note {
+    display: none;
     position: relative;
     top: auto;
     left: auto;
@@ -3482,6 +3483,7 @@
   }
 
   .landing-start-action-note {
+    display: none;
     position: relative;
     top: auto;
     left: auto;
