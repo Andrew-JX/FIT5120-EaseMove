@@ -6,7 +6,7 @@ const wGifUrl = new URL("../../assets/W.gif", import.meta.url).href;
 
 function buildMobileCurvePath(side: "left" | "right") {
   if (side === "left") {
-    return "M220 2 C 220 16, 212 24, 194 30 C 168 40, 146 42, 126 48 C 112 52, 104 58, 98 70";
+    return "M220 2 C 220 16, 228 24, 244 30 C 266 38, 286 42, 304 48 C 318 52, 328 58, 336 70";
   }
 
   return "M220 2 C 220 16, 228 24, 246 30 C 272 40, 300 42, 322 50 C 338 56, 348 64, 356 76";
