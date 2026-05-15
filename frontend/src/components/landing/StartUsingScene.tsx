@@ -4,6 +4,14 @@ import { useNavigate } from "react-router";
 const bGifUrl = new URL("../../assets/B.gif", import.meta.url).href;
 const wGifUrl = new URL("../../assets/W.gif", import.meta.url).href;
 
+function buildMobileCurvePath(side: "left" | "right") {
+  if (side === "left") {
+    return "M220 2 C 220 16, 212 24, 194 30 C 168 40, 146 42, 126 48 C 112 52, 104 58, 98 70";
+  }
+
+  return "M220 2 C 220 16, 228 24, 246 30 C 272 40, 300 42, 322 50 C 338 56, 348 64, 356 76";
+}
+
 function AnimatedLandingButton({
   label,
   nextLabel,
@@ -221,27 +229,35 @@ export default function StartUsingScene() {
                 nextLabel={action.nextLabel}
                 onClick={action.onClick}
               />
-              <div
-                className={`landing-start-action-note landing-start-action-note-${
-                  index === 0 ? "left" : "right"
-                }`}
-              >
+              <div className={`landing-start-action-note landing-start-action-note-${index === 0 ? "left" : "right"}`}>
+                {(() => {
+                  const side = index === 0 ? "left" : "right";
+                  const mobilePath = buildMobileCurvePath(side);
+
+                  return (
                 <svg
-                  className="landing-start-action-curve"
+                  className={`landing-start-action-curve landing-start-action-curve-${
+                    index === 0 ? "left" : "right"
+                  }`}
                   viewBox="0 0 440 168"
                   aria-hidden="true"
                   preserveAspectRatio="none"
                 >
                   <path
-                    className="landing-start-action-curve-line"
+                    className="landing-start-action-curve-line landing-start-action-curve-line-desktop"
                     d={
                       index === 0
                         ? "M220 12 C 220 42, 212 64, 190 82 C 156 110, 106 104, 72 128 C 46 146, 22 154, -12 142"
                         : "M220 12 C 220 42, 228 64, 250 82 C 284 110, 334 104, 368 128 C 394 146, 418 154, 452 142"
                     }
                   />
+                  <path
+                    className="landing-start-action-curve-line landing-start-action-curve-line-mobile"
+                    d={mobilePath}
+                  />
                   <circle className="landing-start-action-curve-glow" r="4.5">
                     <animateMotion
+                      className="landing-start-action-glow-motion-desktop"
                       dur={index === 0 ? "6.4s" : "6.9s"}
                       repeatCount="indefinite"
                       rotate="auto"
@@ -251,8 +267,17 @@ export default function StartUsingScene() {
                           : "M220 12 C 220 42, 228 64, 250 82 C 284 110, 334 104, 368 128 C 394 146, 418 154, 452 142"
                       }
                     />
+                    <animateMotion
+                      className="landing-start-action-glow-motion-mobile"
+                      dur={index === 0 ? "4.8s" : "5.1s"}
+                      repeatCount="indefinite"
+                      rotate="auto"
+                      path={mobilePath}
+                    />
                   </circle>
                 </svg>
+                  );
+                })()}
                 <p className="landing-start-action-copy">{action.description}</p>
               </div>
             </div>
