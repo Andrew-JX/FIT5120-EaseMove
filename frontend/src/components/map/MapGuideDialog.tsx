@@ -48,14 +48,14 @@ export default function MapGuideDialog({
           />
 
           <motion.section
-            className="map-guide-dialog-scroll pointer-events-auto absolute left-1/2 top-1/2 max-h-[calc(100vh-3rem)] w-[min(760px,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-[30px] border border-[#d9e5e2] bg-[#fcfefd] shadow-[0_28px_80px_rgba(10,24,23,0.18)]"
+            className="map-guide-dialog-scroll pointer-events-auto absolute left-1/2 top-1/2 max-h-[calc(100dvh-3rem)] w-[min(760px,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 overflow-y-auto overflow-x-hidden rounded-[30px] border border-[#d9e5e2] bg-[#fcfefd] shadow-[0_28px_80px_rgba(10,24,23,0.18)]"
             initial={{ opacity: 0, scale: 0.88, y: 18 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.9, y: 14 }}
             transition={{ type: "spring", stiffness: 280, damping: 30, mass: 0.85 }}
             style={{ transformOrigin: "center center" }}
           >
-            <div className="overflow-hidden rounded-[28px]">
+            <div data-testid="map-guide-scroll-shell" className="overflow-y-auto overflow-x-hidden rounded-[28px] pr-1">
               <div className="border-b border-[#e5efec] bg-white px-6 py-6 sm:px-8">
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex items-start gap-4">
