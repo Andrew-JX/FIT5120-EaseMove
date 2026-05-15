@@ -255,9 +255,8 @@ export default function StartUsingScene() {
                     className="landing-start-action-curve-line landing-start-action-curve-line-mobile"
                     d={mobilePath}
                   />
-                  <circle className="landing-start-action-curve-glow" r="4.5">
+                  <circle className="landing-start-action-curve-glow landing-start-action-curve-glow-desktop" r="4.5">
                     <animateMotion
-                      className="landing-start-action-glow-motion-desktop"
                       dur={index === 0 ? "6.4s" : "6.9s"}
                       repeatCount="indefinite"
                       rotate="auto"
@@ -267,8 +266,9 @@ export default function StartUsingScene() {
                           : "M220 12 C 220 42, 228 64, 250 82 C 284 110, 334 104, 368 128 C 394 146, 418 154, 452 142"
                       }
                     />
+                  </circle>
+                  <circle className="landing-start-action-curve-glow landing-start-action-curve-glow-mobile" r="4.5">
                     <animateMotion
-                      className="landing-start-action-glow-motion-mobile"
                       dur={index === 0 ? "4.8s" : "5.1s"}
                       repeatCount="indefinite"
                       rotate="auto"
