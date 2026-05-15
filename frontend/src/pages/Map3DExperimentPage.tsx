@@ -29,7 +29,7 @@ const MAPBOX_PUBLIC_TOKEN = (import.meta.env.VITE_MAPBOX_PUBLIC_TOKEN as string 
 const ROUTE_REQUEST_TIMEOUT_MS = 12000;
 const LOW_ACCURACY_THRESHOLD_METERS = 120;
 const MOBILE_PANEL_MEDIA_QUERY = "(max-width: 767px)";
-const ROUTE_GUIDE_STORAGE_KEY = "easemove:map3d-route-guide-seen";
+let hasAutoShownRouteGuideThisRuntime = false;
 const liquidGlassPanelStyle: CSSProperties = {
   background:
     "radial-gradient(circle at 18% 0%, rgba(255,255,255,0.52), transparent 36%), linear-gradient(135deg, rgba(247,255,253,0.5), rgba(237,246,249,0.32) 54%, rgba(255,248,232,0.24))",
@@ -483,18 +483,14 @@ export default function Map3DExperimentPage() {
   }, [route]);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    const hasSeenGuide = window.localStorage.getItem(ROUTE_GUIDE_STORAGE_KEY) === "1";
-    if (!hasSeenGuide) {
+    if (!hasAutoShownRouteGuideThisRuntime) {
+      hasAutoShownRouteGuideThisRuntime = true;
       setShowGuide(true);
     }
   }, []);
 
   const dismissGuide = useCallback(() => {
     setShowGuide(false);
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem(ROUTE_GUIDE_STORAGE_KEY, "1");
-    }
   }, []);
 
   useEffect(() => {
@@ -615,7 +611,7 @@ export default function Map3DExperimentPage() {
             </div>
 
             <div className="mt-6 flex items-center justify-between gap-3">
-              <p className="max-w-[15rem] text-xs leading-5 text-[#6b8582]">This guide appears only the first time you open this page.</p>
+              <p className="max-w-[15rem] text-xs leading-5 text-[#6b8582]">This guide appears once after each refresh. Use the button below to reopen it any time.</p>
               <button
                 type="button"
                 onClick={dismissGuide}

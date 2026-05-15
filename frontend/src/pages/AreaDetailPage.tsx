@@ -1,18 +1,26 @@
-import { ArrowLeft, MapPin, Tag, TrendingUp, Navigation, Bike, Footprints } from "lucide-react";
-import { getAreaRecommendationItems, type AreaInfo } from "../lib/areaInfo";
+import { ArrowLeft, MapPin, Tag, TrendingUp, Navigation, Bike, Footprints, Route } from "lucide-react";
+import {
+  getAreaComfortRouteItems,
+  getAreaRecommendationItems,
+  type AreaComfortRoute,
+  type AreaInfo,
+} from "../lib/areaInfo";
 
 type AreaDetailPageProps = {
   area: AreaInfo;
   onBack: () => void;
   onRecommendationClick: (recommendationId: string) => void;
+  onComfortRouteClick: (route: AreaComfortRoute) => void;
 };
 
 export default function AreaDetailPage({
   area,
   onBack,
   onRecommendationClick,
+  onComfortRouteClick,
 }: AreaDetailPageProps) {
   const recommendations = getAreaRecommendationItems(area);
+  const comfortRoutes = getAreaComfortRouteItems(area);
   const heroImage = "https://images.unsplash.com/photo-1542159919831-40fb0656b45a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080";
 
   return (
@@ -74,9 +82,12 @@ export default function AreaDetailPage({
           </div>
 
           <div>
-            <div className="flex items-center gap-2 mb-4">
-              <TrendingUp className="w-6 h-6 text-emerald-400" />
-              <h2 className="text-2xl font-bold text-white">Where to go?</h2>
+            <div className="mb-4">
+              <div className="flex items-center gap-2 text-emerald-400">
+                <TrendingUp className="w-6 h-6" />
+                <span className="text-sm font-semibold uppercase tracking-[0.18em]">Recommendation</span>
+              </div>
+              <h2 className="mt-2 text-2xl font-bold text-white">Where to go?</h2>
             </div>
             <div className="space-y-3">
               {recommendations.map((item) => (
@@ -108,9 +119,11 @@ export default function AreaDetailPage({
           <p className="text-slate-400 mb-6">Easy walking and cycling ideas</p>
 
           <div className="grid md:grid-cols-2 gap-4">
-            {area.comfortRoutes.map((route) => (
-              <article
-                key={route.title}
+            {comfortRoutes.map((route) => (
+              <button
+                key={route.id}
+                type="button"
+                onClick={() => onComfortRouteClick(route)}
                 className="bg-gradient-to-br from-slate-800/90 to-slate-900/80 backdrop-blur-sm rounded-xl border border-slate-700/50 p-6 hover:border-blue-500/50 transition-all group cursor-pointer"
               >
                 <div className="flex items-start gap-4">
@@ -122,9 +135,13 @@ export default function AreaDetailPage({
                       {route.title}
                     </h3>
                     <p className="text-slate-400 text-sm leading-relaxed">{route.description}</p>
+                    <div className="mt-4 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-blue-300">
+                      <Route className="h-4 w-4" />
+                      <span>Open in 3D Route</span>
+                    </div>
                   </div>
                 </div>
-              </article>
+              </button>
             ))}
           </div>
         </div>
