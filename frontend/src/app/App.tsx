@@ -1,15 +1,21 @@
 import { useState, useCallback, useEffect, useRef } from "react";
+import { useLocation, useNavigate } from "react-router";
 import {
   Thermometer, Droplets, Users, X, Wind, Map, ArrowLeft,
   Layers, List, Plus, Minus, ZoomIn, Snowflake, Tag,
-  ChevronDown, ChevronUp,
+  ChevronDown, ChevronUp, ThermometerSun, Sun, Moon, Clock, Lightbulb,
+  Eye, TrendingUp, Star, MapPin,
 } from "lucide-react";
+import { LineChart, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import L from "leaflet";
 import logo from "../assets/logo-transparent.png";
 import ideaIcon from "../assets/idea.png";
 import questionMarkIcon from "../assets/question-mark.png";
 import warningIcon from "../assets/warning.png";
-import LeafletMap, { type EasePlacesFeature } from "../components/LeafletMap";
+import AppTopNav from "../components/AppTopNav";
+import LeafletMap from "../components/LeafletMap";
+import EasePlacesDetailPopup from "../components/map/EasePlacesDetailPopup";
+import DynamicLegendPanel from "../components/map/DynamicLegendPanel";
 import { usePrecincts } from "../hooks/usePrecincts";
 import {
   DEFAULT_WEIGHTS,
@@ -20,7 +26,11 @@ import {
   type Precinct,
   type TodayRecommendation,
 } from "../lib/api";
-import { navigateTo } from "../lib/navigation";
+import { getAreaInfo, getAreaRecommendation } from "../lib/areaInfo";
+import { type EasePlacesFeature } from "../lib/easePlaces";
+import { APP_ROUTES } from "../lib/navigation";
+import AreaDetailPage from "../pages/AreaDetailPage";
+import RecommendationFacilitiesPage from "../pages/RecommendationFacilitiesPage";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -46,6 +56,18 @@ function formatDetailSensorStatus(p: Precinct): string {
   return '✅ Live Sensors';
 }
 
+function getAreaIdFromSearch(search: string): string | null {
+  const areaId = new URLSearchParams(search).get("area");
+  return getAreaInfo(areaId)?.id ?? null;
+}
+
+function getRecommendationIdFromSearch(search: string): string | null {
+  const params = new URLSearchParams(search);
+  const areaId = params.get("area");
+  const recommendationId = params.get("place");
+  return getAreaRecommendation(areaId, recommendationId)?.id ?? null;
+}
+
 function adjustWeights(current: ComfortWeights, key: keyof ComfortWeights, nextValue: number): ComfortWeights {
   const clamped = Math.max(0, Math.min(100, Math.round(nextValue)));
   const otherKeys = (['temperature', 'humidity', 'activity'] as const).filter(item => item !== key);
@@ -61,6 +83,7 @@ function adjustWeights(current: ComfortWeights, key: keyof ComfortWeights, nextV
 function cpDotClass(category: string): string {
   if (category.includes('Arts')) return 'cp-dot cp-dot-arts';
   if (category.includes('Recreation')) return 'cp-dot cp-dot-recreation';
+  if (category.includes('Food') || category.includes('Dining')) return 'cp-dot cp-dot-food';
   return 'cp-dot cp-dot-shopping';
 }
 
@@ -115,6 +138,75 @@ function Pm25Info() {
           <p className="mt-1"><span className="font-semibold">Extremely Poor (&gt;150 ug/m3):</span> Everyone should avoid all outdoor exertion.</p>
         </div>
       )}
+    </div>
+  );
+}
+
+function SensorStatusBadge({
+  children,
+  tone = 'neutral',
+  pulse = false,
+  invisible = false,
+}: {
+  children: React.ReactNode;
+  tone?: 'neutral' | 'success' | 'error';
+  pulse?: boolean;
+  invisible?: boolean;
+}) {
+  const toneClass =
+    tone === 'success'
+      ? 'border-[#83c5be]/38 text-[#17413f]'
+      : tone === 'error'
+        ? 'border-[#e29578]/38 text-[#8f3d24]'
+        : 'border-[#17413f]/10 text-[#5f8682]';
+
+  return (
+    <div
+      className={`inline-flex min-h-10 items-center gap-2 rounded-full border px-4 text-xs font-semibold shadow-[inset_0_1px_0_rgba(255,255,255,0.6),0_12px_28px_rgba(16,32,31,0.08)] backdrop-blur-md ${
+        invisible ? 'invisible' : ''
+      } ${toneClass}`}
+      style={{
+        background:
+          'radial-gradient(circle at 18% 0%, rgba(255,255,255,0.4), transparent 38%), linear-gradient(135deg, rgba(255,255,255,0.72), rgba(237,246,249,0.52))',
+      }}
+    >
+      <span
+        className={`h-2.5 w-2.5 rounded-full ${
+          tone === 'success' ? 'bg-green-500' : tone === 'error' ? 'bg-[#e29578]' : 'bg-[#83c5be]'
+        } ${pulse ? 'animate-pulse' : ''}`}
+      />
+      <span className="whitespace-nowrap">{children}</span>
+    </div>
+  );
+}
+
+function SensorStatusRow({
+  loading,
+  error,
+}: {
+  loading: boolean;
+  error: string | null;
+  }) {
+    return (
+      <div className="flex shrink-0 items-center justify-end gap-2 whitespace-nowrap">
+        <div className="w-[126px] shrink-0 sm:w-[174px]">
+          {loading ? (
+            <SensorStatusBadge tone="neutral" pulse>
+              Loading sensors...
+          </SensorStatusBadge>
+        ) : error ? (
+          <SensorStatusBadge tone="error">
+            Sensor load issue
+          </SensorStatusBadge>
+        ) : (
+          <SensorStatusBadge invisible>
+            Loading sensors...
+          </SensorStatusBadge>
+        )}
+      </div>
+      <SensorStatusBadge tone="success" pulse>
+        Live sensors
+      </SensorStatusBadge>
     </div>
   );
 }
@@ -187,6 +279,18 @@ function EasePlacesPopup({
               <span className="cpp-detail-label">Opening Hours</span>
               <span className="cpp-detail-value">{feature.operatingHours}</span>
             </div>
+            {feature.reviewSource ? (
+              <div className="cpp-detail-row">
+                <span className="cpp-detail-label">Recommended by</span>
+                <span className="cpp-detail-value">{feature.reviewSource}</span>
+              </div>
+            ) : null}
+            {feature.reviewNote ? (
+              <div className="cpp-detail-row">
+                <span className="cpp-detail-label">Why it stands out</span>
+                <span className="cpp-detail-value">{feature.reviewNote}</span>
+              </div>
+            ) : null}
           </div>
         </div>
       )}
@@ -357,15 +461,23 @@ function LegendPanel() {
 
 // ─── App ──────────────────────────────────────────────────────────────────────
 
-export default function App() {
+export default function App({ mode }: { mode: "view" | "compare" }) {
+  const navigate = useNavigate();
+  const location = useLocation();
   const [weights, setWeights] = useState<ComfortWeights>(() => loadWeights());
   const [debouncedWeights, setDebouncedWeights] = useState<ComfortWeights>(weights);
-  const [activeTab, setActiveTab] = useState<"view" | "compare">("view");
+  const activeTab = mode;
+  const [selectedAreaId, setSelectedAreaId] = useState<string | null>(() =>
+    getAreaIdFromSearch(location.search)
+  );
+  const [selectedRecommendationId, setSelectedRecommendationId] = useState<string | null>(
+    () => getRecommendationIdFromSearch(location.search)
+  );
   const [mapFilters, setMapFilters] = useState<MapFilters>({
-    easePlaces: true,
+    easePlaces: false,
     comfortArea: true,
-    streetFacilities: true,
-    naturalPlaces: true,
+    streetFacilities: false,
+    naturalPlaces: false,
   });
   const shouldFetchPrecincts = activeTab === 'compare' || mapFilters.comfortArea;
 
@@ -379,7 +491,7 @@ export default function App() {
 
   const [showCard, setShowCard] = useState<string | null>(null);
   // Left sidebar starts collapsed — only relevant when Comfort Area filter is enabled
-  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(true);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(false);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [compareSelection1, setCompareSelection1] = useState<string | null>(null);
   const [compareSelection2, setCompareSelection2] = useState<string | null>(null);
@@ -388,7 +500,11 @@ export default function App() {
   const [openPanel, setOpenPanel] = useState<'layers' | 'legend' | null>('legend');
 
   // Ease Places popup
-  const [easePlacesPopup, setEasePlacesPopup] = useState<{ feature: EasePlacesFeature; point: { x: number; y: number } } | null>(null);
+  const [easePlacesPopup, setEasePlacesPopup] = useState<{
+    feature: EasePlacesFeature;
+    point: { x: number; y: number };
+    viewport: { width: number; height: number };
+  } | null>(null);
 
   // Time recommendation state
   const [selectedDestId, setSelectedDestId] = useState<string | null>(null);
@@ -405,8 +521,29 @@ export default function App() {
   }, []);
 
   const handleBrandClick = useCallback(() => {
-    navigateTo("/");
-  }, []);
+    navigate(APP_ROUTES.home);
+  }, [navigate]);
+
+  const handleAreaNavigation = useCallback((
+    areaId: string | null,
+    recommendationId: string | null = null
+  ) => {
+    const params = new URLSearchParams(location.search);
+    const pathname = location.pathname;
+    if (areaId) params.set("area", areaId);
+    else params.delete("area");
+    if (areaId && recommendationId) params.set("place", recommendationId);
+    else params.delete("place");
+    const nextSearch = params.toString();
+    const nextUrl = `${pathname}${nextSearch ? `?${nextSearch}` : ""}`;
+    const currentUrl = `${pathname}${location.search}`;
+    if (nextUrl === currentUrl) {
+      setSelectedAreaId(areaId);
+      setSelectedRecommendationId(recommendationId);
+      return;
+    }
+    navigate(nextUrl);
+  }, [location.pathname, location.search, navigate]);
 
   const categories = [
     { name: "Comfortable", level: "low",     color: "#22c55e", bgColor: "bg-green-100",  textColor: "text-green-800" },
@@ -415,6 +552,11 @@ export default function App() {
   ];
 
   useEffect(() => { saveWeights(weights); }, [weights]);
+
+  useEffect(() => {
+    setSelectedAreaId(getAreaIdFromSearch(location.search));
+    setSelectedRecommendationId(getRecommendationIdFromSearch(location.search));
+  }, [location.search]);
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedWeights(weights), 800);
@@ -480,8 +622,12 @@ export default function App() {
     }
   }, [activeTab, handleCompareClick]);
 
-  const handleEasePlacesClick = useCallback((feature: EasePlacesFeature, point: { x: number; y: number }) => {
-    setEasePlacesPopup({ feature, point });
+  const handleEasePlacesClick = useCallback((
+    feature: EasePlacesFeature,
+    point: { x: number; y: number },
+    viewport: { width: number; height: number }
+  ) => {
+    setEasePlacesPopup({ feature, point, viewport });
   }, []);
 
   const handleZoomTo = useCallback((feature: EasePlacesFeature) => {
@@ -590,165 +736,312 @@ export default function App() {
   if (showTimeRecommendation && selectedDestId) {
     const destPrecinct = precincts[selectedDestId];
     const destName = destPrecinct?.name ?? selectedDestId;
+    const currentScore = destPrecinct?.comfort_score ?? 0;
+    const currentTemp = destPrecinct?.temperature;
+    const currentHumidity = destPrecinct?.humidity;
+    const currentWind = destPrecinct?.wind_speed;
+    const crowdLevel = destPrecinct?.activity_level ?? "Unknown";
+    const currentStatus = todayData?.recommendation ?? (destPrecinct?.comfort_label === 'Comfortable'
+      ? 'Excellent conditions right now.'
+      : destPrecinct?.comfort_label === 'Caution'
+        ? 'Conditions are elevated. Consider safer time windows.'
+        : 'High risk conditions. Delay travel if possible.');
+
+    const hourlyData = [
+      { time: "6AM", score: Math.min(100, currentScore + 8), temp: currentTemp !== null && currentTemp !== undefined ? Math.max(8, currentTemp - 4) : 16, crowd: 24 },
+      { time: "9AM", score: Math.min(100, currentScore + 4), temp: currentTemp !== null && currentTemp !== undefined ? Math.max(10, currentTemp - 2) : 18, crowd: 42 },
+      { time: "12PM", score: Math.max(45, currentScore - 12), temp: currentTemp !== null && currentTemp !== undefined ? currentTemp + 2 : 24, crowd: 80 },
+      { time: "3PM", score: Math.max(48, currentScore - 8), temp: currentTemp !== null && currentTemp !== undefined ? currentTemp + 3 : 25, crowd: 72 },
+      { time: "6PM", score: Math.min(100, currentScore + 3), temp: currentTemp !== null && currentTemp !== undefined ? Math.max(10, currentTemp - 1) : 20, crowd: 44 },
+      { time: "9PM", score: Math.max(52, currentScore - 10), temp: currentTemp !== null && currentTemp !== undefined ? Math.max(8, currentTemp - 5) : 16, crowd: 18 },
+    ];
+
+    const timeSlots = [
+      {
+        period: "Morning Golden Hour",
+        time: "6:00 AM - 10:00 AM",
+        score: Math.min(100, currentScore + 8),
+        icon: <Sun className="w-7 h-7" />,
+        image: "https://images.unsplash.com/photo-1494548162494-384bba4ab999?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080",
+        reasons: [
+          "Cooler temperatures usually reduce heat stress.",
+          "Crowd density is typically lower in early hours.",
+          "Better comfort window for walking and cycling.",
+          "Lower exposure to peak daytime heat.",
+        ],
+        stats: [
+          { label: "Temperature", value: currentTemp !== null && currentTemp !== undefined ? `${Math.max(8, currentTemp - 4)}-${Math.max(10, currentTemp - 2)}°C` : "15-18°C", icon: <ThermometerSun className="w-4 h-4" /> },
+          { label: "Crowd", value: "Low", icon: <Users className="w-4 h-4" /> },
+          { label: "Visibility", value: "Good", icon: <Eye className="w-4 h-4" /> },
+        ],
+      },
+      {
+        period: "Evening Sunset",
+        time: "5:00 PM - 8:00 PM",
+        score: Math.min(100, currentScore + 3),
+        icon: <Moon className="w-7 h-7" />,
+        image: "https://images.unsplash.com/photo-1542159919831-40fb0656b45a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080",
+        reasons: [
+          "Temperature tends to drop from afternoon peaks.",
+          "Crowds usually become more manageable.",
+          "More relaxed travel conditions for casual routes.",
+          "Lower heat exposure than midday.",
+        ],
+        stats: [
+          { label: "Temperature", value: currentTemp !== null && currentTemp !== undefined ? `${Math.max(10, currentTemp - 1)}-${Math.max(8, currentTemp - 4)}°C` : "20-24°C", icon: <ThermometerSun className="w-4 h-4" /> },
+          { label: "Crowd", value: "Medium", icon: <Users className="w-4 h-4" /> },
+          { label: "Visibility", value: "Good", icon: <Eye className="w-4 h-4" /> },
+        ],
+      },
+    ];
+
+    const alternativeSlot = {
+      period: "Midday",
+      time: "12:00 PM - 2:00 PM",
+      score: Math.max(45, currentScore - 12),
+      note: "Usually hotter and busier than morning/evening windows.",
+    };
+
+    const preparations = [
+      {
+        icon: <ThermometerSun className="w-6 h-6" />,
+        title: "Sun Protection",
+        text: "Bring sunscreen, sunglasses, and a hat for stronger daytime heat exposure.",
+        priority: "High",
+      },
+      {
+        icon: <Droplets className="w-6 h-6" />,
+        title: "Hydration",
+        text: "Carry enough water and rehydrate before and during outdoor travel.",
+        priority: "High",
+      },
+      {
+        icon: <Wind className="w-6 h-6" />,
+        title: "Layered Clothing",
+        text: "Use breathable layers to adapt to temperature shifts across time periods.",
+        priority: "Medium",
+      },
+      {
+        icon: <Clock className="w-6 h-6" />,
+        title: "Arrival Time",
+        text: "Start earlier to avoid peak crowding and reduce midday heat exposure.",
+        priority: "High",
+      },
+    ];
 
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-gray-100 relative overflow-hidden">
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute -top-40 -right-40 w-80 h-80 bg-gradient-to-br from-blue-100/20 to-gray-200/20 rounded-full blur-3xl" />
-          <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-gradient-to-tr from-gray-100/20 to-blue-100/20 rounded-full blur-3xl" />
-          <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-gradient-to-br from-blue-100/10 to-gray-100/10 rounded-full blur-3xl" />
-        </div>
+      <div className="min-h-screen bg-[#081515]">
+        <div className="relative h-64 overflow-hidden">
+          <div
+            className="absolute inset-0 bg-cover bg-center"
+            style={{ backgroundImage: "url('https://images.unsplash.com/photo-1562310503-a918c4c61e38?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080')" }}
+          >
+            <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/40 to-transparent" />
+          </div>
 
-        <nav className="bg-white/80 backdrop-blur-md shadow-lg mb-6 relative z-10 border-b border-white/20">
-          <div className="px-6 py-2">
-            <div className="flex items-center justify-between">
-              <button
-                type="button"
-                className="relative h-14 w-56 cursor-pointer border-0 bg-transparent p-0"
-                onClick={handleBrandClick}
-                aria-label="Return to EaseMove landing"
-              >
-                <img src={logo} alt="EaseMove logo" className="absolute left-0 top-1/2 h-56 w-56 -translate-y-1/2 object-contain" />
-              </button>
-              <div />
+          <div className="relative z-10 px-4 py-6">
+            <button
+              type="button"
+              onClick={() => { setShowTimeRecommendation(false); setSelectedDestId(null); setTodayData(null); }}
+              className="flex items-center gap-2 text-white/90 hover:text-white mb-6 transition-colors"
+            >
+              <ArrowLeft className="w-5 h-5" />
+              <span>Back</span>
+            </button>
+
+            <div className="max-w-4xl mx-auto">
+              <div className="flex items-center gap-2 mb-2">
+                <MapPin className="w-5 h-5 text-emerald-400" />
+                <span className="text-emerald-400 text-sm font-medium">Destination</span>
+              </div>
+              <h1 className="text-3xl font-bold text-white mb-2">{destName}</h1>
+              <p className="text-white/80 text-sm">Optimal time recommendations based on weather, crowd, and conditions</p>
             </div>
           </div>
-        </nav>
+        </div>
 
-        <div className="px-6 pb-6 relative z-10">
-          <div className="max-w-5xl mx-auto">
-            <div className="mb-3">
-              <button
-                type="button"
-                onClick={() => { setShowTimeRecommendation(false); setSelectedDestId(null); setTodayData(null); }}
-                className="flex items-center gap-2 rounded-lg bg-blue-500 px-3 py-2 text-sm text-white transition-colors hover:bg-blue-600"
-              >
-                <ArrowLeft className="h-4 w-4" />
-                <span>Back</span>
-              </button>
-            </div>
-            <div className="bg-white/95 backdrop-blur-sm rounded-xl shadow-xl p-6 mb-6 border border-white/20">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="p-3 bg-gradient-to-br from-amber-500 to-orange-600 rounded-lg shadow-lg">
-                  <Map className="w-6 h-6 text-white" />
+        <div className="max-w-4xl mx-auto px-4 py-8 space-y-8">
+          <div className="bg-gradient-to-br from-slate-800/90 to-slate-900/90 backdrop-blur-sm rounded-2xl border border-slate-700/50 overflow-hidden">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h2 className="text-2xl font-bold text-white mb-1">Right Now</h2>
+                  <p className="text-slate-400 text-sm">Current conditions at {destName}</p>
                 </div>
-                <div className="flex-1">
-                  <h2 className="text-2xl font-semibold bg-gradient-to-r from-amber-600 to-orange-600 bg-clip-text text-transparent">Time-slot Recommendation</h2>
-                  <p className="text-sm text-gray-600">Optimal travel times based on real-time sensor data</p>
-                </div>
+                <Clock className="w-8 h-8 text-emerald-400" />
               </div>
-              <div className="bg-gradient-to-r from-teal-50 to-cyan-50 rounded-lg p-4 border-2 border-teal-200">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-teal-500 rounded-full flex items-center justify-center text-white">📍</div>
-                  <div>
-                    <p className="text-sm text-gray-600">Destination</p>
-                    <p className="text-xl font-bold text-teal-700">{destName}</p>
+
+              <div className="flex items-end gap-6 mb-8">
+                <div>
+                  <div className="text-7xl font-bold text-emerald-400">{currentScore}</div>
+                  <div className="flex items-center gap-2 mt-2">
+                    <Star className="w-5 h-5 text-yellow-400 fill-yellow-400" />
+                    <span className="text-slate-300">{currentStatus}</span>
+                  </div>
+                </div>
+
+                <div className="flex-1 pb-2">
+                  <div className="text-sm text-slate-400 mb-2">Score Trend</div>
+                  <div className="h-16">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={hourlyData}>
+                        <defs>
+                          <linearGradient id="scoreGradient" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
+                            <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                          </linearGradient>
+                        </defs>
+                        <Area type="monotone" dataKey="score" stroke="#10b981" strokeWidth={2} fill="url(#scoreGradient)" />
+                      </AreaChart>
+                    </ResponsiveContainer>
                   </div>
                 </div>
               </div>
+
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/30">
+                  <div className="flex items-center gap-2 mb-2">
+                    <ThermometerSun className="w-5 h-5 text-orange-400" />
+                    <span className="text-slate-400 text-xs">Temperature</span>
+                  </div>
+                  <div className="text-2xl font-bold text-white">{currentTemp !== null && currentTemp !== undefined ? `${currentTemp}°C` : "N/A"}</div>
+                </div>
+                <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/30">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Droplets className="w-5 h-5 text-blue-400" />
+                    <span className="text-slate-400 text-xs">Humidity</span>
+                  </div>
+                  <div className="text-2xl font-bold text-white">{currentHumidity !== null && currentHumidity !== undefined ? `${currentHumidity}%` : "N/A"}</div>
+                </div>
+                <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/30">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Wind className="w-5 h-5 text-cyan-400" />
+                    <span className="text-slate-400 text-xs">Wind Speed</span>
+                  </div>
+                  <div className="text-2xl font-bold text-white">{currentWind !== null && currentWind !== undefined ? `${currentWind} m/s` : "N/A"}</div>
+                </div>
+                <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/30">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Users className="w-5 h-5 text-purple-400" />
+                    <span className="text-slate-400 text-xs">Crowd Level</span>
+                  </div>
+                  <div className="text-2xl font-bold text-white">{crowdLevel}</div>
+                </div>
+              </div>
             </div>
 
-            <div className="bg-white/95 backdrop-blur-sm rounded-xl shadow-xl p-6 mb-6 border border-white/20">
-              <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
-                <span className="text-2xl">⭐</span>
-                <span>Right Now</span>
-              </h3>
-              {loadingToday ? (
-                <div className="text-center py-4 text-gray-500">Loading sensor data…</div>
-              ) : destPrecinct ? (
-                <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-5 border-2 border-green-300">
+            <div className="px-6 pb-6">
+              <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-700/30">
+                <h3 className="text-white font-semibold mb-4">Today's Forecast</h3>
+                <ResponsiveContainer width="100%" height={120}>
+                  <LineChart data={hourlyData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                    <XAxis dataKey="time" stroke="#94a3b8" style={{ fontSize: "12px" }} />
+                    <YAxis stroke="#94a3b8" style={{ fontSize: "12px" }} />
+                    <Tooltip contentStyle={{ backgroundColor: "#1e293b", border: "1px solid #334155", borderRadius: "8px" }} labelStyle={{ color: "#e2e8f0" }} />
+                    <Line type="monotone" dataKey="score" stroke="#10b981" strokeWidth={2} dot={{ fill: "#10b981", r: 4 }} />
+                    <Line type="monotone" dataKey="temp" stroke="#f59e0b" strokeWidth={2} dot={{ fill: "#f59e0b", r: 4 }} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <div className="flex items-center gap-3 mb-6">
+              <TrendingUp className="w-6 h-6 text-emerald-400" />
+              <h2 className="text-2xl font-bold text-white">Recommended Time Slots</h2>
+            </div>
+
+            <div className="space-y-6">
+              {timeSlots.map((slot) => (
+                <div key={slot.period} className="group bg-slate-800/90 backdrop-blur-sm rounded-2xl border border-slate-700/50 overflow-hidden hover:border-emerald-500/50 transition-all cursor-pointer">
+                  <div className="grid md:grid-cols-5 gap-0">
+                    <div className="md:col-span-2 relative h-64 md:h-auto overflow-hidden">
+                      <img src={slot.image} alt={slot.period} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                      <div className="absolute inset-0 bg-gradient-to-r from-transparent to-slate-800/90" />
+                      <div className="absolute top-4 left-4 bg-emerald-500 text-white px-4 py-2 rounded-full font-bold text-lg">
+                        Score: {slot.score}
+                      </div>
+                    </div>
+
+                    <div className="md:col-span-3 p-6">
+                      <div className="flex items-start justify-between mb-4">
+                        <div className="flex items-center gap-3">
+                          <div className="p-3 bg-emerald-500/20 rounded-xl text-emerald-400">{slot.icon}</div>
+                          <div>
+                            <h3 className="text-xl font-bold text-white">{slot.period}</h3>
+                            <p className="text-slate-400">{slot.time}</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-3 mb-4">
+                        {slot.stats.map((stat) => (
+                          <div key={stat.label} className="bg-slate-900/50 rounded-lg p-3 border border-slate-700/30">
+                            <div className="flex items-center gap-2 text-slate-400 mb-1">
+                              {stat.icon}
+                              <span className="text-xs">{stat.label}</span>
+                            </div>
+                            <div className="text-white font-semibold text-sm">{stat.value}</div>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="space-y-2">
+                        {slot.reasons.map((reason) => (
+                          <div key={reason} className="flex items-start gap-2">
+                            <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1.5 shrink-0" />
+                            <span className="text-slate-300 text-sm">{reason}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+
+              <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl border border-slate-700/30 p-5">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Clock className="w-5 h-5 text-slate-400" />
+                      <span className="font-semibold text-white">{alternativeSlot.period}</span>
+                    </div>
+                    <div className="text-sm text-slate-400 mb-1">{alternativeSlot.time}</div>
+                    <div className="text-xs text-slate-500">{alternativeSlot.note}</div>
+                  </div>
+                  <div className="text-3xl font-bold text-slate-400">{alternativeSlot.score}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="pb-8">
+            <div className="flex items-center gap-3 mb-6">
+              <Lightbulb className="w-6 h-6 text-yellow-400" />
+              <h2 className="text-2xl font-bold text-white">Preparation Advice</h2>
+            </div>
+
+            <div className="grid md:grid-cols-2 gap-4">
+              {preparations.map((prep) => (
+                <div key={prep.title} className="bg-slate-800/90 backdrop-blur-sm rounded-xl border border-slate-700/50 p-5 hover:border-emerald-500/50 transition-colors">
                   <div className="flex items-start gap-4">
-                    <div className="flex-shrink-0 w-12 h-12 bg-green-500 rounded-full flex items-center justify-center text-white text-xl">✓</div>
+                    <div className="p-3 bg-gradient-to-br from-emerald-500/20 to-cyan-500/20 rounded-xl text-emerald-400 shrink-0">
+                      {prep.icon}
+                    </div>
                     <div className="flex-1">
-                      <p className="text-lg font-semibold text-green-900 mb-2">
-                        {todayData?.recommendation ?? (destPrecinct.comfort_label === 'Comfortable' ? 'Good time to travel. Conditions are comfortable right now.' : destPrecinct.comfort_label === 'Caution' ? 'Conditions are elevated. Consider travelling before 10am or after 5pm.' : 'High risk conditions. Consider waiting or using alternative transport.')}
-                      </p>
-                      <p className="text-sm text-gray-700 mb-3">
-                        Current comfort score for {destName} is <span className="font-bold text-green-700">{destPrecinct.comfort_score}/100</span>
-                      </p>
-                      <div className="grid grid-cols-2 gap-3 mt-3">
-                        <div className="bg-white/70 rounded-lg p-2 text-xs"><span className="text-gray-600">Temperature:</span><span className="font-bold ml-1">{destPrecinct.temperature !== null ? `${destPrecinct.temperature}°C` : 'N/A'}</span></div>
-                        <div className="bg-white/70 rounded-lg p-2 text-xs"><span className="text-gray-600">Humidity:</span><span className="font-bold ml-1">{destPrecinct.humidity !== null ? `${destPrecinct.humidity}%` : 'N/A'}</span></div>
-                        <div className="bg-white/70 rounded-lg p-2 text-xs"><span className="text-gray-600">Activity Level:</span><span className="font-bold ml-1">{destPrecinct.activity_level}</span></div>
-                        <div className="bg-white/70 rounded-lg p-2 text-xs"><span className="text-gray-600">Wind Speed:</span><span className="font-bold ml-1">{destPrecinct.wind_speed !== null ? `${destPrecinct.wind_speed} m/s` : 'N/A'}</span></div>
+                      <div className="flex items-center justify-between mb-2">
+                        <h3 className="font-semibold text-white">{prep.title}</h3>
+                        <span className={`text-xs px-2 py-1 rounded-full ${prep.priority === "High" ? "bg-red-500/20 text-red-400" : "bg-yellow-500/20 text-yellow-400"}`}>
+                          {prep.priority}
+                        </span>
                       </div>
+                      <p className="text-sm text-slate-300">{prep.text}</p>
                     </div>
                   </div>
                 </div>
-              ) : (
-                <p className="text-gray-500 text-sm">No data available for this precinct.</p>
-              )}
-            </div>
-
-            <div className="bg-white/95 backdrop-blur-sm rounded-xl shadow-xl p-6 mb-6 border border-white/20">
-              <h3 className="text-xl font-semibold mb-4">Recommended Time Slots</h3>
-              <div className="space-y-4">
-                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4 border-2 border-blue-200">
-                  <div className="flex items-center gap-3 mb-2">
-                    <span className="text-2xl">🌅</span>
-                    <div>
-                      <p className="font-bold text-lg text-blue-900">Morning 7:00 – 10:00</p>
-                      <p className="text-sm text-blue-700">Typically cooler with lower crowd density</p>
-                    </div>
-                  </div>
-                  <div className="mt-3 p-3 bg-white/60 rounded-lg">
-                    <p className="text-sm text-gray-700"><span className="font-semibold">Why:</span> Morning temperatures are generally more comfortable, crowds are lower, and air quality tends to be better before peak traffic.</p>
-                  </div>
-                </div>
-                <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-4 border-2 border-purple-200">
-                  <div className="flex items-center gap-3 mb-2">
-                    <span className="text-2xl">🌆</span>
-                    <div>
-                      <p className="font-bold text-lg text-purple-900">Evening After 17:00</p>
-                      <p className="text-sm text-purple-700">Temperature drops, crowd density decreases</p>
-                    </div>
-                  </div>
-                  <div className="mt-3 p-3 bg-white/60 rounded-lg">
-                    <p className="text-sm text-gray-700"><span className="font-semibold">Why:</span> Evening conditions are typically cooler, avoiding the hottest afternoon period, with higher overall comfort levels.</p>
-                  </div>
-                </div>
-              </div>
-              <div className="mt-5 p-4 bg-yellow-50 rounded-lg border-l-4 border-yellow-400">
-                <p className="text-sm font-semibold text-yellow-900 mb-2">💡 Alternative Suggestion</p>
-                <p className="text-sm text-gray-700">If travelling between 12:00–15:00, consider indoor routes or bring sun protection as temperatures are higher during this period.</p>
-              </div>
-            </div>
-
-            <div className="bg-white/95 backdrop-blur-sm rounded-xl shadow-xl p-6 border border-white/20">
-              <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
-                <span className="text-2xl">🎒</span>
-                <span>Preparation Advice</span>
-              </h3>
-              <div className="space-y-3">
-                {destPrecinct && getPreparationAdvice(destPrecinct).map((adv, i) => (
-                  <div key={i} className="bg-gradient-to-r from-green-50 via-emerald-50 to-teal-50 rounded-xl border-2 border-green-200 hover:border-green-300 shadow-sm hover:shadow-md transition-all p-4">
-                    <div className="flex items-start gap-3 mb-2">
-                      <div className="flex-shrink-0 w-10 h-10 flex items-center justify-center bg-white rounded-full shadow-sm">
-                        <span className="text-2xl">{adv.icon}</span>
-                      </div>
-                      <div className="flex-1 pt-1">
-                        <p className="text-sm font-semibold text-gray-800 mb-2">{adv.text}</p>
-                        <span className="text-xs bg-white px-2 py-1 rounded-full text-gray-600 border border-gray-200 font-medium">{adv.category}</span>
-                      </div>
-                    </div>
-                    <div className="ml-14 mt-2 text-xs text-gray-600 bg-white/60 rounded-lg px-3 py-2 border border-gray-200">
-                      <span className="font-medium inline-flex items-center gap-1">
-                        <span>📊</span>
-                        {adv.trigger.includes('PM2.5') ? (
-                          <>
-                            <span>{adv.trigger.slice(0, adv.trigger.indexOf('PM2.5'))}</span>
-                            <span>PM2.5</span>
-                            <Pm25Info />
-                            <span>{adv.trigger.slice(adv.trigger.indexOf('PM2.5') + 'PM2.5'.length)}</span>
-                          </>
-                        ) : (
-                          <span>{adv.trigger}</span>
-                        )}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
+              ))}
             </div>
           </div>
         </div>
@@ -760,31 +1053,63 @@ export default function App() {
 
   const showCardPrecinct = showCard ? precincts[showCard] : null;
   const betterPrecinctId = getBetterPrecinct();
+  const selectedArea = getAreaInfo(selectedAreaId);
+  const selectedRecommendation = getAreaRecommendation(selectedAreaId, selectedRecommendationId);
+
+  if (selectedArea && selectedRecommendation) {
+    return (
+      <RecommendationFacilitiesPage
+        area={selectedArea}
+        recommendation={selectedRecommendation}
+        onBack={() => handleAreaNavigation(selectedArea.id, null)}
+      />
+    );
+  }
+
+  if (selectedArea) {
+    return (
+      <AreaDetailPage
+        area={selectedArea}
+        onBack={() => handleAreaNavigation(null)}
+        onRecommendationClick={(recommendationId) =>
+          handleAreaNavigation(selectedArea.id, recommendationId)
+        }
+      />
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-gray-100 relative overflow-hidden">
+    <div className="relative min-h-[100dvh] overflow-hidden bg-[#f7fbfa] text-[#10201f]">
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 -right-40 w-80 h-80 bg-gradient-to-br from-blue-100/20 to-gray-200/20 rounded-full blur-3xl" />
-        <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-gradient-to-tr from-gray-100/20 to-blue-100/20 rounded-full blur-3xl" />
-        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-gradient-to-br from-blue-100/10 to-gray-100/10 rounded-full blur-3xl" />
+        <div className="absolute inset-0 bg-[linear-gradient(180deg,#122d2b_0%,#edf8f5_17%,#f7fbfa_74%,#dfeee9_100%)]" />
+        <div className="absolute inset-x-0 top-0 h-[26vh] bg-[radial-gradient(circle_at_50%_0%,rgba(131,197,190,0.26),transparent_62%)]" />
+        <div className="absolute inset-x-0 bottom-0 h-[24vh] bg-[radial-gradient(circle_at_50%_100%,rgba(23,65,63,0.14),transparent_66%)]" />
+        <div className="absolute -top-36 -right-28 h-80 w-80 rounded-full bg-[#83c5be]/10 blur-3xl" />
+        <div className="absolute -bottom-44 -left-24 h-96 w-96 rounded-full bg-[#83c5be]/12 blur-3xl" />
       </div>
 
       {/* Nav */}
-      <nav className="bg-white/80 backdrop-blur-md shadow-lg mb-4 relative z-10 border-b border-white/20">
-        <div className="px-6 py-2">
-          <div className="flex items-center justify-between">
-            <button
-              type="button"
-              className="relative h-14 w-56 cursor-pointer border-0 bg-transparent p-0"
-              onClick={handleBrandClick}
-              aria-label="Return to EaseMove landing"
-            >
-              <img src={logo} alt="EaseMove logo" className="absolute left-0 top-1/2 h-56 w-56 -translate-y-1/2 object-contain" />
-            </button>
-            <div className="flex items-center gap-4">
-              {loading && <span className="text-sm text-gray-400 animate-pulse">Loading sensors…</span>}
-              {error && <span className="text-sm text-red-500">⚠ {error}</span>}
-              <div className="flex items-center gap-2 text-xs text-gray-500">
+        <nav className="relative z-[130] mb-0 px-4 pt-4 sm:px-6">
+          <div className="w-full rounded-t-[26px] rounded-b-none border border-white/36 border-b-0 bg-[radial-gradient(circle_at_18%_0%,rgba(255,255,255,0.42),transparent_36%),linear-gradient(135deg,rgba(247,250,251,0.84),rgba(232,238,241,0.66))] px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.6),0_18px_40px_rgba(56,71,77,0.08)] backdrop-blur-md sm:px-6 sm:py-4">
+            <div className="flex flex-nowrap items-center justify-between gap-3 max-[720px]:gap-2">
+              <button
+                type="button"
+                className="relative h-16 w-60 shrink-0 max-w-full overflow-hidden cursor-pointer border-0 bg-transparent p-0 max-[980px]:h-14 max-[980px]:w-52 max-[720px]:h-12 max-[720px]:w-40"
+                onClick={handleBrandClick}
+                aria-label="Return to EaseMove landing"
+              >
+                <img
+                  src={logo}
+                  alt="EaseMove logo"
+                  className="pointer-events-none absolute left-0 top-1/2 h-60 w-60 -translate-y-1/2 object-contain max-[980px]:h-56 max-[980px]:w-56 max-[720px]:h-44 max-[720px]:w-44"
+                />
+              </button>
+              <div className="map-nav-status-shell ml-auto flex min-w-0 shrink-0 items-center justify-end gap-2 sm:gap-3">
+                <AppTopNav variant="app" className="app-map-top-nav" />
+                <SensorStatusRow loading={loading} error={error} />
+                {loading && <span className="text-sm text-gray-400 animate-pulse">Loading sensors…</span>}
+                {error && <span className="text-sm text-red-500">⚠ {error}</span>}
+                <div className="hidden shrink-0 items-center gap-2 text-xs text-gray-500">
                 <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
                 Live sensors
               </div>
@@ -794,34 +1119,29 @@ export default function App() {
       </nav>
 
       {/* Main */}
-      <div className="px-6 pb-4 relative z-10">
+      <div className="relative z-10 px-4 pb-4 sm:px-6">
         <div className="grid grid-cols-1 gap-6">
-          <div className="bg-white/95 backdrop-blur-sm rounded-xl shadow-2xl border border-white/20" id="map-container">
+          <div className="-mt-px overflow-hidden rounded-b-[28px] rounded-t-none border border-white/36 border-t-0 bg-[radial-gradient(circle_at_18%_0%,rgba(255,255,255,0.42),transparent_36%),linear-gradient(135deg,rgba(247,250,251,0.84),rgba(232,238,241,0.66))] shadow-[0_24px_60px_rgba(16,32,31,0.14)] backdrop-blur-md" id="map-container">
 
             {/* Tabs */}
-            <div className="border-b border-gray-200">
+            <div className="border-b border-[#17413f]/10 bg-[radial-gradient(circle_at_18%_0%,rgba(255,255,255,0.36),transparent_38%),linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0.02))]">
               <div className="flex items-center justify-between px-6 pt-4">
                 <div className="flex items-center">
                   {(['view', 'compare'] as const).map(tab => (
                     <button
                       type="button"
                       key={tab}
-                      onClick={() => { setActiveTab(tab); setShowCard(null); }}
-                      className={`px-6 py-3 font-medium text-sm transition-all relative ${activeTab === tab ? 'text-teal-600' : 'text-gray-600 hover:text-gray-900'}`}
+                      onClick={() => {
+                        setShowCard(null);
+                        navigate(tab === "view" ? APP_ROUTES.map : APP_ROUTES.compare);
+                      }}
+                      className={`px-6 py-3 font-medium text-sm transition-all relative ${activeTab === tab ? 'text-[#006d77]' : 'text-[#5f8682] hover:text-[#17413f]'}`}
                     >
                       {tab.charAt(0).toUpperCase() + tab.slice(1)}
-                      {activeTab === tab && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-teal-600" />}
+                      {activeTab === tab && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#006d77]" />}
                     </button>
                   ))}
                 </div>
-                <button
-                  type="button"
-                  onClick={() => navigateTo('/extreme-weather-risks')}
-                  className="px-4 py-2 mb-2 rounded-lg border text-sm font-semibold transition-all flex items-center gap-2 border-gray-300 text-gray-700 hover:border-amber-300 hover:bg-amber-50/60"
-                >
-                  <img src={warningIcon} alt="" className="h-4 w-4 object-contain" aria-hidden="true" />
-                  <span>Extreme Weather Risks</span>
-                </button>
               </div>
             </div>
 
@@ -830,11 +1150,11 @@ export default function App() {
               <>
                 <div className="p-6 pb-4">
                   <div className="flex items-center gap-3">
-                    <div className="p-3 bg-gradient-to-br from-teal-500 to-cyan-600 rounded-lg shadow-lg">
+                    <div className="p-3 bg-gradient-to-br from-[#006d77] to-[#17413f] rounded-2xl shadow-lg">
                       <Map className="w-6 h-6 text-white" />
                     </div>
                     <div className="flex-1">
-                      <h2 className="text-2xl font-semibold bg-gradient-to-r from-teal-600 to-cyan-600 bg-clip-text text-transparent">
+                      <h2 className="text-2xl font-semibold bg-gradient-to-r from-[#17413f] to-[#006d77] bg-clip-text text-transparent">
                         Interactive Map View
                       </h2>
                       <p className="text-sm text-gray-600">
@@ -847,13 +1167,13 @@ export default function App() {
                 <div className="flex">
                   {/* Left sidebar — hidden when Ease Places is active */}
                   <div
-                    className={`border-r border-gray-200 bg-gray-50/50 transition-all duration-300 overflow-x-hidden overflow-y-auto ${
+                    className={`border-r border-[#17413f]/8 bg-[linear-gradient(180deg,rgba(237,246,249,0.92),rgba(247,251,250,0.86))] transition-all duration-300 overflow-x-hidden overflow-y-auto ${
                       sidebarCollapsed || !mapFilters.comfortArea ? 'w-0' : 'w-56'
                     }`}
                     style={{ height: "clamp(420px, calc(100vh - 230px), 680px)" }}
                   >
                     <div className="p-4 w-56">
-                      <h3 className="font-semibold mb-3 text-sm text-gray-700">Filter by Comfort</h3>
+                      <h3 className="font-semibold mb-3 text-sm text-[#17413f]">Filter by Comfort</h3>
                       <div className="space-y-2 map-legend-items">
                         {categories.map(cat => (
                           <button
@@ -863,7 +1183,7 @@ export default function App() {
                             className={`w-full text-left px-4 py-3 rounded-lg flex items-center gap-3 transition-all border-2 ${
                               selectedCategory === cat.level
                                 ? `${cat.bgColor} ${cat.textColor} shadow-lg scale-105 font-semibold`
-                                : 'bg-white hover:bg-gray-50 text-gray-700 border-gray-200'
+                                : 'bg-white/78 hover:bg-white text-[#294745] border-[#17413f]/10'
                             }`}
                             style={{ borderColor: selectedCategory === cat.level ? cat.color : undefined }}
                           >
@@ -876,13 +1196,13 @@ export default function App() {
                         ))}
                       </div>
 
-                      <div className="mt-5 border-t border-gray-200 pt-4">
+                      <div className="mt-5 border-t border-[#17413f]/10 pt-4">
                         <div className="flex items-center justify-between mb-3">
-                          <h3 className="font-semibold text-sm text-gray-700">Comfort Preferences</h3>
+                          <h3 className="font-semibold text-sm text-[#17413f]">Comfort Preferences</h3>
                           <button
                             type="button"
                             onClick={() => setWeights(DEFAULT_WEIGHTS)}
-                            className="text-xs font-semibold text-teal-700 hover:text-teal-900"
+                            className="text-xs font-semibold text-[#006d77] hover:text-[#17413f]"
                           >
                             Reset
                           </button>
@@ -890,12 +1210,12 @@ export default function App() {
                         {([
                           ['temperature', 'Temperature'],
                           ['humidity', 'Humidity'],
-                          ['activity', 'Activity'],
+                          ['activity', 'Crowd Density'],
                         ] as const).map(([key, label]) => (
                           <label key={key} className="block mb-3">
-                            <div className="flex items-center justify-between text-xs text-gray-600 mb-1">
+                            <div className="flex items-center justify-between text-xs text-[#5f8682] mb-1">
                               <span>{label}</span>
-                              <span className="font-bold text-gray-800">{weights[key]}%</span>
+                              <span className="font-bold text-[#17413f]">{weights[key]}%</span>
                             </div>
                             <input
                               type="range"
@@ -908,7 +1228,7 @@ export default function App() {
                             />
                           </label>
                         ))}
-                        <p className="text-[11px] leading-4 text-gray-500">
+                        <p className="text-[11px] leading-4 text-[#5f8682]">
                           Scores refresh through the backend as you adjust these weights. Your preferences are saved on this device only.
                         </p>
                       </div>
@@ -922,7 +1242,7 @@ export default function App() {
                       <button
                         type="button"
                         onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-                        className="absolute top-20 left-4 z-30 bg-white/95 hover:bg-white shadow-lg rounded-lg p-2 transition-colors"
+                        className="absolute top-20 left-4 z-30 bg-[rgba(247,255,253,0.94)] hover:bg-white shadow-[0_16px_36px_rgba(4,14,14,0.18)] rounded-2xl border border-[#83c5be]/20 p-2 transition-colors text-[#17413f]"
                         aria-label={sidebarCollapsed ? "Show sidebar" : "Hide sidebar"}
                         title={sidebarCollapsed ? "Show sidebar" : "Hide sidebar"}
                       >
@@ -952,7 +1272,7 @@ export default function App() {
                       <MapFilterPanel filters={mapFilters} onToggle={handleToggleMapFilter} />
                     )}
                     {openPanel === 'legend' && (
-                      <LegendPanel />
+                      <DynamicLegendPanel filters={mapFilters} />
                     )}
 
                     <LeafletMap
@@ -962,6 +1282,8 @@ export default function App() {
                       compareSelection1={null}
                       compareSelection2={null}
                       onPrecinctClick={handleMapClickCombined}
+                      onAreaClick={handleAreaNavigation}
+                      showInteractiveAreas={mapFilters.comfortArea}
                       showEasePlaces={mapFilters.easePlaces}
                       showStreetFacilities={mapFilters.streetFacilities}
                       showNaturalPlaces={mapFilters.naturalPlaces}
@@ -971,9 +1293,10 @@ export default function App() {
 
                     {/* Ease Places popup */}
                     {easePlacesPopup && mapFilters.easePlaces && (
-                      <EasePlacesPopup
+                      <EasePlacesDetailPopup
                         feature={easePlacesPopup.feature}
                         anchorPoint={easePlacesPopup.point}
+                        viewport={easePlacesPopup.viewport}
                         onClose={() => setEasePlacesPopup(null)}
                         onZoomTo={handleZoomTo}
                       />
@@ -981,7 +1304,7 @@ export default function App() {
 
                     {/* Comfort Area detail card */}
                     {showCard && showCardPrecinct && mapFilters.comfortArea && (
-                      <div className="fixed bottom-0 left-0 right-0 sm:absolute sm:bottom-4 sm:left-4 sm:right-auto sm:w-96 sm:max-h-[calc(100%-2rem)] bg-white/98 backdrop-blur rounded-t-2xl sm:rounded-xl shadow-2xl p-4 sm:p-5 z-[500] border-t border-gray-200 max-h-[60vh] overflow-y-auto">
+                      <div className="fixed bottom-0 left-0 right-0 sm:absolute sm:bottom-4 sm:left-4 sm:right-auto sm:w-96 sm:max-h-[calc(100%-2rem)] bg-[rgba(247,255,253,0.98)] backdrop-blur-md rounded-t-[28px] sm:rounded-[24px] shadow-[0_28px_72px_rgba(4,14,14,0.24)] p-4 sm:p-5 z-[500] border-t border-[#83c5be]/18 max-h-[60vh] overflow-y-auto text-[#10201f]">
                         <div className="flex justify-center mb-2 sm:hidden">
                           <div className="w-10 h-1 bg-gray-300 rounded-full" />
                         </div>
@@ -996,7 +1319,7 @@ export default function App() {
                         </div>
 
                         {isStale(showCardPrecinct) && (
-                          <div className="mb-4 p-3 bg-red-50 border-2 border-red-300 rounded-lg">
+                          <div className="mb-4 p-3 bg-[#fff5f3] border border-[#e29578]/36 rounded-2xl">
                             <div className="flex items-start gap-2">
                               <div className="flex-shrink-0 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center text-white text-xs font-bold">!</div>
                               <div>
@@ -1008,7 +1331,7 @@ export default function App() {
                         )}
 
                         {!isStale(showCardPrecinct) && (
-                          <div className="mb-4 p-3 bg-green-50 border-2 border-green-300 rounded-lg">
+                          <div className="mb-4 p-3 bg-[#edf6f9] border border-[#83c5be]/36 rounded-2xl">
                             <div className="flex items-start gap-2">
                               <div className="flex-shrink-0 w-5 h-5 bg-green-500 rounded-full flex items-center justify-center text-white text-xs font-bold">✓</div>
                               <div>
@@ -1020,7 +1343,7 @@ export default function App() {
                         )}
 
                         <div
-                          className={`mb-4 p-4 bg-gradient-to-r rounded-lg border-2 ${isStale(showCardPrecinct) ? 'from-gray-50 to-gray-100' : 'from-teal-50 to-cyan-50'}`}
+                          className={`mb-4 p-4 bg-gradient-to-r rounded-2xl border ${isStale(showCardPrecinct) ? 'from-gray-50 to-gray-100' : 'from-[#edf6f9] to-[#e3f3ef]'}`}
                           style={{ borderColor: isStale(showCardPrecinct) ? '#9ca3af' : getRiskColor(riskLevel(showCardPrecinct.comfort_label)) }}
                         >
                           <div className="text-center">
@@ -1044,19 +1367,19 @@ export default function App() {
                         </div>
 
                         <div className={`grid grid-cols-2 gap-3 mb-4 ${isStale(showCardPrecinct) ? 'opacity-60' : ''}`}>
-                          <div className={`bg-gradient-to-br rounded-lg p-3 border ${isStale(showCardPrecinct) ? 'from-gray-50 to-gray-100 border-gray-300' : 'from-orange-50 to-orange-100 border-orange-200'}`}>
+                          <div className={`bg-gradient-to-br rounded-2xl p-3 border ${isStale(showCardPrecinct) ? 'from-gray-50 to-gray-100 border-gray-300' : 'from-[#fff3eb] to-[#fff8f3] border-[#e29578]/24'}`}>
                             <div className="flex items-center gap-2 mb-1"><Thermometer className={`w-4 h-4 ${isStale(showCardPrecinct) ? 'text-gray-500' : 'text-orange-600'}`} /><p className="text-sm text-gray-600">Temperature</p></div>
                             <p className={`text-xl font-bold ${isStale(showCardPrecinct) ? 'text-gray-600' : 'text-orange-700'}`}>{showCardPrecinct.temperature !== null ? `${showCardPrecinct.temperature}°C` : 'N/A'}</p>
                           </div>
-                          <div className={`bg-gradient-to-br rounded-lg p-3 border ${isStale(showCardPrecinct) ? 'from-gray-50 to-gray-100 border-gray-300' : 'from-blue-50 to-blue-100 border-blue-200'}`}>
+                          <div className={`bg-gradient-to-br rounded-2xl p-3 border ${isStale(showCardPrecinct) ? 'from-gray-50 to-gray-100 border-gray-300' : 'from-[#edf6f9] to-[#f3fbf8] border-[#83c5be]/24'}`}>
                             <div className="flex items-center gap-2 mb-1"><Droplets className={`w-4 h-4 ${isStale(showCardPrecinct) ? 'text-gray-500' : 'text-blue-600'}`} /><p className="text-sm text-gray-600">Humidity</p></div>
                             <p className={`text-xl font-bold ${isStale(showCardPrecinct) ? 'text-gray-600' : 'text-blue-700'}`}>{showCardPrecinct.humidity !== null ? `${showCardPrecinct.humidity}%` : 'N/A'}</p>
                           </div>
-                          <div className={`bg-gradient-to-br rounded-lg p-3 border ${isStale(showCardPrecinct) ? 'from-gray-50 to-gray-100 border-gray-300' : 'from-purple-50 to-purple-100 border-purple-200'}`}>
-                            <div className="flex items-center gap-2 mb-1"><Users className={`w-4 h-4 ${isStale(showCardPrecinct) ? 'text-gray-500' : 'text-purple-600'}`} /><p className="text-sm text-gray-600">Activity Level</p></div>
+                          <div className={`bg-gradient-to-br rounded-2xl p-3 border ${isStale(showCardPrecinct) ? 'from-gray-50 to-gray-100 border-gray-300' : 'from-[#f5f8f8] to-[#eef8f5] border-[#83c5be]/20'}`}>
+                            <div className="flex items-center gap-2 mb-1"><Users className={`w-4 h-4 ${isStale(showCardPrecinct) ? 'text-gray-500' : 'text-purple-600'}`} /><p className="text-sm text-gray-600">Crowd Density</p></div>
                             <p className={`text-lg font-bold ${isStale(showCardPrecinct) ? 'text-gray-600' : 'text-purple-700'}`}>{showCardPrecinct.activity_level}</p>
                           </div>
-                          <div className={`bg-gradient-to-br rounded-lg p-3 border ${isStale(showCardPrecinct) ? 'from-gray-50 to-gray-100 border-gray-300' : 'from-teal-50 to-teal-100 border-teal-200'}`}>
+                          <div className={`bg-gradient-to-br rounded-2xl p-3 border ${isStale(showCardPrecinct) ? 'from-gray-50 to-gray-100 border-gray-300' : 'from-[#eef8f5] to-[#edf6f9] border-[#83c5be]/24'}`}>
                             <div className="flex items-center gap-2 mb-1"><Wind className={`w-4 h-4 ${isStale(showCardPrecinct) ? 'text-gray-500' : 'text-teal-600'}`} /><p className="text-sm text-gray-600">Wind Speed</p></div>
                             <p className={`text-lg font-bold ${isStale(showCardPrecinct) ? 'text-gray-600' : 'text-teal-700'}`}>{showCardPrecinct.wind_speed !== null ? `${showCardPrecinct.wind_speed} m/s` : 'N/A'}</p>
                           </div>
@@ -1065,7 +1388,7 @@ export default function App() {
                         <button
                           type="button"
                           onClick={() => handleWantToGo(showCard)}
-                          className="w-full py-3 bg-gradient-to-r from-teal-500 to-cyan-600 text-white font-semibold rounded-lg hover:from-teal-600 hover:to-cyan-700 transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2"
+                          className="w-full py-3 bg-gradient-to-r from-[#006d77] to-[#17413f] text-white font-semibold rounded-2xl hover:from-[#17413f] hover:to-[#006d77] transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2"
                         >
                           <img src={ideaIcon} alt="" className="h-4 w-4 object-contain" aria-hidden="true" />
                           <span>Best time & travel suggestion</span>
@@ -1082,11 +1405,11 @@ export default function App() {
               <>
                 <div className="p-6 pb-4">
                   <div className="flex items-center gap-3">
-                    <div className="p-3 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg shadow-lg">
+                    <div className="p-3 bg-gradient-to-br from-[#17413f] to-[#0f2524] rounded-2xl shadow-lg">
                       <Map className="w-6 h-6 text-white" />
                     </div>
                     <div className="flex-1">
-                      <h2 className="text-2xl font-semibold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">Precinct Comparison</h2>
+                      <h2 className="text-2xl font-semibold bg-gradient-to-r from-[#17413f] to-[#006d77] bg-clip-text text-transparent">Precinct Comparison</h2>
                       <p className="text-sm text-gray-600">Click two markers on the map to compare their data</p>
                     </div>
                   </div>
@@ -1094,7 +1417,7 @@ export default function App() {
 
                 <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 px-4 sm:px-6 pb-6">
                   <div className="sm:flex-[3] relative">
-                    <div className="absolute top-4 right-4 bg-white/95 backdrop-blur rounded-lg shadow-lg p-4 z-30 pointer-events-none border border-gray-200">
+                    <div className="absolute top-4 right-4 bg-[rgba(247,255,253,0.82)] backdrop-blur-md rounded-2xl shadow-[0_16px_34px_rgba(16,32,31,0.12)] p-4 z-30 pointer-events-none border border-[#83c5be]/16 text-[#10201f]">
                       <h3 className="font-semibold mb-3 text-sm">Comfort Levels</h3>
                       <div className="space-y-2">
                         <div className="flex items-center gap-2"><div className="w-4 h-4 rounded-full bg-green-500" /><span className="text-xs font-medium">Comfortable (70–100)</span></div>
@@ -1109,6 +1432,7 @@ export default function App() {
                       compareSelection1={compareSelection1}
                       compareSelection2={compareSelection2}
                       onPrecinctClick={handleCompareClick}
+                      showInteractiveAreas={false}
                       showEasePlaces={false}
                       showStreetFacilities={false}
                       showNaturalPlaces={false}
@@ -1116,8 +1440,23 @@ export default function App() {
                   </div>
 
                   <div className="sm:flex-[2]">
+                    <button
+                      type="button"
+                      onClick={() => navigate(APP_ROUTES.map3dRoute)}
+                      className="mb-4 w-full rounded-[20px] border border-[#83c5be]/28 bg-[rgba(247,255,253,0.92)] px-4 py-3 text-left shadow-[0_14px_36px_rgba(4,14,14,0.12)] transition-colors hover:bg-white"
+                    >
+                      <span className="block text-xs font-semibold uppercase tracking-[0.18em] text-[#5f8682]">
+                        3D Route
+                      </span>
+                      <span className="mt-1 block text-base font-semibold text-[#17413f]">
+                        Preview a walking or cycling route in 3D
+                      </span>
+                      <span className="mt-1 block text-sm text-[#456765]">
+                        Keep the original compare map unchanged while planning a default route on a dedicated page.
+                      </span>
+                    </button>
                     {!compareSelection1 && !compareSelection2 ? (
-                      <div className="flex items-center justify-center h-full bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
+                      <div className="flex items-center justify-center h-full bg-[rgba(237,246,249,0.82)] rounded-[24px] border border-dashed border-[#83c5be]/34">
                         <div className="text-center p-6">
                           <div className="text-4xl mb-4">👆</div>
                           <h3 className="text-lg font-semibold text-gray-700 mb-2">Select Two Areas</h3>
@@ -1145,7 +1484,7 @@ export default function App() {
                             return (
                               <div
                                 key={num}
-                                className={`border-2 rounded-xl p-4 shadow-lg bg-gradient-to-br from-white to-gray-50 relative transition-all duration-300 ${
+                                className={`border rounded-[24px] p-4 shadow-[0_18px_44px_rgba(4,14,14,0.16)] bg-gradient-to-br from-[rgba(247,255,253,0.96)] to-[rgba(237,246,249,0.92)] relative transition-all duration-300 ${
                                   hasRecommendation
                                     ? (isRecommendedCard ? 'scale-[1.03] ring-2 ring-green-400' : 'scale-[0.90] opacity-85')
                                     : ''
@@ -1173,7 +1512,7 @@ export default function App() {
                                   </div>
                                   <p className="text-sm text-gray-500 mt-1 ml-8">{formatDetailSensorStatus(p)}</p>
                                 </div>
-                                <div className={`mb-3 p-3 rounded-lg border ${stale ? 'bg-gray-50' : 'bg-white'}`}>
+                                <div className={`mb-3 p-3 rounded-2xl border ${stale ? 'bg-gray-50' : 'bg-white/80'}`}>
                                   <div className="mb-1 flex items-center">
                                     <p className="text-xs text-gray-600">Comfort Score</p>
                                     <ComfortScoreInfo placement="right" />
@@ -1181,22 +1520,22 @@ export default function App() {
                                   <p className={`text-3xl font-bold ${stale ? 'text-gray-400' : ''}`} style={{ color: stale ? undefined : getRiskColor(risk) }}>{p.comfort_score}</p>
                                 </div>
                                 <div className="space-y-2">
-                                  <div className="bg-orange-50 rounded p-2 border border-orange-200">
+                                  <div className="bg-[#fff3eb] rounded-xl p-2 border border-[#e29578]/24">
                                     <div className="flex items-center gap-1 mb-1"><Thermometer className="w-3 h-3 text-orange-600" /><p className="text-[10px] text-gray-600">Temperature</p></div>
                                     <p className="text-sm font-bold text-orange-700">{p.temperature !== null ? `${p.temperature}°C` : 'N/A'}</p>
                                     <p className="text-[10px] text-gray-500 mt-1">Recommended: 18-26°C</p>
                                   </div>
-                                  <div className="bg-blue-50 rounded p-2 border border-blue-200">
+                                  <div className="bg-[#edf6f9] rounded-xl p-2 border border-[#83c5be]/24">
                                     <div className="flex items-center gap-1 mb-1"><Droplets className="w-3 h-3 text-blue-600" /><p className="text-[10px] text-gray-600">Humidity</p></div>
                                     <p className="text-sm font-bold text-blue-700">{p.humidity !== null ? `${p.humidity}%` : 'N/A'}</p>
                                     <p className="text-[10px] text-gray-500 mt-1">Recommended: 40-60%</p>
                                   </div>
-                                  <div className="bg-purple-50 rounded p-2 border border-purple-200">
-                                    <div className="flex items-center gap-1 mb-1"><Users className="w-3 h-3 text-purple-600" /><p className="text-[10px] text-gray-600">Activity</p></div>
+                                  <div className="bg-[#f5f8f8] rounded-xl p-2 border border-[#83c5be]/18">
+                                    <div className="flex items-center gap-1 mb-1"><Users className="w-3 h-3 text-purple-600" /><p className="text-[10px] text-gray-600">Crowd Density</p></div>
                                     <p className="text-sm font-bold text-purple-700">{p.activity_level}</p>
                                     <p className="text-[10px] text-gray-500 mt-1">Recommended: Low / Medium</p>
                                   </div>
-                                  <div className="bg-teal-50 rounded p-2 border border-teal-200">
+                                  <div className="bg-[#eef8f5] rounded-xl p-2 border border-[#83c5be]/22">
                                     <div className="flex items-center gap-1 mb-1"><Wind className="w-3 h-3 text-teal-600" /><p className="text-[10px] text-gray-600">Wind</p></div>
                                     <p className="text-sm font-bold text-teal-700">{p.wind_speed !== null ? `${p.wind_speed} m/s` : 'N/A'}</p>
                                     <p className="text-[10px] text-gray-500 mt-1">Recommended: 2-8 m/s</p>
@@ -1205,7 +1544,7 @@ export default function App() {
                                 <button
                                   type="button"
                                   onClick={() => handleWantToGo(id)}
-                                  className="w-full mt-3 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition-colors shadow-md flex items-center justify-center gap-2"
+                                  className="w-full mt-3 py-2 bg-gradient-to-r from-[#006d77] to-[#17413f] text-white text-sm font-semibold rounded-2xl hover:from-[#17413f] hover:to-[#006d77] transition-colors shadow-md flex items-center justify-center gap-2"
                                 >
                                   <img src={ideaIcon} alt="" className="h-4 w-4 object-contain" aria-hidden="true" />
                                   <span>Best time & travel suggestion</span>
@@ -1216,7 +1555,7 @@ export default function App() {
                         </div>
 
                         {compareSelection1 && compareSelection2 && comparisonRecommendation && (
-                          <div className="relative z-20 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4 border-l-4 border-blue-500 shadow-sm">
+                          <div className="relative z-20 bg-gradient-to-r from-[#edf6f9] to-[#eef8f5] rounded-[24px] p-4 border-l-4 border-[#006d77] shadow-sm text-[#10201f]">
                             <div className="flex items-start gap-3">
                               <div className="flex-shrink-0 w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center">
                                 <img src={ideaIcon} alt="" className="h-5 w-5 object-contain" aria-hidden="true" />

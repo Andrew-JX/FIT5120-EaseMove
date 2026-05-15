@@ -1,24 +1,23 @@
 import { useEffect, useRef, useState, type ReactNode, type WheelEvent } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { Flame, CloudRain, CloudLightning, Snowflake, Sun, ArrowLeft } from "lucide-react";
-import { navigateTo } from "../lib/navigation";
-import headerImage from "../assets/Melbourne-Extreme-Weather.png";
+import { Flame, CloudRain, Snowflake, ArrowLeft } from "lucide-react";
+import { useNavigate } from "react-router";
+import AppTopNav from "../components/AppTopNav";
 import heatImage from "../assets/Heat.png";
 import heavyRainImage from "../assets/Heavy_rain.jpg";
-import stormImage from "../assets/Storm.jpg";
 import coldImage from "../assets/Cold.jpg";
-import dryImage from "../assets/Dry.jpg";
+import normalBodyImage from "../assets/normal_body.png";
+import heatstrokeBodyImage from "../assets/heatstroke_body.png";
+import temperatureLegendImage from "../assets/temperature_legend.png";
 
 interface HealthRisk {
   name: string;
   impact: string;
   severity: string;
   whyItHappens: {
-    zh: string;
     en: string;
   };
   whatYouCanDo: {
-    zh: string[];
     en: string[];
   };
 }
@@ -41,6 +40,370 @@ interface WeatherType {
   risks: HealthRisk[];
 }
 
+function HeatBodyImpactDemo() {
+  const [temp, setTemp] = useState(28);
+  const [compareSplit, setCompareSplit] = useState(50);
+  const [isDraggingSplit, setIsDraggingSplit] = useState(false);
+  const compareRef = useRef<HTMLDivElement | null>(null);
+
+  const impactLevel =
+    temp >= 40
+      ? {
+          level: "Extreme",
+          color: "text-red-700",
+          bg: "bg-red-50 border-red-200",
+          notes: [
+            "Very high heat stress risk.",
+            "Dizziness and rapid fatigue can occur quickly outdoors.",
+            "Avoid long walking/cycling exposure and seek cooling immediately.",
+          ],
+        }
+      : temp >= 35
+        ? {
+            level: "High",
+            color: "text-orange-700",
+            bg: "bg-orange-50 border-orange-200",
+            notes: [
+              "High outdoor discomfort and dehydration risk.",
+              "Walking and cycling effort feels much harder.",
+              "Use shade routes and shorten trip duration.",
+            ],
+          }
+        : temp >= 30
+          ? {
+              level: "Moderate",
+              color: "text-amber-700",
+              bg: "bg-amber-50 border-amber-200",
+              notes: [
+                "Noticeable heat discomfort outdoors.",
+                "Fatigue builds up during longer trips.",
+                "Carry water and avoid peak afternoon heat.",
+              ],
+            }
+          : {
+              level: "Low",
+              color: "text-teal-700",
+              bg: "bg-teal-50 border-teal-200",
+              notes: [
+                "Generally manageable heat conditions.",
+                "Outdoor comfort is relatively stable.",
+                "Normal precautions are still recommended.",
+              ],
+            };
+  const heatStatus =
+    temp >= 40
+      ? "Skin flushing and heavy sweating likely. Immediate cooling is recommended."
+      : temp >= 35
+        ? "Noticeable heat stress signs, including fatigue and faster breathing."
+        : temp >= 30
+          ? "Mild heat load appears, with increased discomfort during movement."
+          : "Body signs are generally stable in this temperature range.";
+
+  const updateCompareSplit = (clientX: number) => {
+    const host = compareRef.current;
+    if (!host) return;
+    const rect = host.getBoundingClientRect();
+    if (rect.width <= 0) return;
+    const next = ((clientX - rect.left) / rect.width) * 100;
+    setCompareSplit(Math.max(4, Math.min(96, next)));
+  };
+
+  useEffect(() => {
+    if (!isDraggingSplit) return;
+
+    const handleMouseMove = (event: MouseEvent) => {
+      updateCompareSplit(event.clientX);
+    };
+    const handleTouchMove = (event: TouchEvent) => {
+      const point = event.touches[0];
+      if (!point) return;
+      updateCompareSplit(point.clientX);
+    };
+    const handleEnd = () => setIsDraggingSplit(false);
+
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleEnd);
+    window.addEventListener("touchmove", handleTouchMove, { passive: true });
+    window.addEventListener("touchend", handleEnd);
+
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleEnd);
+      window.removeEventListener("touchmove", handleTouchMove);
+      window.removeEventListener("touchend", handleEnd);
+    };
+  }, [isDraggingSplit]);
+
+  return (
+    <div className="mt-4 rounded-lg border border-red-200 bg-white p-4">
+      <h5 className="text-sm sm:text-base font-bold text-red-900">Heat Impact on Human Body (Interactive)</h5>
+      <p className="text-xs sm:text-sm text-red-900/80 mt-1">
+        Drag the temperature bar to explore how rising heat can affect outdoor movement comfort.
+      </p>
+
+      <div className="mt-3 grid grid-cols-1 sm:grid-cols-[72px_1fr] gap-3 items-start">
+        <div className="rounded-md border border-red-200 bg-red-50 py-2 text-center">
+          <p className="text-[11px] text-red-800 font-semibold">Temp</p>
+          <p className="text-xl font-extrabold text-red-700">{temp}°C</p>
+        </div>
+
+        <div>
+          <input
+            type="range"
+            min={20}
+            max={45}
+            step={1}
+            value={temp}
+            onChange={(event) => setTemp(Number(event.target.value))}
+            className="w-full accent-red-600"
+            aria-label="Heat temperature impact slider"
+          />
+          <div className="mt-1 flex justify-between text-[11px] text-gray-500">
+            <span>20°C</span>
+            <span>45°C</span>
+          </div>
+        </div>
+      </div>
+
+      <div className={`mt-3 rounded-md border p-3 ${impactLevel.bg}`}>
+        <p className={`text-sm font-bold ${impactLevel.color}`}>Impact Level: {impactLevel.level}</p>
+        <ul className="mt-1 space-y-1">
+          {impactLevel.notes.map((item) => (
+            <li key={item} className="text-xs sm:text-sm text-gray-700">• {item}</li>
+          ))}
+        </ul>
+      </div>
+
+      <div className="mt-3 rounded-md border border-red-200 bg-red-50/40 p-3">
+        <p className="text-[11px] font-semibold text-red-900">Body response comparison (drag the vertical line)</p>
+        <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-3 items-start">
+          <div
+            ref={compareRef}
+            className="relative h-72 sm:h-80 rounded-lg overflow-hidden border border-red-200 bg-white select-none touch-none"
+            onMouseDown={(event) => {
+              updateCompareSplit(event.clientX);
+              setIsDraggingSplit(true);
+            }}
+            onTouchStart={(event) => {
+              const point = event.touches[0];
+              if (!point) return;
+              updateCompareSplit(point.clientX);
+              setIsDraggingSplit(true);
+            }}
+          >
+            <img src={normalBodyImage} alt="Before: normal body condition under regular temperature" className="h-full w-full object-contain bg-white" />
+            <div className="absolute inset-0 bg-white/18" />
+            <div className="absolute left-2 bottom-2 rounded bg-black/45 px-2 py-1 text-[10px] text-white">Before</div>
+
+            <div className="absolute inset-0" style={{ clipPath: `inset(0 0 0 ${compareSplit}%)` }}>
+              <img src={heatstrokeBodyImage} alt="After: body condition under extreme heat" className="h-full w-full object-contain bg-white" />
+              <div className="absolute right-2 bottom-2 rounded bg-black/45 px-2 py-1 text-[10px] text-white">After</div>
+            </div>
+
+            <div className="absolute inset-y-0 z-20" style={{ left: `${compareSplit}%`, transform: "translateX(-50%)" }}>
+              <div className="h-full w-[2px] bg-white/95 shadow-[0_0_0_1px_rgba(0,0,0,0.25)]" />
+              <button
+                type="button"
+                aria-label="Drag to compare before and after"
+                className="absolute left-1/2 top-1/2 h-6 w-6 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white bg-red-600/90 text-white text-[10px] font-bold shadow"
+              >
+                ⇆
+              </button>
+            </div>
+
+            <div
+              className="absolute top-2 left-1/2 -translate-x-1/2 rounded bg-black/45 px-2 py-1 text-[10px] text-white"
+              aria-hidden="true"
+            >
+              Extreme heat preview
+            </div>
+          </div>
+          <div className="space-y-2">
+            <img src={temperatureLegendImage} alt="Temperature legend" className="h-72 sm:h-80 w-full rounded border border-red-100 bg-white object-contain" />
+            <p className="text-xs sm:text-sm text-red-900/90 leading-relaxed">{heatStatus}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function HeavyRainBodyImpactDemo() {
+  const [rain, setRain] = useState(10);
+
+  const impactLevel =
+    rain >= 35
+      ? {
+          level: "Extreme",
+          color: "text-blue-800",
+          bg: "bg-blue-50 border-blue-200",
+          notes: [
+            "Severe rain can significantly reduce route safety.",
+            "Visibility drops sharply and road conditions worsen.",
+            "Avoid exposed routes and postpone non-essential cycling.",
+          ],
+        }
+      : rain >= 20
+        ? {
+            level: "High",
+            color: "text-sky-800",
+            bg: "bg-sky-50 border-sky-200",
+            notes: [
+              "Wet roads increase slipping risk for walking and cycling.",
+              "Braking and cornering stability can reduce.",
+              "Slow down and choose safer, sheltered paths.",
+            ],
+          }
+        : rain >= 10
+          ? {
+              level: "Moderate",
+              color: "text-cyan-800",
+              bg: "bg-cyan-50 border-cyan-200",
+              notes: [
+                "Travel comfort starts to decline under sustained rain.",
+                "Visibility and footing can become inconsistent.",
+                "Wear waterproof layers and plan extra travel time.",
+              ],
+            }
+          : {
+              level: "Low",
+              color: "text-teal-700",
+              bg: "bg-teal-50 border-teal-200",
+              notes: [
+                "Light rain has limited impact on short trips.",
+                "Movement remains mostly manageable with preparation.",
+                "Basic caution is still recommended outdoors.",
+              ],
+            };
+
+  return (
+    <div className="mt-4 rounded-lg border border-blue-200 bg-white p-4">
+      <h5 className="text-sm sm:text-base font-bold text-blue-900">Heavy Rain Outdoor Impact (Interactive)</h5>
+      <p className="text-xs sm:text-sm text-blue-900/80 mt-1">
+        Drag rainfall intensity to explore how rain affects outdoor movement safety.
+      </p>
+      <div className="mt-3 grid grid-cols-1 sm:grid-cols-[88px_1fr] gap-3 items-start">
+        <div className="rounded-md border border-blue-200 bg-blue-50 py-2 text-center">
+          <p className="text-[11px] text-blue-800 font-semibold">Rainfall</p>
+          <p className="text-lg font-extrabold text-blue-700">{rain} mm/h</p>
+        </div>
+        <div>
+          <input
+            type="range"
+            min={0}
+            max={45}
+            step={1}
+            value={rain}
+            onChange={(event) => setRain(Number(event.target.value))}
+            className="w-full accent-blue-600"
+            aria-label="Heavy rain impact slider"
+          />
+          <div className="mt-1 flex justify-between text-[11px] text-gray-500">
+            <span>0</span>
+            <span>45 mm/h</span>
+          </div>
+        </div>
+      </div>
+      <div className={`mt-3 rounded-md border p-3 ${impactLevel.bg}`}>
+        <p className={`text-sm font-bold ${impactLevel.color}`}>Impact Level: {impactLevel.level}</p>
+        <ul className="mt-1 space-y-1">
+          {impactLevel.notes.map((item) => (
+            <li key={item} className="text-xs sm:text-sm text-gray-700">• {item}</li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  );
+}
+
+function ColdBodyImpactDemo() {
+  const [temp, setTemp] = useState(12);
+
+  const impactLevel =
+    temp <= 2
+      ? {
+          level: "Extreme",
+          color: "text-indigo-800",
+          bg: "bg-indigo-50 border-indigo-200",
+          notes: [
+            "Very cold conditions can make movement uncomfortable quickly.",
+            "Long exposure reduces outdoor tolerance and trip quality.",
+            "Limit exposure time and prioritise short, necessary trips.",
+          ],
+        }
+      : temp <= 7
+        ? {
+            level: "High",
+            color: "text-sky-800",
+            bg: "bg-sky-50 border-sky-200",
+            notes: [
+              "Cold air can reduce comfort during walking and cycling.",
+              "Hands/face discomfort may increase with longer exposure.",
+              "Use warmer layers and reduce total outdoor duration.",
+            ],
+          }
+        : temp <= 12
+          ? {
+              level: "Moderate",
+              color: "text-cyan-800",
+              bg: "bg-cyan-50 border-cyan-200",
+              notes: [
+                "Cool conditions may reduce movement enjoyment.",
+                "Comfort can vary by route wind exposure.",
+                "Plan shorter routes and keep warm where possible.",
+              ],
+            }
+          : {
+              level: "Low",
+              color: "text-teal-700",
+              bg: "bg-teal-50 border-teal-200",
+              notes: [
+                "Mild cold has limited effect on short trips.",
+                "Outdoor movement remains manageable for most users.",
+                "Basic layering is generally sufficient.",
+              ],
+            };
+  return (
+    <div className="mt-4 rounded-lg border border-sky-200 bg-white p-4">
+      <h5 className="text-sm sm:text-base font-bold text-sky-900">Cold Outdoor Impact (Interactive)</h5>
+      <p className="text-xs sm:text-sm text-sky-900/80 mt-1">
+        Drag temperature to explore how colder conditions affect comfort and willingness to move.
+      </p>
+      <div className="mt-3 grid grid-cols-1 sm:grid-cols-[72px_1fr] gap-3 items-start">
+        <div className="rounded-md border border-sky-200 bg-sky-50 py-2 text-center">
+          <p className="text-[11px] text-sky-800 font-semibold">Temp</p>
+          <p className="text-xl font-extrabold text-sky-700">{temp}°C</p>
+        </div>
+        <div>
+          <input
+            type="range"
+            min={-2}
+            max={20}
+            step={1}
+            value={temp}
+            onChange={(event) => setTemp(Number(event.target.value))}
+            className="w-full accent-sky-600"
+            aria-label="Cold temperature impact slider"
+          />
+          <div className="mt-1 flex justify-between text-[11px] text-gray-500">
+            <span>-2°C</span>
+            <span>20°C</span>
+          </div>
+        </div>
+      </div>
+      <div className={`mt-3 rounded-md border p-3 ${impactLevel.bg}`}>
+        <p className={`text-sm font-bold ${impactLevel.color}`}>Impact Level: {impactLevel.level}</p>
+        <ul className="mt-1 space-y-1">
+          {impactLevel.notes.map((item) => (
+            <li key={item} className="text-xs sm:text-sm text-gray-700">• {item}</li>
+          ))}
+        </ul>
+      </div>
+
+    </div>
+  );
+}
+
 const weatherTypes: WeatherType[] = [
   {
     id: 0,
@@ -60,11 +423,9 @@ const weatherTypes: WeatherType[] = [
         impact: "Body temperature becomes too high and may be life-threatening",
         severity: "High",
         whyItHappens: {
-          zh: "高温环境会让人体难以通过出汗散热。体温持续升高可能导致中暑甚至危及生命。",
           en: "High temperatures make it difficult for the body to cool itself through sweating. This causes body temperature to rise and may lead to heat stroke.",
         },
         whatYouCanDo: {
-          zh: ["多喝水，保持身体水分", "避开中午等高温时段，减少户外活动"],
           en: ["Drink plenty of water to stay hydrated", "Avoid outdoor activities during peak heat hours"],
         },
       },
@@ -73,11 +434,9 @@ const weatherTypes: WeatherType[] = [
         impact: "High temperatures may increase bushfire risk, smoke affects breathing",
         severity: "Moderate",
         whyItHappens: {
-          zh: "高温会增加山火发生的可能性。烟雾中的颗粒物进入呼吸道，会影响呼吸系统。",
           en: "Heat increases the likelihood of bushfires. Smoke particles enter the respiratory system and affect breathing.",
         },
         whatYouCanDo: {
-          zh: ["减少户外活动，尽量待在室内", "必要时佩戴口罩保护呼吸道"],
           en: ["Limit outdoor exposure and stay indoors when possible", "Wear a mask if needed to protect your breathing"],
         },
       },
@@ -101,11 +460,9 @@ const weatherTypes: WeatherType[] = [
         impact: "May lead to drowning or serious accidents",
         severity: "High",
         whyItHappens: {
-          zh: "持续强降雨会导致大量积水或洪水。水位迅速上升可能对人体造成危险甚至溺水。",
           en: "Heavy rainfall leads to water accumulation and flooding. Rising water levels can be dangerous and may cause drowning.",
         },
         whatYouCanDo: {
-          zh: ["避免进入积水或低洼区域", "关注天气预警并及时避险"],
           en: ["Avoid flooded or low-lying areas", "Follow weather alerts and move to safe places"],
         },
       },
@@ -114,11 +471,9 @@ const weatherTypes: WeatherType[] = [
         impact: "Floodwater may contain bacteria and pollutants",
         severity: "Moderate",
         whyItHappens: {
-          zh: "积水可能含有细菌或污染物。与这些水接触可能引发感染或身体不适。",
           en: "Floodwater may contain bacteria and contaminants. Contact with it can lead to infections or illness.",
         },
         whatYouCanDo: {
-          zh: ["避免接触脏水或积水", "注意个人卫生，及时清洁身体"],
           en: ["Avoid contact with contaminated water", "Maintain hygiene and clean yourself if exposed"],
         },
       },
@@ -126,47 +481,6 @@ const weatherTypes: WeatherType[] = [
   },
   {
     id: 2,
-    riskId: "storm",
-    name: "Storm",
-    description: "Thunder and strong winds",
-    color: "#845ef7",
-    segmentImage: stormImage,
-    segmentPattern: { scale: 1.55, offsetX: -120, offsetY: -210 },
-    heroTitle: "Storm",
-    heroIntro:
-      "A storm is a weather event that includes lightning, strong winds, and often rain. It is usually caused by unstable atmospheric conditions.",
-    icon: <CloudLightning className="size-12" />,
-    risks: [
-      {
-        name: "Lightning Strike",
-        impact: "Can be life-threatening",
-        severity: "High",
-        whyItHappens: {
-          zh: "雷暴会产生强电流的闪电。电流通过人体可能造成严重伤害甚至死亡。",
-          en: "Storms produce lightning with strong electrical currents. These currents can pass through the body and cause serious injury or death.",
-        },
-        whatYouCanDo: {
-          zh: ["避免在空旷地区停留", "尽量进入室内避险"],
-          en: ["Avoid staying in open areas", "Seek shelter indoors immediately"],
-        },
-      },
-      {
-        name: "Strong Winds",
-        impact: "May cause injury from strong winds or falling objects",
-        severity: "High",
-        whyItHappens: {
-          zh: "强风可能吹动或击落物体。被这些物体击中可能导致身体受伤。",
-          en: "Strong winds can move or drop objects. Being hit by these objects may cause injury.",
-        },
-        whatYouCanDo: {
-          zh: ["远离不稳定物体或高处结构", "尽量待在室内"],
-          en: ["Stay away from unstable structures", "Remain indoors if possible"],
-        },
-      },
-    ],
-  },
-  {
-    id: 3,
     riskId: "cold",
     name: "Cold",
     description: "Very cold weather",
@@ -183,11 +497,9 @@ const weatherTypes: WeatherType[] = [
         impact: "Can be fatal in severe cases",
         severity: "High",
         whyItHappens: {
-          zh: "寒冷环境会使人体持续失去热量。体温下降可能影响身体功能甚至危及生命。",
           en: "Cold conditions cause the body to lose heat continuously. This lowers body temperature and may become life-threatening.",
         },
         whatYouCanDo: {
-          zh: ["穿保暖衣物，减少暴露", "缩短在寒冷环境中的时间"],
           en: ["Wear warm clothing", "Limit time outdoors in cold conditions"],
         },
       },
@@ -196,53 +508,10 @@ const weatherTypes: WeatherType[] = [
         impact: "Prolonged exposure may damage skin",
         severity: "Moderate",
         whyItHappens: {
-          zh: "长时间暴露在低温下会损伤皮肤和组织。严重时可能导致组织损伤。",
           en: "Prolonged exposure to cold damages skin and tissue. In severe cases, it may cause serious injury.",
         },
         whatYouCanDo: {
-          zh: ["保护手脚等暴露部位", "避免长时间暴露在寒冷中"],
           en: ["Protect exposed skin (hands, face, feet)", "Avoid prolonged exposure"],
-        },
-      },
-    ],
-  },
-  {
-    id: 4,
-    riskId: "dry-conditions",
-    name: "Dry Conditions",
-    description: "Very little rain",
-    color: "#ffd43b",
-    segmentImage: dryImage,
-    segmentPattern: { scale: 1.6, offsetX: -160, offsetY: -300 },
-    heroTitle: "Dry Conditions",
-    heroIntro:
-      "Dry conditions refer to environments with little rainfall and low humidity. They often occur during droughts or extended dry periods.",
-    icon: <Sun className="size-12" />,
-    risks: [
-      {
-        name: "Dehydration",
-        impact: "Lack of water affects body function",
-        severity: "Moderate",
-        whyItHappens: {
-          zh: "干燥环境会加速人体水分流失。水分不足会影响身体正常功能。",
-          en: "Dry conditions increase water loss from the body. Lack of water affects normal body function.",
-        },
-        whatYouCanDo: {
-          zh: ["多喝水，保持水分", "避免长时间户外暴露"],
-          en: ["Drink plenty of water", "Avoid prolonged outdoor exposure"],
-        },
-      },
-      {
-        name: "Respiratory Irritation",
-        impact: "Dry air irritates the nose and throat",
-        severity: "Moderate",
-        whyItHappens: {
-          zh: "干燥空气会刺激鼻腔和喉咙。长时间暴露可能引起不适或咳嗽。",
-          en: "Dry air irritates the nose and throat. Prolonged exposure may cause discomfort or coughing.",
-        },
-        whatYouCanDo: {
-          zh: ["使用加湿设备改善空气", "多喝水缓解不适"],
-          en: ["Use a humidifier", "Stay hydrated"],
         },
       },
     ],
@@ -250,19 +519,19 @@ const weatherTypes: WeatherType[] = [
 ];
 
 export default function ExtremeWeatherRisksPage() {
+  const navigate = useNavigate();
   const [selectedWeather, setSelectedWeather] = useState<number | null>(null);
   const [rotation, setRotation] = useState(0);
   const [hoveredSegment, setHoveredSegment] = useState<number | null>(null);
   const [isSmallScreen, setIsSmallScreen] = useState(false);
-  const detailSectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const [viewportWidth, setViewportWidth] = useState(1440);
+  const [showPanelDetail, setShowPanelDetail] = useState(false);
+  const [centerVisible, setCenterVisible] = useState(true);
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const heroSectionRef = useRef<HTMLElement | null>(null);
   const topSectionRef = useRef<HTMLElement | null>(null);
-  const detailSectionRef = useRef<HTMLElement | null>(null);
   const quizSectionRef = useRef<HTMLElement | null>(null);
-  const detailScrollRef = useRef<HTMLDivElement | null>(null);
   const wheelLockedRef = useRef(false);
-  const [activePanel, setActivePanel] = useState<"hero" | "ring" | "detail" | "quiz">("hero");
+  const [activePanel, setActivePanel] = useState<"ring" | "quiz">("ring");
 
   const segmentAngle = 360 / weatherTypes.length;
   const viewSize = isSmallScreen ? 500 : 780;
@@ -272,11 +541,24 @@ export default function ExtremeWeatherRisksPage() {
   const labelRadius = isSmallScreen ? 172 : 268;
 
   useEffect(() => {
-    const check = () => setIsSmallScreen(window.innerWidth < 640);
+    const check = () => {
+      setIsSmallScreen(window.innerWidth < 640);
+      setViewportWidth(window.innerWidth);
+    };
     check();
     window.addEventListener("resize", check);
     return () => window.removeEventListener("resize", check);
   }, []);
+
+  const detailOffsetX = isSmallScreen
+    ? 0
+    : viewportWidth < 1280
+      ? 56
+      : viewportWidth < 1536
+        ? 110
+        : 180;
+
+  const detailOffsetY = isSmallScreen ? 0 : -56;
 
   const createSegmentPath = (index: number) => {
     const gap = 4;
@@ -298,25 +580,30 @@ export default function ExtremeWeatherRisksPage() {
   };
 
   const handleSegmentClick = (index: number) => {
+    const nextRotation = -index * segmentAngle - segmentAngle / 2;
+    setCenterVisible(false);
     setSelectedWeather(index);
-    setRotation(-index * segmentAngle - segmentAngle / 2);
+    if (Math.abs(nextRotation - rotation) < 0.001) {
+      window.setTimeout(() => setCenterVisible(true), 80);
+      return;
+    }
+    setRotation(nextRotation);
+    window.setTimeout(() => setCenterVisible(true), 160);
   };
 
-  const handleLearnMore = (riskId: string) => {
-    const detailSection = detailSectionRef.current;
-    const detailScroll = detailScrollRef.current;
-    const target = detailSectionRefs.current[riskId];
-    if (!detailSection || !detailScroll || !target) return;
-    detailSection.scrollIntoView({ behavior: "smooth", block: "start" });
-    window.setTimeout(() => {
-      target.scrollIntoView({ behavior: "smooth", block: "start" });
-    }, 420);
+  const handleLearnMore = () => {
+    if (selectedWeather === null) return;
+    setShowPanelDetail(true);
   };
 
   const handleBackToRing = () => {
+    if (showPanelDetail) {
+      setShowPanelDetail(false);
+      return;
+    }
     const topSection = topSectionRef.current;
     if (!topSection) return;
-    topSection.scrollIntoView({ behavior: "smooth", block: "start" });
+    containerRef.current?.scrollTo({ top: topSection.offsetTop, left: 0, behavior: "smooth" });
   };
 
   const handlePageWheel = (event: WheelEvent<HTMLDivElement>) => {
@@ -324,55 +611,34 @@ export default function ExtremeWeatherRisksPage() {
     if (Math.abs(event.deltaY) < 8) return;
 
     const container = containerRef.current;
-    const heroSection = heroSectionRef.current;
     const topSection = topSectionRef.current;
-    const detailSection = detailSectionRef.current;
     const quizSection = quizSectionRef.current;
-    if (!container || !heroSection || !topSection || !detailSection || !quizSection) return;
+    if (!container || !topSection || !quizSection) return;
 
     event.preventDefault();
     wheelLockedRef.current = true;
 
-    const heroRect = heroSection.getBoundingClientRect();
     const topRect = topSection.getBoundingClientRect();
-    const detailRect = detailSection.getBoundingClientRect();
     const quizRect = quizSection.getBoundingClientRect();
     const distances = [
-      { key: "hero", el: heroSection, d: Math.abs(heroRect.top) },
       { key: "ring", el: topSection, d: Math.abs(topRect.top) },
-      { key: "detail", el: detailSection, d: Math.abs(detailRect.top) },
       { key: "quiz", el: quizSection, d: Math.abs(quizRect.top) },
     ].sort((a, b) => a.d - b.d);
     const current = distances[0].key;
-    setActivePanel(current as "hero" | "ring" | "detail" | "quiz");
-
-    if (current === "detail" && detailScrollRef.current) {
-      const detailScroll = detailScrollRef.current;
-      const maxScrollTop = detailScroll.scrollHeight - detailScroll.clientHeight;
-      const canScrollDownInside = event.deltaY > 0 && detailScroll.scrollTop < maxScrollTop - 1;
-      const canScrollUpInside = event.deltaY < 0 && detailScroll.scrollTop > 1;
-      if (canScrollDownInside || canScrollUpInside) {
-        return;
-      }
-    }
+    setActivePanel(current as "ring" | "quiz");
 
     if (event.deltaY > 0) {
-      if (current === "hero") {
-        topSection.scrollIntoView({ behavior: "smooth", block: "start" });
-      } else if (current === "ring") {
-        detailSection.scrollIntoView({ behavior: "smooth", block: "start" });
-      } else if (current === "detail") {
-        quizSection.scrollIntoView({ behavior: "smooth", block: "start" });
+      if (current === "ring") {
+        containerRef.current?.scrollTo({ top: quizSection.offsetTop, left: 0, behavior: "smooth" });
       } else {
-        quizSection.scrollIntoView({ behavior: "smooth", block: "start" });
+        containerRef.current?.scrollTo({ top: quizSection.offsetTop, left: 0, behavior: "smooth" });
       }
     } else {
       if (current === "quiz") {
-        detailSection.scrollIntoView({ behavior: "smooth", block: "start" });
-      } else if (current === "detail") {
-        topSection.scrollIntoView({ behavior: "smooth", block: "start" });
+        setShowPanelDetail(false);
+        containerRef.current?.scrollTo({ top: topSection.offsetTop, left: 0, behavior: "smooth" });
       } else {
-        heroSection.scrollIntoView({ behavior: "smooth", block: "start" });
+        containerRef.current?.scrollTo({ top: topSection.offsetTop, left: 0, behavior: "smooth" });
       }
     }
 
@@ -382,18 +648,109 @@ export default function ExtremeWeatherRisksPage() {
   };
 
   const handleContainerScroll = () => {
-    const heroSection = heroSectionRef.current;
     const topSection = topSectionRef.current;
-    const detailSection = detailSectionRef.current;
     const quizSection = quizSectionRef.current;
-    if (!heroSection || !topSection || !detailSection || !quizSection) return;
+    if (!topSection || !quizSection) return;
     const distances = [
-      { key: "hero", d: Math.abs(heroSection.getBoundingClientRect().top) },
       { key: "ring", d: Math.abs(topSection.getBoundingClientRect().top) },
-      { key: "detail", d: Math.abs(detailSection.getBoundingClientRect().top) },
       { key: "quiz", d: Math.abs(quizSection.getBoundingClientRect().top) },
     ].sort((a, b) => a.d - b.d);
-    setActivePanel(distances[0].key as "hero" | "ring" | "detail" | "quiz");
+    setActivePanel(distances[0].key as "ring" | "quiz");
+  };
+
+  const selectedWeatherType = selectedWeather !== null ? weatherTypes[selectedWeather] : null;
+  const selectedWeatherCenterSummary =
+    selectedWeatherType?.riskId === "heat"
+      ? {
+          title: "HEAT",
+          subtitle: "Outdoor movement may feel exhausting",
+          severity: "HIGH",
+          bullets: ["fatigue", "dehydration risk", "uncomfortable walking"],
+        }
+      : selectedWeatherType?.riskId === "heavy-rain"
+        ? {
+            title: "HEAVY RAIN",
+            subtitle: "Wet roads may reduce travel safety",
+            severity: "MODERATE",
+            bullets: ["slippery roads", "reduced visibility", "difficult cycling"],
+          }
+        : selectedWeatherType?.riskId === "cold"
+          ? {
+              title: "COLD",
+              subtitle: "Cold weather may reduce outdoor comfort",
+              severity: "MILD",
+              bullets: ["uncomfortable movement", "reduced outdoor willingness", "low comfort"],
+            }
+          : null;
+  const selectedWeatherCaseStudy =
+    selectedWeatherType?.riskId === "heavy-rain"
+      ? {
+            title: "Melbourne has experienced this weather",
+            body:
+              "14 December 2018 - Flash flooding occurred with roughly 30 mm of rain falling within 15 minutes before 5:45 p.m. during rush hour, flooding roads in inner Melbourne and other suburbs while shutting down most tram lines and train lines in Melbourne's East.",
+            sourceHref:
+              "https://www.heraldsun.com.au/news/victoria/melbourne-and-surrounding-suburbs-cops-a-soaking-in-peakhour-downpour/news-story/dd3f259ff594dfc3bec9320a94536f46",
+            sourceLabel: "Source: Herald Sun report",
+            tone: "blue" as const,
+          }
+      : selectedWeatherType?.riskId === "heat"
+        ? {
+            title: "Melbourne has experienced this weather",
+            body: "4–12 March 2013 - Melbourne faced a 10-day heatwave.",
+            sourceHref:
+              "https://www.theage.com.au/environment/weather/melbourne-faces-10-day-heatwave-20130306-2fl8a.html",
+            sourceLabel: "Source: The Age report",
+            tone: "red" as const,
+          }
+        : selectedWeatherType?.riskId === "cold"
+          ? {
+              title: "Melbourne has experienced this weather",
+              body:
+                "Cold mornings in Melbourne can significantly reduce outdoor comfort, especially for longer walking or cycling trips before sunrise.",
+              sourceHref: "",
+              sourceLabel: "Local seasonal pattern reference",
+              tone: "blue" as const,
+            }
+        : null;
+
+  const selectedWeatherDetailContent =
+    selectedWeatherType?.riskId === "heat"
+      ? {
+          environmentalChanges: [
+            "Roads and pavements retain more heat.",
+            "Direct sunlight increases outdoor exposure.",
+            "Outdoor environments may feel hotter over time.",
+          ],
+          movementExperience:
+            "Long outdoor exposure during hot weather may make walking or cycling feel exhausting.",
+          tags: ["outdoor fatigue", "heat exposure", "dehydration risk"],
+        }
+      : selectedWeatherType?.riskId === "heavy-rain"
+        ? {
+            environmentalChanges: [
+              "Roads become wet and slippery.",
+              "Visibility becomes lower during rainfall.",
+              "Movement through the city may become slower.",
+            ],
+            movementExperience:
+              "Wet roads and low visibility may make outdoor movement feel slower and more difficult.",
+            tags: ["slippery roads", "low visibility", "difficult cycling"],
+          }
+        : selectedWeatherType?.riskId === "cold"
+          ? {
+              environmentalChanges: [
+                "Cold air changes outdoor comfort.",
+                "Outdoor environments feel less inviting.",
+                "People may spend less time outdoors.",
+              ],
+              movementExperience:
+                "Cold weather may reduce outdoor comfort and make movement feel less enjoyable.",
+              tags: ["low comfort", "cold exposure", "reduced activity"],
+            }
+          : null;
+
+  const handleTopNavBackToTop = () => {
+    containerRef.current?.scrollTo({ top: 0, left: 0, behavior: "smooth" });
   };
 
   return (
@@ -404,76 +761,77 @@ export default function ExtremeWeatherRisksPage() {
       className="h-screen overflow-y-auto overflow-x-hidden snap-y snap-mandatory"
       style={{ backgroundColor: "#081515" }}
     >
+      <div className="fixed top-0 left-0 right-0 z-40 px-3 sm:px-4 pt-2 sm:pt-3 pointer-events-none">
+        <div className="pointer-events-auto">
+          <AppTopNav variant="landing" onBackToTop={handleTopNavBackToTop} />
+        </div>
+      </div>
+
       <nav
-        className="fixed top-0 left-0 z-30 bg-opacity-80 backdrop-blur-sm py-3 px-4 sm:py-4 sm:px-6"
-        style={{ backgroundColor: "rgba(8, 21, 21, 0.8)" }}
+        className="fixed top-0 left-0 z-50 py-3 px-4 sm:py-4 sm:px-6 pointer-events-auto"
+        style={{ backgroundColor: "transparent" }}
       >
-        <div className="flex flex-col items-start gap-2">
-          <button
-            type="button"
-            onClick={() => navigateTo("/map")}
-            className="flex items-center gap-2 text-white hover:text-gray-300 transition-colors"
-          >
-            <ArrowLeft className="size-4 sm:size-5" />
-            <span className="text-xs sm:text-sm">Back</span>
-          </button>
-          <div className="flex flex-col items-start gap-1.5">
-            {([
-              { id: "hero", label: "Extreme Weather Introduction" },
-              { id: "ring", label: "Circle" },
-              { id: "detail", label: "Risk Detail" },
-              { id: "quiz", label: "Start Quiz" },
-            ] as const).map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => {
-                  const sectionMap = {
-                    hero: heroSectionRef.current,
-                    ring: topSectionRef.current,
-                    detail: detailSectionRef.current,
-                    quiz: quizSectionRef.current,
-                  } as const;
-                  const target = sectionMap[item.id];
-                  if (!target) return;
-                  target.scrollIntoView({ behavior: "smooth", block: "start" });
-                }}
-                className={`px-2.5 py-1 rounded-md text-xs font-semibold border text-left ${
-                  activePanel === item.id
-                    ? "bg-white text-[#081515] border-white"
-                    : "text-white border-white/40 hover:bg-white/10"
-                }`}
-              >
-                {item.label}
-              </button>
-            ))}
-          </div>
+        <div className="flex flex-col items-start gap-1.5">
+          {([
+            { id: "ring", label: "Extreme Weather Panel" },
+            { id: "quiz", label: "Start Quiz" },
+          ] as const).map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => {
+                const sectionMap = {
+                  ring: topSectionRef.current,
+                  quiz: quizSectionRef.current,
+                } as const;
+                const target = sectionMap[item.id];
+                if (!target) return;
+                if (item.id === "ring") setShowPanelDetail(false);
+                containerRef.current?.scrollTo({ top: target.offsetTop, left: 0, behavior: "smooth" });
+              }}
+              className={`px-2.5 py-1 rounded-md text-xs font-semibold border text-left ${
+                activePanel === item.id
+                  ? "bg-white text-[#081515] border-white"
+                  : "text-white border-white/40 hover:bg-white/10"
+              }`}
+            >
+              {item.label}
+            </button>
+          ))}
         </div>
       </nav>
 
-      <section ref={heroSectionRef} className="snap-start h-screen pt-12 sm:pt-14">
-        <div className="relative w-full h-full overflow-hidden bg-[#081515]">
-          <img src={headerImage} alt="Extreme Weather" className="w-full h-full object-contain" />
-          <div className="absolute inset-0 bg-black/40 flex flex-col items-start justify-end text-white px-4 sm:px-8 lg:px-12 pb-5 sm:pb-8 lg:pb-12">
-            <h1 className="text-3xl sm:text-5xl lg:text-6xl mb-2 sm:mb-3 lg:mb-4">Extreme Weather</h1>
-            <p className="text-sm sm:text-lg lg:text-xl max-w-3xl">
-              Understanding the risks and impacts of severe weather events on human health and safety
-            </p>
-          </div>
-        </div>
-      </section>
-
       <section ref={topSectionRef} className="snap-start h-screen pt-12 sm:pt-14">
-        <div className="h-full flex items-center justify-center px-2 sm:px-4">
-          <div className="relative">
-          <motion.svg
+        <div className="relative h-full flex flex-col items-center justify-center px-2 sm:px-4 overflow-hidden">
+          <motion.h2
+            className="absolute top-0 sm:top-2 left-1/2 -translate-x-1/2 z-20 text-white text-3xl sm:text-5xl lg:text-6xl font-bold tracking-wide text-center pointer-events-none"
+            initial={false}
+            animate={{ opacity: showPanelDetail ? 0 : 1 }}
+            transition={{ duration: 0.32, ease: "easeOut" }}
+          >
+            Extreme Weather Panel
+          </motion.h2>
+          <motion.div
+            className="relative z-10"
+            animate={showPanelDetail ? {
+              scale: isSmallScreen ? 0.42 : 0.48,
+              x: isSmallScreen ? -175 : -560,
+              y: isSmallScreen ? 110 : 165,
+            } : {
+              scale: 1,
+              x: 0,
+              y: 8,
+            }}
+            transition={{ type: "spring", stiffness: 55, damping: 18, mass: 1.08 }}
+          >
+            <motion.svg
             width={viewSize}
             height={viewSize}
             viewBox={`0 0 ${viewSize} ${viewSize}`}
             className="drop-shadow-2xl w-[min(96vw,780px)] h-auto"
             animate={{ rotate: rotation }}
-            transition={{ duration: 0.58, ease: [0.22, 1, 0.36, 1] }}
-          >
+            transition={{ type: "spring", stiffness: 60, damping: 20, mass: 1.05 }}
+            >
             <defs>
               {weatherTypes.map((weather) => (
                 <pattern
@@ -541,56 +899,120 @@ export default function ExtremeWeatherRisksPage() {
 
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
             <motion.div
-              className="w-[min(54vw,384px)] h-[min(54vw,384px)] min-w-[170px] min-h-[170px] sm:min-w-[250px] sm:min-h-[250px] rounded-full bg-white shadow-2xl flex flex-col items-center justify-center p-2 sm:p-7 lg:p-10 text-center overflow-hidden"
+              className="w-[min(56vw,390px)] h-[min(56vw,390px)] min-w-[170px] min-h-[170px] sm:min-w-[250px] sm:min-h-[250px] rounded-full flex flex-col items-center justify-center p-2 sm:p-7 lg:p-10 text-center relative overflow-hidden"
+              style={{
+                background: "#ffffff",
+                border: "2px solid rgba(229,231,235,0.9)",
+                boxShadow: "0 18px 42px rgba(0,0,0,0.28)",
+              }}
               initial={false}
+              animate={{
+                opacity: centerVisible ? 1 : 0,
+                rotate: centerVisible ? 0 : -8,
+                scale: centerVisible ? 1 : 0.96,
+              }}
+              transition={{ type: "spring", stiffness: 120, damping: 16, mass: 0.9 }}
             >
               <AnimatePresence mode="wait">
-                {selectedWeather !== null ? (
+                {centerVisible && selectedWeather !== null ? (
                   <motion.div
                     key={weatherTypes[selectedWeather].riskId}
-                    className="flex flex-col items-center justify-center w-full h-full overflow-y-auto max-h-full px-0.5 sm:px-0"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 0.2, ease: "easeOut" }}
+                    className="relative z-10 flex flex-col items-center justify-center w-full h-full overflow-hidden max-h-full px-0.5 sm:px-0"
+                    initial="hidden"
+                    animate="show"
+                    exit={{ opacity: 0, rotate: 6, scale: 0.98 }}
+                    variants={{
+                      hidden: { opacity: 0, rotate: -10, scale: 0.96 },
+                      show: {
+                        opacity: 1,
+                        rotate: 0,
+                        scale: 1,
+                        transition: { staggerChildren: 0.12, delayChildren: 0.04 },
+                      },
+                    }}
                   >
-                    <div className="flex items-center gap-1.5 sm:gap-3 mb-2 sm:mb-4">
-                      <h2 className="text-[10px] max-[548px]:text-[9px] sm:text-lg lg:text-2xl" style={{ color: weatherTypes[selectedWeather].color }}>
-                        {weatherTypes[selectedWeather].name}
-                      </h2>
-                      <button
-                        type="button"
-                        onClick={() => handleLearnMore(weatherTypes[selectedWeather].riskId)}
-                        className="pointer-events-auto px-1.5 py-0 sm:px-3 sm:py-1 text-[8px] sm:text-xs rounded-full border-2 transition-colors hover:bg-gray-100"
+                    <motion.div
+                      className="relative z-10 flex items-center gap-1.5 sm:gap-3 mb-2 sm:mb-4"
+                      variants={{
+                        hidden: { opacity: 0, y: 8, rotate: -4 },
+                        show: {
+                          opacity: 1,
+                          y: 0,
+                          rotate: 0,
+                          transition: { type: "spring", stiffness: 180, damping: 14 }
+                        },
+                      }}
+                    >
+                      <h2
+                        className="text-[10px] max-[548px]:text-[9px] sm:text-xl lg:text-2xl tracking-wide"
                         style={{
-                          borderColor: weatherTypes[selectedWeather].color,
-                          color: weatherTypes[selectedWeather].color,
+                          color:
+                            selectedWeatherCenterSummary?.title === "HEAVY RAIN"
+                              ? "#1d4ed8"
+                              : weatherTypes[selectedWeather].color,
+                          textShadow: `0 2px 10px ${weatherTypes[selectedWeather].color}33`,
                         }}
                       >
-                        Learn More
-                      </button>
-                    </div>
-                    <div className="space-y-1 max-[548px]:space-y-0.5 sm:space-y-3 lg:space-y-4 w-full px-0.5 sm:px-3 lg:px-4">
-                      {weatherTypes[selectedWeather].risks.map((risk, idx) => (
-                        <div key={idx} className="text-center">
-                          <p className="text-[8px] max-[548px]:text-[7px] sm:text-xs lg:text-sm mb-0.5 sm:mb-1">
-                            <span className="text-gray-500">Risk Name: </span>
-                            <span className="font-medium">{risk.name}</span>
-                          </p>
-                          <p className="text-[7px] max-[548px]:text-[6px] sm:text-[11px] lg:text-xs text-gray-700 mb-0.5 sm:mb-1 leading-relaxed">
-                            <span className="text-gray-500">Impact on Human Body: </span>
-                            {risk.impact}
-                          </p>
-                          <p className="text-[7px] max-[548px]:text-[6px] sm:text-[11px] lg:text-xs">
-                            <span className={`font-medium ${risk.severity === "High" ? "text-red-600" : "text-amber-600"}`}>
-                              Severity: {risk.severity}
-                            </span>
+                        {selectedWeatherCenterSummary?.title ?? weatherTypes[selectedWeather].name.toUpperCase()}
+                      </h2>
+                      <motion.button
+                        type="button"
+                        onClick={handleLearnMore}
+                        className="pointer-events-auto px-2 py-0.5 sm:px-4 sm:py-1.5 text-[8px] sm:text-xs rounded-full text-white shadow-lg"
+                        style={{
+                          background: `linear-gradient(135deg, ${weatherTypes[selectedWeather].color} 0%, ${weatherTypes[selectedWeather].color}cc 100%)`,
+                        }}
+                        whileHover={{ scale: 1.08 }}
+                        whileTap={{ scale: 0.95 }}
+                      >
+                        Explore Impacts
+                      </motion.button>
+                    </motion.div>
+                    {selectedWeatherCenterSummary && (
+                      <motion.div
+                        className="relative z-10 w-full px-0.5 sm:px-3 lg:px-4 text-center"
+                        variants={{
+                          hidden: { opacity: 0, y: 8, rotate: 3 },
+                          show: {
+                            opacity: 1,
+                            y: 0,
+                            rotate: 0,
+                            transition: { type: "spring", stiffness: 170, damping: 15 }
+                          },
+                        }}
+                      >
+                        <p className="text-[7px] max-[548px]:text-[6px] sm:text-[11px] lg:text-xs text-gray-700 leading-relaxed">
+                          {selectedWeatherCenterSummary.subtitle}
                         </p>
-                        </div>
-                      ))}
-                    </div>
+                        <p className="text-[7px] max-[548px]:text-[6px] sm:text-[11px] lg:text-xs mt-1.5 sm:mt-2">
+                          <span className="font-medium text-gray-600">Severity: </span>
+                          <span className={`font-semibold ${
+                            selectedWeatherCenterSummary.severity === "HIGH"
+                              ? "text-red-600"
+                              : selectedWeatherCenterSummary.severity === "MODERATE"
+                                ? "text-amber-600"
+                                : "text-blue-600"
+                          }`}>
+                            {selectedWeatherCenterSummary.severity}
+                          </span>
+                        </p>
+                        <ul className="mt-1.5 sm:mt-2 space-y-0.5 sm:space-y-1">
+                          {selectedWeatherCenterSummary.bullets.map((item) => (
+                            <li
+                              key={item}
+                              className="text-[7px] max-[548px]:text-[6px] sm:text-[11px] lg:text-xs text-gray-700 rounded-md px-1.5 py-0.5 sm:px-2 sm:py-1"
+                              style={{
+                                backgroundColor: `${weatherTypes[selectedWeather].color}14`,
+                              }}
+                            >
+                              {item}
+                            </li>
+                          ))}
+                        </ul>
+                      </motion.div>
+                    )}
                   </motion.div>
-                ) : (
+                ) : centerVisible ? (
                   <motion.div
                     key="empty-state"
                     className="text-gray-400"
@@ -602,167 +1024,155 @@ export default function ExtremeWeatherRisksPage() {
                     <p className="text-xs sm:text-base lg:text-lg">Select a weather type</p>
                     <p className="text-[10px] sm:text-sm mt-2 sm:mt-3">Click on the ring segments</p>
                   </motion.div>
-                )}
+                ) : null}
               </AnimatePresence>
             </motion.div>
           </div>
-          </div>
-        </div>
-      </section>
+          </motion.div>
 
-      <section
-        ref={detailSectionRef}
-        className="snap-start h-screen pt-12 sm:pt-14 border-t border-white/20"
-      >
-        <div ref={detailScrollRef} className="h-full overflow-y-auto px-4 sm:px-6 py-8 sm:py-10">
-          <div className="max-w-6xl mx-auto mb-4 sm:mb-6 grid grid-cols-3 items-center">
-            <div className="justify-self-start">
-              <button
-                type="button"
-                onClick={handleBackToRing}
-                className="px-3 py-1.5 rounded-lg border border-white/40 text-white hover:bg-white/10 transition-colors text-xs sm:text-sm"
+          <AnimatePresence>
+            {showPanelDetail && selectedWeatherType !== null && (
+              <motion.div
+                className="pointer-events-none absolute inset-0 z-20 overflow-y-auto px-3 sm:px-4 py-16 sm:py-14"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0, transition: { duration: 0.24, ease: "easeInOut" } }}
+                transition={{ duration: 0.36, ease: "easeOut", delay: 0.42 }}
               >
-                ← Back to Circle
-              </button>
-            </div>
-            <div className="justify-self-center text-center">
-              <h2 className="text-base sm:text-lg font-bold text-white">
-                Risk Detail
-              </h2>
-            </div>
-            <div />
-          </div>
-          <div className="max-w-6xl mx-auto space-y-4 sm:space-y-6">
-          {weatherTypes.map((weather) => (
-            <div
-              key={weather.riskId}
-              ref={(element) => {
-                detailSectionRefs.current[weather.riskId] = element;
-              }}
-              className="rounded-xl border border-white/20 bg-white/95 shadow-lg p-5 sm:p-6"
-            >
-              <div className="mb-3">
-                <button
-                  type="button"
-                  onClick={handleBackToRing}
-                  className="px-2.5 py-1 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-100 transition-colors text-xs"
+                <motion.div
+                  className="pointer-events-auto mx-auto w-[min(96vw,64rem)] max-h-[calc(100vh-7rem)] overflow-y-auto rounded-2xl border border-white/30 bg-white/95 shadow-2xl p-4 sm:p-5 lg:p-6"
+                  initial={{ opacity: 0, x: 0, y: 0, scale: 0.97 }}
+                  animate={{
+                    opacity: 1,
+                    x: detailOffsetX,
+                    y: 0,
+                    scale: 1
+                  }}
+                  exit={{
+                    opacity: 0,
+                    x: isSmallScreen ? 18 : 56,
+                    y: 0,
+                    scale: 0.98,
+                    transition: { duration: 0.26, ease: [0.4, 0, 0.2, 1] }
+                  }}
+                  transition={{ duration: 0.64, ease: [0.22, 1, 0.36, 1], delay: 0.48 }}
                 >
-                  ← Back
-                </button>
-              </div>
-
-              <div className={`mb-4 ${weather.riskId === "storm" || weather.riskId === "heavy-rain" || weather.riskId === "heat" ? "grid grid-cols-1 lg:grid-cols-2 gap-4" : ""}`}>
-                <div className="overflow-hidden rounded-lg border border-gray-200 relative">
-                  <img
-                    src={weather.segmentImage}
-                    alt={weather.name}
-                    className="w-full h-44 sm:h-52 object-cover"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-r from-black/78 via-black/48 to-black/10 flex items-end">
-                    <div className="px-4 pb-3 sm:px-5 sm:pb-4 w-full sm:w-1/2">
-                      <h2 className="text-white text-xl sm:text-2xl font-bold drop-shadow-[0_2px_6px_rgba(0,0,0,0.8)]">
-                        {weather.heroTitle}
-                      </h2>
-                      <p className="text-gray-100 text-xs sm:text-sm mt-1 max-w-3xl leading-relaxed drop-shadow-[0_2px_6px_rgba(0,0,0,0.85)]">
-                        {weather.heroIntro}
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <h3 className="text-xl sm:text-2xl lg:text-3xl font-extrabold" style={{ color: weatherTypes[selectedWeather].color }}>
+                        {selectedWeatherType.heroTitle}
+                      </h3>
+                      <p className="text-sm sm:text-[15px] text-gray-700 mt-1.5 leading-relaxed max-w-3xl">
+                        {selectedWeatherType.heroIntro}
                       </p>
                     </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowPanelDetail(false)}
+                      className="shrink-0 px-3 py-1.5 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100 transition-colors text-sm"
+                    >
+                      Back to Panel
+                    </button>
                   </div>
-                </div>
-                {weather.riskId === "storm" && (
-                  <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 sm:p-5">
-                    <h3 className="text-sm sm:text-base font-bold text-amber-900">Melbourne has experienced this weather</h3>
-                    <p className="text-sm text-amber-900 mt-2 leading-relaxed">
-                      13 February 2024 - Severe thunderstorms swept across Victoria, causing power outages to over half a million households.
-                      Public transportation around metropolitan Melbourne was heavily disrupted as multiple train lines were damaged.
-                      One person died during these storms while on a farm in Mirboo North.
-                    </p>
-                    <p className="text-xs mt-3">
-                      <a
-                        href="https://www.9news.com.au/national/victoria-news-storms-bring-down-powerlines-and-rip-apart-backyards-in-victoria/3cdd39ee-9648-4c53-80f0-14f9043539e1"
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-amber-800 underline hover:text-amber-900"
-                      >
-                        Source: 9News report
-                      </a>
-                    </p>
-                  </div>
-                )}
-                {weather.riskId === "heavy-rain" && (
-                  <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 sm:p-5">
-                    <h3 className="text-sm sm:text-base font-bold text-blue-900">Melbourne has experienced this weather</h3>
-                    <p className="text-sm text-blue-900 mt-2 leading-relaxed">
-                      14 December 2018 - Flash flooding occurred with roughly 30 mm of rain falling within 15 minutes before 5:45 p.m. during rush hour, flooding roads in inner Melbourne and other suburbs while shutting down most tram lines and train lines in Melbourne&apos;s East.
-                    </p>
-                    <p className="text-xs mt-3">
-                      <a
-                        href="https://www.heraldsun.com.au/news/victoria/melbourne-and-surrounding-suburbs-cops-a-soaking-in-peakhour-downpour/news-story/dd3f259ff594dfc3bec9320a94536f46"
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-blue-800 underline hover:text-blue-900"
-                      >
-                        Source: Herald Sun report
-                      </a>
-                    </p>
-                  </div>
-                )}
-                {weather.riskId === "heat" && (
-                  <div className="rounded-lg border border-red-200 bg-red-50 p-4 sm:p-5">
-                    <h3 className="text-sm sm:text-base font-bold text-red-900">Melbourne has experienced this weather</h3>
-                    <p className="text-sm text-red-900 mt-2 leading-relaxed">
-                      4–12 March 2013 - Melbourne faced a 10-day heatwave.
-                    </p>
-                    <p className="text-xs mt-3">
-                      <a
-                        href="https://www.theage.com.au/environment/weather/melbourne-faces-10-day-heatwave-20130306-2fl8a.html"
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-red-800 underline hover:text-red-900"
-                      >
-                        Source: The Age report
-                      </a>
-                    </p>
-                  </div>
-                )}
-              </div>
 
-              <div className="mt-1 space-y-4">
-                {weather.risks.map((risk) => (
-                  <div key={risk.name} className="rounded-lg border border-gray-200 bg-gray-50 p-4">
-                    <h3 className="text-base sm:text-lg font-extrabold text-gray-900">{risk.name}</h3>
-                    <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <p className="text-sm text-gray-800">
-                          <span className="font-semibold text-gray-600">Impact on Human Body: </span>
-                          {risk.impact}
+                  <div className="mt-4 space-y-3 sm:space-y-4">
+                    {selectedWeatherCaseStudy && (
+                      <div
+                        className={`rounded-lg border p-3.5 sm:p-4 ${
+                          selectedWeatherCaseStudy.tone === "amber"
+                            ? "border-amber-200 bg-amber-50"
+                            : selectedWeatherCaseStudy.tone === "blue"
+                              ? "border-blue-200 bg-blue-50"
+                              : "border-red-200 bg-red-50"
+                        }`}
+                      >
+                        <h4
+                          className={`text-sm sm:text-base font-bold ${
+                            selectedWeatherCaseStudy.tone === "amber"
+                              ? "text-amber-900"
+                              : selectedWeatherCaseStudy.tone === "blue"
+                                ? "text-blue-900"
+                                : "text-red-900"
+                          }`}
+                        >
+                          {selectedWeatherCaseStudy.title}
+                        </h4>
+                        <p
+                          className={`text-sm mt-1.5 leading-relaxed ${
+                            selectedWeatherCaseStudy.tone === "amber"
+                              ? "text-amber-900"
+                              : selectedWeatherCaseStudy.tone === "blue"
+                                ? "text-blue-900"
+                                : "text-red-900"
+                          }`}
+                        >
+                          {selectedWeatherCaseStudy.body}
                         </p>
-                        <p className="text-sm mt-2">
-                          <span className={`font-semibold ${risk.severity === "High" ? "text-red-600" : "text-amber-600"}`}>
-                            Severity: {risk.severity}
-                          </span>
-                        </p>
+                        {selectedWeatherCaseStudy.sourceHref ? (
+                          <p className="text-xs mt-3">
+                            <a
+                              href={selectedWeatherCaseStudy.sourceHref}
+                              target="_blank"
+                              rel="noreferrer"
+                              className={`underline ${
+                                selectedWeatherCaseStudy.tone === "amber"
+                                  ? "text-amber-800 hover:text-amber-900"
+                                  : selectedWeatherCaseStudy.tone === "blue"
+                                    ? "text-blue-800 hover:text-blue-900"
+                                    : "text-red-800 hover:text-red-900"
+                              }`}
+                            >
+                              {selectedWeatherCaseStudy.sourceLabel}
+                            </a>
+                          </p>
+                        ) : (
+                          <p className="text-xs mt-3 text-blue-800">{selectedWeatherCaseStudy.sourceLabel}</p>
+                        )}
+
+                        {selectedWeatherType.riskId === "heat" && <HeatBodyImpactDemo />}
+                        {selectedWeatherType.riskId === "heavy-rain" && <HeavyRainBodyImpactDemo />}
+                        {selectedWeatherType.riskId === "cold" && <ColdBodyImpactDemo />}
                       </div>
-                      <div>
-                        <h4 className="text-sm font-extrabold text-gray-900">Why it happens</h4>
-                        <p className="text-sm text-gray-700 mt-1">{risk.whyItHappens.en}</p>
-                        <h4 className="text-sm font-extrabold text-gray-900 mt-3">What you can do</h4>
-                        <ul className="mt-1 space-y-1">
-                          {risk.whatYouCanDo.en.map((item) => (
-                            <li key={`en-${risk.name}-${item}`} className="text-sm text-gray-700">• {item}</li>
-                          ))}
-                        </ul>
+                    )}
+
+                    {selectedWeatherDetailContent && (
+                      <div className="rounded-lg border border-gray-200 bg-gray-50 p-3.5 sm:p-4 space-y-3">
+                        <div>
+                          <h4 className="text-base sm:text-lg font-extrabold text-gray-900">Environmental changes</h4>
+                          <ul className="mt-1 space-y-1">
+                            {selectedWeatherDetailContent.environmentalChanges.map((item) => (
+                              <li key={item} className="text-sm text-gray-700">• {item}</li>
+                            ))}
+                          </ul>
+                        </div>
+
+                        <div>
+                          <h5 className="text-sm font-extrabold text-gray-900">Movement experience</h5>
+                          <p className="text-sm text-gray-700 mt-1">{selectedWeatherDetailContent.movementExperience}</p>
+                        </div>
+
+                        <div>
+                          <h5 className="text-sm font-extrabold text-gray-900">Outdoor impact tags</h5>
+                          <div className="mt-1.5 flex flex-wrap gap-2">
+                            {selectedWeatherDetailContent.tags.map((tag) => (
+                              <span
+                                key={tag}
+                                className="inline-flex items-center rounded-full bg-white border border-gray-300 px-2.5 py-1 text-xs font-semibold text-gray-700"
+                              >
+                                {tag}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </div>
-                ))}
-              </div>
-            </div>
-          ))}
-          </div>
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </section>
-
       <section
         ref={quizSectionRef}
         className="snap-start h-screen pt-12 sm:pt-14 border-t border-white/20"
@@ -777,7 +1187,7 @@ export default function ExtremeWeatherRisksPage() {
             </p>
             <button
               type="button"
-              onClick={() => navigateTo("/extreme-weather-risks-quiz")}
+              onClick={() => navigate("/extreme-weather-risks-quiz")}
               className="mt-10 px-10 py-4 rounded-xl bg-teal-600 text-white text-xl sm:text-2xl font-semibold hover:bg-teal-700 transition-colors shadow-lg shadow-teal-900/40"
             >
               Enter Quiz
@@ -786,8 +1196,8 @@ export default function ExtremeWeatherRisksPage() {
         </div>
       </section>
 
-      {(activePanel === "ring" || activePanel === "detail") && (
-        <div className="fixed right-4 bottom-4 z-30 w-64 rounded-lg border border-white/30 bg-black/70 p-3 text-xs leading-5 text-white backdrop-blur-sm">
+      {activePanel === "ring" && (
+        <div className="fixed left-4 top-44 sm:top-48 z-30 w-64 rounded-lg border border-white/30 bg-black/70 p-3 text-xs leading-5 text-white backdrop-blur-sm">
           <p><span className="font-semibold text-red-300">High:</span> May cause fainting or even life-threatening conditions.</p>
           <p className="mt-1"><span className="font-semibold text-amber-300">Moderate:</span> Affects body condition but can usually be relieved.</p>
           <p className="mt-1"><span className="font-semibold text-blue-300">Mild:</span> Generally low concern in normal situations.</p>
