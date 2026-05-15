@@ -722,6 +722,7 @@
   --landing-mission-card-height: clamp(124px, 15.8vw, 226px);
   position: relative;
   height: 360vh;
+  overflow: hidden;
   background:
     linear-gradient(180deg, #081515 0%, #102624 44%, #122d2b 100%);
   isolation: isolate;
@@ -3063,8 +3064,26 @@
 
 .landing-footer-scene {
   position: relative;
+  overflow: hidden;
   background: linear-gradient(180deg, #0d2423 0%, #081515 36%, #060f0e 100%);
   color: #f7fffd;
+  isolation: isolate;
+  z-index: 120;
+  transform: translateZ(0);
+}
+
+.landing-footer-scene::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, #0d2423 0%, #081515 36%, #060f0e 100%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.landing-footer-scene > * {
+  position: relative;
+  z-index: 1;
 }
 
 /* Transition zone ─ soft closing line between CTA and footer */
