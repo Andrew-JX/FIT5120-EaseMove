@@ -16,6 +16,7 @@ import AppTopNav from "../components/AppTopNav";
 import LeafletMap from "../components/LeafletMap";
 import EasePlacesDetailPopup from "../components/map/EasePlacesDetailPopup";
 import DynamicLegendPanel from "../components/map/DynamicLegendPanel";
+import MapGuideDialog from "../components/map/MapGuideDialog";
 import { usePrecincts } from "../hooks/usePrecincts";
 import {
   DEFAULT_WEIGHTS,
@@ -26,11 +27,16 @@ import {
   type Precinct,
   type TodayRecommendation,
 } from "../lib/api";
-import { getAreaInfo, getAreaRecommendation } from "../lib/areaInfo";
+import {
+  getAreaInfo,
+  getAreaRecommendation,
+  type AreaComfortRoute,
+} from "../lib/areaInfo";
 import { type EasePlacesFeature } from "../lib/easePlaces";
 import { APP_ROUTES } from "../lib/navigation";
 import AreaDetailPage from "../pages/AreaDetailPage";
 import RecommendationFacilitiesPage from "../pages/RecommendationFacilitiesPage";
+let hasAutoShownMapGuideThisRuntime = false;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -479,6 +485,7 @@ export default function App({ mode }: { mode: "view" | "compare" }) {
     streetFacilities: false,
     naturalPlaces: false,
   });
+  const [showMapGuide, setShowMapGuide] = useState(false);
   const shouldFetchPrecincts = activeTab === 'compare' || mapFilters.comfortArea;
 
   const { precincts: precinctList, loading, error } = usePrecincts(
@@ -557,6 +564,24 @@ export default function App({ mode }: { mode: "view" | "compare" }) {
     setSelectedAreaId(getAreaIdFromSearch(location.search));
     setSelectedRecommendationId(getRecommendationIdFromSearch(location.search));
   }, [location.search]);
+
+  useEffect(() => {
+    if (
+      activeTab === "view" &&
+      !selectedAreaId &&
+      !selectedRecommendationId &&
+      !showTimeRecommendation &&
+      !hasAutoShownMapGuideThisRuntime
+    ) {
+      hasAutoShownMapGuideThisRuntime = true;
+      setShowMapGuide(true);
+    }
+  }, [
+    activeTab,
+    selectedAreaId,
+    selectedRecommendationId,
+    showTimeRecommendation,
+  ]);
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedWeights(weights), 800);
@@ -651,6 +676,45 @@ export default function App({ mode }: { mode: "view" | "compare" }) {
   function isStale(p: Precinct): boolean {
     return p.id === 'flemington';
   }
+
+  const guideTopPrecincts = [...precinctList]
+    .sort((a, b) => {
+      const staleDiff = Number(isStale(a)) - Number(isStale(b));
+      if (staleDiff !== 0) return staleDiff;
+      if (b.comfort_score !== a.comfort_score) return b.comfort_score - a.comfort_score;
+      return a.name.localeCompare(b.name);
+    })
+    .slice(0, 5);
+
+  const handleGuidePrecinctSelect = useCallback((precinct: Precinct) => {
+    const params = new URLSearchParams({
+      endLat: String(precinct.lat),
+      endLng: String(precinct.lng),
+      endName: precinct.name,
+      autoLocateStart: "1",
+    });
+    setShowMapGuide(false);
+    navigate(`${APP_ROUTES.map3dRoute}?${params.toString()}`);
+  }, [navigate]);
+
+  const handleComfortRouteSelect = useCallback((route: AreaComfortRoute) => {
+    const params = new URLSearchParams({
+      endLat: String(route.end.lat),
+      endLng: String(route.end.lng),
+      endName: route.end.name,
+      routeName: route.title,
+    });
+
+    if (route.start) {
+      params.set("startLat", String(route.start.lat));
+      params.set("startLng", String(route.start.lng));
+      params.set("startName", route.start.name);
+    } else {
+      params.set("autoLocateStart", "1");
+    }
+
+    navigate(`${APP_ROUTES.map3dRoute}?${params.toString()}`);
+  }, [navigate]);
 
   // ─── Compare helpers ─────────────────────────────────────────────────────────
 
@@ -1074,12 +1138,21 @@ export default function App({ mode }: { mode: "view" | "compare" }) {
         onRecommendationClick={(recommendationId) =>
           handleAreaNavigation(selectedArea.id, recommendationId)
         }
+        onComfortRouteClick={handleComfortRouteSelect}
       />
     );
   }
 
   return (
     <div className="relative min-h-[100dvh] overflow-hidden bg-[#f7fbfa] text-[#10201f]">
+      <MapGuideDialog
+        open={showMapGuide}
+        onOpenChange={setShowMapGuide}
+        topPrecincts={guideTopPrecincts}
+        loading={loading}
+        onPrecinctSelect={handleGuidePrecinctSelect}
+      />
+
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute inset-0 bg-[linear-gradient(180deg,#122d2b_0%,#edf8f5_17%,#f7fbfa_74%,#dfeee9_100%)]" />
         <div className="absolute inset-x-0 top-0 h-[26vh] bg-[radial-gradient(circle_at_50%_0%,rgba(131,197,190,0.26),transparent_62%)]" />
@@ -1142,6 +1215,18 @@ export default function App({ mode }: { mode: "view" | "compare" }) {
                     </button>
                   ))}
                 </div>
+                {activeTab === "view" && (
+                  <button
+                    type="button"
+                    onClick={() => setShowMapGuide(true)}
+                    className="mb-2 inline-flex items-center gap-2 rounded-xl border border-[#83c5be]/28 bg-[rgba(247,255,253,0.94)] px-4 py-2 text-sm font-semibold text-[#17413f] shadow-[0_12px_28px_rgba(16,32,31,0.08)] transition-all hover:border-[#83c5be]/52 hover:bg-white hover:shadow-[0_16px_34px_rgba(16,32,31,0.12)]"
+                    aria-label="Open map tips"
+                    title="Open tips"
+                  >
+                    <img src={ideaIcon} alt="" className="h-4 w-4 object-contain" aria-hidden="true" />
+                    <span>Tips</span>
+                  </button>
+                )}
               </div>
             </div>
 

@@ -2,7 +2,7 @@ import React from "react";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { MemoryRouter, Route, Routes } from "react-router";
-import { describe, test, expect, afterEach, vi } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
 import App from "../App";
 
 vi.mock("../../hooks/usePrecincts", () => ({
@@ -68,7 +68,7 @@ afterEach(() => {
 });
 
 describe("App map guide", () => {
-  test("opens the interactive map quick guide when entering /map", () => {
+  test("opens the interactive map quick guide once per runtime when entering /map", () => {
     const view = render(
       <MemoryRouter initialEntries={["/map"]}>
         <Routes>
@@ -80,5 +80,16 @@ describe("App map guide", () => {
     expect(view.container.textContent).toContain("Interactive Map Quick Guide");
 
     view.unmount();
+
+    const secondView = render(
+      <MemoryRouter initialEntries={["/map"]}>
+        <Routes>
+          <Route path="/map" element={<App mode="view" />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    expect(secondView.container.textContent).not.toContain("Interactive Map Quick Guide");
+    secondView.unmount();
   });
 });
