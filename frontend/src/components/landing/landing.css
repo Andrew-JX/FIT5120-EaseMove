@@ -1887,6 +1887,10 @@
   animation: landing-start-curve-glow-pulse 2.8s ease-in-out infinite;
 }
 
+.landing-start-action-curve-glow-mobile {
+  display: none;
+}
+
 .landing-start-action-copy {
   position: absolute;
   bottom: 0;
@@ -2950,12 +2954,12 @@
   }
 
   .landing-start-action-curve-line-desktop,
-  .landing-start-action-glow-motion-desktop {
+  .landing-start-action-curve-glow-desktop {
     display: none;
   }
 
   .landing-start-action-curve-line-mobile,
-  .landing-start-action-glow-motion-mobile {
+  .landing-start-action-curve-glow-mobile {
     display: inline;
   }
 
