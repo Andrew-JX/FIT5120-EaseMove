@@ -309,6 +309,10 @@ describe("Map3DExperimentPage - Epic 5", () => {
     await view.flush();
 
     expect(view.container.textContent).toContain("-37.79910, 144.98120");
+    expect(view.container.querySelector('[data-testid="point-badge-start"]')?.textContent).toBe("S");
+    expect(view.container.querySelector('[data-testid="point-badge-start"]')?.className).toContain("border-[4px]");
+    expect(view.container.querySelector('[data-testid="point-badge-end"]')?.textContent).toBe("E");
+    expect(view.container.querySelector('[data-testid="point-badge-end"]')?.className).toContain("border-[4px]");
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(String(fetchMock.mock.calls[0]?.[0])).toContain("/walking/");
 
@@ -617,6 +621,9 @@ describe("Map3DExperimentPage - Epic 5", () => {
 
     expect(firstView.container.textContent).toContain("Quick guide");
     expect(firstView.container.textContent).toContain("3D Route Preview");
+    expect(firstView.container.querySelector('[data-testid="route-guide-overlay"]')?.className).toContain(
+      "map-guide-dialog-scroll"
+    );
     firstView.unmount();
 
     const secondView = render(
@@ -641,6 +648,37 @@ describe("Map3DExperimentPage - Epic 5", () => {
 
     expect(reloadedView.container.textContent).toContain("Quick guide");
     reloadedView.unmount();
+  });
+
+  test("mobile collapsed controls keep the Route and Layers launchers in one row", async () => {
+    Object.defineProperty(window, "matchMedia", {
+      writable: true,
+      value: vi.fn().mockImplementation(() => ({
+        matches: true,
+        media: "(max-width: 767px)",
+        onchange: null,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      })),
+    });
+
+    const Map3DExperimentPage = await loadPageWithToken();
+    const view = render(
+      <MemoryRouter initialEntries={["/map/3d-route"]}>
+        <Routes>
+          <Route path="/map/3d-route" element={<Map3DExperimentPage />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    expect(view.container.querySelector('[data-testid="collapsed-panel-actions"]')?.className).not.toContain(
+      "max-sm:grid-cols-1"
+    );
+
+    view.unmount();
   });
 
   test("area comfort-route navigation preloads both start and end points and requests a route immediately", async () => {

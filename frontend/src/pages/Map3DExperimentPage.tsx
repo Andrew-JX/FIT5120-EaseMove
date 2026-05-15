@@ -573,8 +573,9 @@ export default function Map3DExperimentPage() {
       />
       {showGuide ? (
         <div
+          data-testid="route-guide-overlay"
           style={liquidGlassPanelStyle}
-          className="absolute left-1/2 top-20 z-30 w-[min(34rem,calc(100vw-2rem))] -translate-x-1/2 rounded-[30px] border border-white/60 px-6 py-6 text-[#17413f] shadow-[0_28px_70px_rgba(4,14,14,0.18)] sm:top-24 sm:px-7 sm:py-7"
+          className="map-guide-dialog-scroll fixed left-1/2 top-[max(0.75rem,env(safe-area-inset-top))] z-30 max-h-[calc(100dvh-max(1.5rem,env(safe-area-inset-top)+env(safe-area-inset-bottom)))] w-[min(34rem,calc(100vw-1.5rem))] -translate-x-1/2 overflow-y-auto rounded-[30px] border border-white/60 px-5 py-5 text-[#17413f] shadow-[0_28px_70px_rgba(4,14,14,0.18)] sm:top-24 sm:max-h-[calc(100dvh-6rem)] sm:w-[min(34rem,calc(100vw-2rem))] sm:px-7 sm:py-7"
         >
             <div className="flex items-start justify-between gap-4">
               <div>
@@ -667,7 +668,7 @@ export default function Map3DExperimentPage() {
       >
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_0%,rgba(255,255,255,0.48),transparent_34%),linear-gradient(120deg,rgba(255,255,255,0.12),transparent_42%,rgba(255,255,255,0.1)_68%,transparent)]" />
         {panelCollapsed ? (
-          <div className="grid grid-cols-2 gap-2 p-2 max-sm:grid-cols-1">
+          <div data-testid="collapsed-panel-actions" className="grid grid-cols-2 gap-2 p-2">
             <CollapsedPanelButton
               label="Route"
               icon={<Navigation className="h-4 w-4" />}
@@ -682,12 +683,12 @@ export default function Map3DExperimentPage() {
         ) : (
           <>
         <div className="relative border-b border-white/38 px-4 py-4 shadow-[inset_0_-1px_0_rgba(23,65,63,0.06)] sm:px-5">
-          <div className="flex items-start justify-between gap-3 max-sm:flex-col">
-            <div>
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0 flex-1">
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#5f8682]">MoveComfortly route</p>
               <h1 className="mt-1 text-xl font-semibold text-[#17413f]">3D Route Preview</h1>
             </div>
-            <div className="flex shrink-0 items-center gap-2 self-end max-sm:w-full max-sm:justify-end">
+            <div className="flex shrink-0 items-center gap-2 self-start">
               <button
                 type="button"
                 onClick={handleUseCurrentLocation}
@@ -712,7 +713,7 @@ export default function Map3DExperimentPage() {
             </div>
           </div>
 
-          <div className="mt-4 grid grid-cols-2 rounded-full border border-white/32 bg-white/28 p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.55)]">
+          <div className="mt-3 grid grid-cols-2 rounded-full border border-white/32 bg-white/28 p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.55)]">
             <PanelTabButton
               active={activePanel === "route"}
               icon={<Navigation className="h-4 w-4" />}
@@ -793,8 +794,8 @@ export default function Map3DExperimentPage() {
               ) : null}
 
               <div className="mb-4 space-y-3">
-                <PointRow label="Start" point={startPoint} colorClass="bg-[#17413f]" onDelete={handleDeleteStart} />
-                <PointRow label="End" point={endPoint} colorClass="bg-blue-600" onDelete={handleDeleteEnd} />
+                <PointRow label="Start" point={startPoint} badgeClassName="bg-[#0f766e]" onDelete={handleDeleteStart} />
+                <PointRow label="End" point={endPoint} badgeClassName="bg-[#ea580c]" onDelete={handleDeleteEnd} />
               </div>
 
               {isRouteLoading ? (
@@ -978,17 +979,20 @@ function Metric({ label, value }: { label: string; value: string }) {
 function PointRow({
   label,
   point,
-  colorClass,
+  badgeClassName,
   onDelete,
 }: {
   label: string;
   point: RoutePoint | null;
-  colorClass: string;
+  badgeClassName: string;
   onDelete: () => void;
 }) {
   return (
     <div className={`flex items-center gap-3 rounded-2xl p-3 ${liquidGlassInteractiveClass}`} tabIndex={0}>
-      <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${colorClass} text-xs font-bold text-white`}>
+      <span
+        data-testid={`point-badge-${label.toLowerCase()}`}
+        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-[4px] border-white text-[0.82rem] font-black leading-none text-white shadow-[0_0_0_6px_rgba(255,255,255,0.26),0_0_0_12px_rgba(255,255,255,0.1),0_14px_28px_rgba(15,23,42,0.22)] ${badgeClassName}`}
+      >
         {label[0]}
       </span>
       <div className="min-w-0 flex-1">

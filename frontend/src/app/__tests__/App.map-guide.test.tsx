@@ -78,6 +78,9 @@ describe("App map guide", () => {
     );
 
     expect(view.container.textContent).toContain("Interactive Map Quick Guide");
+    expect(view.container.querySelector('[data-testid="map-guide-scroll-shell"]')?.className).toContain(
+      "overflow-y-auto"
+    );
 
     view.unmount();
 
