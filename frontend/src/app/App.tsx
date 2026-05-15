@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from "react";
+﻿import { useState, useCallback, useEffect, useRef } from "react";
 import { useLocation, useNavigate } from "react-router";
 import {
   Thermometer, Droplets, Users, X, Wind, Map, ArrowLeft,
@@ -31,7 +31,7 @@ import { APP_ROUTES } from "../lib/navigation";
 import AreaDetailPage from "../pages/AreaDetailPage";
 import RecommendationFacilitiesPage from "../pages/RecommendationFacilitiesPage";
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+// 閳光偓閳光偓閳光偓 Helpers 閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓
 
 function riskLevel(label: string): 'low' | 'caution' | 'high' {
   if (label === 'Comfortable') return 'low';
@@ -188,7 +188,7 @@ function SensorStatusRow({
   }) {
     return (
       <div className="flex shrink-0 items-center justify-end gap-2 whitespace-nowrap">
-        <div className="w-[126px] shrink-0 sm:w-[174px]">
+        <div className="hidden w-[126px] shrink-0 min-[721px]:block sm:w-[174px]">
           {loading ? (
             <SensorStatusBadge tone="neutral" pulse>
               Loading sensors...
@@ -210,7 +210,7 @@ function SensorStatusRow({
   );
 }
 
-// ─── Ease Places Popup ────────────────────────────────────────────────────────
+// 閳光偓閳光偓閳光偓 Ease Places Popup 閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓
 
 function EasePlacesPopup({
   feature,
@@ -297,7 +297,7 @@ function EasePlacesPopup({
   );
 }
 
-// ─── Map Sidebar Controls ─────────────────────────────────────────────────────
+// 閳光偓閳光偓閳光偓 Map Sidebar Controls 閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓
 
 function MapSidebarControls({
   onZoomIn,
@@ -339,7 +339,7 @@ function MapSidebarControls({
   );
 }
 
-// ─── Map Filter Panel ─────────────────────────────────────────────────────────
+// 閳光偓閳光偓閳光偓 Map Filter Panel 閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓
 
 type MapFilters = {
   easePlaces: boolean;
@@ -380,7 +380,7 @@ function MapFilterPanel({
   );
 }
 
-// ─── Legend Panel ─────────────────────────────────────────────────────────────
+// 閳光偓閳光偓閳光偓 Legend Panel 閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓
 
 function FurnitureLegend() {
   return (
@@ -437,15 +437,15 @@ function LegendPanel() {
         <div className="legend-section-label">Comfort Level</div>
         <div className="legend-row">
           <div className="comfort-dot comfort-dot-comfortable" />
-          <span>Comfortable (70–100)</span>
+          <span>Comfortable (70- 00)</span>
         </div>
         <div className="legend-row">
           <div className="comfort-dot comfort-dot-caution" />
-          <span>Caution (40–69)</span>
+          <span>Caution (40- 9)</span>
         </div>
         <div className="legend-row">
           <div className="comfort-dot comfort-dot-high" />
-          <span>High Risk (0–39)</span>
+          <span>High Risk (0- 9)</span>
         </div>
         <div className="legend-row">
           <div className="comfort-dot comfort-dot-no-data" />
@@ -458,7 +458,7 @@ function LegendPanel() {
   );
 }
 
-// ─── App ──────────────────────────────────────────────────────────────────────
+// 閳光偓閳光偓閳光偓 App 閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓
 
 export default function App({ mode }: { mode: "view" | "compare" }) {
   const navigate = useNavigate();
@@ -490,13 +490,13 @@ export default function App({ mode }: { mode: "view" | "compare" }) {
   );
 
   const [showCard, setShowCard] = useState<string | null>(null);
-  // Left sidebar starts collapsed — only relevant when Comfort Area filter is enabled
+  // Left sidebar starts collapsed - only relevant when Comfort Area filter is enabled
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(true);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [compareSelection1, setCompareSelection1] = useState<string | null>(null);
   const [compareSelection2, setCompareSelection2] = useState<string | null>(null);
 
-  // Right panel: 'layers' | 'legend' | null — mutually exclusive
+  // Right panel: 'layers' | 'legend' | null - mutually exclusive
   const [openPanel, setOpenPanel] = useState<'layers' | 'legend' | null>('legend');
 
   // Ease Places popup
@@ -588,7 +588,7 @@ export default function App({ mode }: { mode: "view" | "compare" }) {
     return () => clearTimeout(timer);
   }, [weights]);
 
-  // ─── Map filters ─────────────────────────────────────────────────────────────
+  // 閳光偓閳光偓閳光偓 Map filters 閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓
 
   const handleToggleMapFilter = useCallback((key: keyof MapFilters) => {
     setMapFilters((current: MapFilters) => {
@@ -606,7 +606,7 @@ export default function App({ mode }: { mode: "view" | "compare" }) {
     });
   }, []);
 
-  // ─── Sidebar controls ────────────────────────────────────────────────────────
+  // 閳光偓閳光偓閳光偓 Sidebar controls 閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓
 
   const handleZoomIn = useCallback(() => { mapInstanceRef.current?.zoomIn(); }, []);
   const handleZoomOut = useCallback(() => { mapInstanceRef.current?.zoomOut(); }, []);
@@ -619,7 +619,7 @@ export default function App({ mode }: { mode: "view" | "compare" }) {
     setOpenPanel((p: 'layers' | 'legend' | null) => (p === 'legend' ? null : 'legend'));
   }, []);
 
-  // ─── Map click handlers ──────────────────────────────────────────────────────
+  // 閳光偓閳光偓閳光偓 Map click handlers 閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓
 
   const handleCompareClick = useCallback((id: string) => {
     if (compareSelection1 === id) {
@@ -716,7 +716,7 @@ export default function App({ mode }: { mode: "view" | "compare" }) {
     navigate(`${APP_ROUTES.map3dRoute}?${params.toString()}`);
   }, [navigate]);
 
-  // ─── Compare helpers ─────────────────────────────────────────────────────────
+  // 閳光偓閳光偓閳光偓 Compare helpers 閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓
 
   const compareRank = (p: Precinct): number => {
     const riskPriority = { low: 3, caution: 2, high: 1 } as const;
@@ -779,23 +779,23 @@ export default function App({ mode }: { mode: "view" | "compare" }) {
     if (p.temperature !== null && p.temperature > 30)
       advice.push({ icon: "☀️", text: "Wear lightweight, breathable clothing and carry a water bottle", category: "High Temperature", trigger: `Based on current temperature: ${p.temperature}°C` });
     if (p.pm25 !== null && p.pm25 > 25)
-      advice.push({ icon: "😷", text: "Air quality is currently poor — consider wearing a mask during strenuous outdoor activity", category: "Air Quality", trigger: `Based on PM2.5 reading: ${p.pm25} µg/m³` });
+      advice.push({ icon: "😷", text: "Air quality is currently poor - consider wearing a mask during strenuous outdoor activity", category: "Air Quality", trigger: `Based on PM2.5 reading: ${p.pm25} µg/m³` });
     if ((p.temperature === null || p.temperature < 28) && (p.pm25 === null || p.pm25 <= 25))
-      advice.push({ icon: "✅", text: "Conditions are comfortable — great time for a walk or ride!", category: "Comfortable Conditions", trigger: p.temperature !== null ? `Temperature: ${p.temperature}°C, PM2.5: ${p.pm25 ?? 'N/A'} µg/m³` : "Based on available sensor data" });
+      advice.push({ icon: "✅", text: "Conditions are comfortable - great time for a walk or ride!", category: "Comfortable Conditions", trigger: p.temperature !== null ? `Temperature: ${p.temperature}°C, PM2.5: ${p.pm25 ?? 'N/A'} µg/m³` : "Based on available sensor data" });
     if (p.temperature !== null && p.temperature >= 28 && p.temperature <= 30)
-      advice.push({ icon: "🌡️", text: "Temperature is warm — stay hydrated and seek shade when possible", category: "Moderate Temperature", trigger: `Based on current temperature: ${p.temperature}°C` });
+      advice.push({ icon: "🌅", text: "Temperature is warm - stay hydrated and seek shade when possible", category: "Moderate Temperature", trigger: `Based on current temperature: ${p.temperature}°C` });
     if (p.humidity !== null && p.humidity > 65)
-      advice.push({ icon: "💧", text: "High humidity — drink plenty of water and take breaks in air-conditioned areas", category: "Humidity", trigger: `Based on humidity level: ${p.humidity}%` });
+      advice.push({ icon: "💧", text: "High humidity - drink plenty of water and take breaks in air-conditioned areas", category: "Humidity", trigger: `Based on humidity level: ${p.humidity}%` });
     if (p.activity_level === "High")
-      advice.push({ icon: "👥", text: "High crowd density — plan extra time and consider visiting during off-peak hours", category: "Crowding", trigger: `Based on activity level: ${p.activity_level}` });
+      advice.push({ icon: "👥", text: "High crowd density - plan extra time and consider visiting during off-peak hours", category: "Crowding", trigger: `Based on activity level: ${p.activity_level}` });
     if (p.wind_speed !== null && p.wind_speed < 3)
-      advice.push({ icon: "💨", text: "Low wind conditions — may feel warmer than temperature indicates", category: "Wind", trigger: `Based on wind speed: ${p.wind_speed} m/s` });
+      advice.push({ icon: "🍃", text: "Low wind conditions - may feel warmer than temperature indicates", category: "Wind", trigger: `Based on wind speed: ${p.wind_speed} m/s` });
     if (advice.length === 0)
       advice.push({ icon: "✨", text: "Conditions look good for outdoor activities", category: "General", trigger: "Based on available sensor data" });
     return advice;
   };
 
-  // ─── Time Recommendation View ────────────────────────────────────────────────
+  // 閳光偓閳光偓閳光偓 Time Recommendation View 閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓
 
   if (showTimeRecommendation && selectedDestId) {
     const destPrecinct = precincts[selectedDestId];
@@ -862,15 +862,15 @@ export default function App({ mode }: { mode: "view" | "compare" }) {
 
             <div className="bg-[rgba(247,255,253,0.82)] backdrop-blur-sm rounded-[24px] shadow-[0_24px_58px_rgba(16,32,31,0.14)] p-6 mb-6 border border-[#83c5be]/14 text-[#10201f]">
               <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
-                <span className="text-2xl">⭐</span>
+                <span className="text-2xl">🕒</span>
                 <span>Right Now</span>
               </h3>
               {loadingToday ? (
-                <div className="text-center py-4 text-gray-500">Loading sensor data…</div>
+                <div className="text-center py-4 text-gray-500">Loading sensor data...</div>
               ) : destPrecinct ? (
                 <div className="bg-gradient-to-r from-[#edf6f9] to-[#e3f3ef] rounded-2xl p-5 border border-[#83c5be]/30">
                   <div className="flex items-start gap-4">
-                    <div className="flex-shrink-0 w-12 h-12 bg-green-500 rounded-full flex items-center justify-center text-white text-xl">✓</div>
+                    <div className="flex-shrink-0 w-12 h-12 bg-green-500 rounded-full flex items-center justify-center text-white text-xl">✅</div>
                     <div className="flex-1">
                       <p className="text-lg font-semibold text-green-900 mb-2">
                         {todayData?.recommendation ?? (destPrecinct.comfort_label === 'Comfortable' ? 'Good time to travel. Conditions are comfortable right now.' : destPrecinct.comfort_label === 'Caution' ? 'Conditions are elevated. Consider travelling before 10am or after 5pm.' : 'High risk conditions. Consider waiting or using alternative transport.')}
@@ -899,7 +899,7 @@ export default function App({ mode }: { mode: "view" | "compare" }) {
                   <div className="flex items-center gap-3 mb-2">
                     <span className="text-2xl">🌅</span>
                     <div>
-                      <p className="font-bold text-lg text-blue-900">Morning 7:00 – 10:00</p>
+                      <p className="font-bold text-lg text-blue-900">Morning 7:00 - 10:00</p>
                       <p className="text-sm text-blue-700">Typically cooler with lower crowd density</p>
                     </div>
                   </div>
@@ -909,7 +909,7 @@ export default function App({ mode }: { mode: "view" | "compare" }) {
                 </div>
                 <div className="bg-gradient-to-r from-[#fff4ef] to-[#fef8f3] rounded-2xl p-4 border border-[#e29578]/24">
                   <div className="flex items-center gap-3 mb-2">
-                    <span className="text-2xl">🌆</span>
+                    <span className="text-2xl">🌙</span>
                     <div>
                       <p className="font-bold text-lg text-purple-900">Evening After 17:00</p>
                       <p className="text-sm text-purple-700">Temperature drops, crowd density decreases</p>
@@ -922,7 +922,7 @@ export default function App({ mode }: { mode: "view" | "compare" }) {
               </div>
               <div className="mt-5 p-4 bg-[#fff7e8] rounded-2xl border-l-4 border-[#e29578]">
                 <p className="text-sm font-semibold text-yellow-900 mb-2">💡 Alternative Suggestion</p>
-                <p className="text-sm text-gray-700">If travelling between 12:00–15:00, consider indoor routes or bring sun protection as temperatures are higher during this period.</p>
+                <p className="text-sm text-gray-700">If travelling between 12:00- 5:00, consider indoor routes or bring sun protection as temperatures are higher during this period.</p>
               </div>
             </div>
 
@@ -945,7 +945,7 @@ export default function App({ mode }: { mode: "view" | "compare" }) {
                     </div>
                     <div className="ml-14 mt-2 text-xs text-gray-600 bg-white/60 rounded-lg px-3 py-2 border border-gray-200">
                       <span className="font-medium inline-flex items-center gap-1">
-                        <span>📊</span>
+                        <span>💡</span>
                         {adv.trigger.includes('PM2.5') ? (
                           <>
                             <span>{adv.trigger.slice(0, adv.trigger.indexOf('PM2.5'))}</span>
@@ -968,7 +968,7 @@ export default function App({ mode }: { mode: "view" | "compare" }) {
     );
   }
 
-  // ─── Main Map View ────────────────────────────────────────────────────────────
+  // 閳光偓閳光偓閳光偓 Main Map View 閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓
 
   const showCardPrecinct = showCard ? precincts[showCard] : null;
   const betterPrecinctId = getBetterPrecinct();
@@ -1035,8 +1035,8 @@ export default function App({ mode }: { mode: "view" | "compare" }) {
               <div className="map-nav-status-shell ml-auto flex min-w-0 shrink-0 items-center justify-end gap-2 sm:gap-3">
                 <AppTopNav variant="app" className="app-map-top-nav" />
                 <SensorStatusRow loading={loading} error={error} />
-                {loading && <span className="text-sm text-gray-400 animate-pulse">Loading sensors…</span>}
-                {error && <span className="text-sm text-red-500">⚠ {error}</span>}
+                {loading && <span className="hidden text-sm text-gray-400 animate-pulse min-[721px]:inline">Loading sensors...</span>}
+                {error && <span className="hidden text-sm text-red-500 min-[721px]:inline">! {error}</span>}
                 <div className="hidden shrink-0 items-center gap-2 text-xs text-gray-500">
                 <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
                 Live sensors
@@ -1083,7 +1083,7 @@ export default function App({ mode }: { mode: "view" | "compare" }) {
               </div>
             </div>
 
-            {/* ── View Tab ── */}
+            {/* 閳光偓閳光偓 View Tab 閳光偓閳光偓 */}
             {activeTab === "view" && (
               <>
                 <div className="p-6 pb-4">
@@ -1103,7 +1103,7 @@ export default function App({ mode }: { mode: "view" | "compare" }) {
                 </div>
 
                 <div className="flex">
-                  {/* Left sidebar — hidden when Ease Places is active */}
+                  {/* Left sidebar - hidden when Ease Places is active */}
                   <div
                     className={`border-r border-[#17413f]/8 bg-[linear-gradient(180deg,rgba(237,246,249,0.92),rgba(247,251,250,0.86))] transition-all duration-300 overflow-x-hidden overflow-y-auto ${
                       sidebarCollapsed || !mapFilters.comfortArea ? 'w-0' : 'w-56'
@@ -1175,7 +1175,7 @@ export default function App({ mode }: { mode: "view" | "compare" }) {
 
                   {/* Map area */}
                   <div className="flex-1 relative">
-                    {/* Left sidebar toggle — only visible when Comfort Area is enabled */}
+                    {/* Left sidebar toggle - only visible when Comfort Area is enabled */}
                     {mapFilters.comfortArea && (
                       <button
                         type="button"
@@ -1307,7 +1307,7 @@ export default function App({ mode }: { mode: "view" | "compare" }) {
                         <div className={`grid grid-cols-2 gap-3 mb-4 ${isStale(showCardPrecinct) ? 'opacity-60' : ''}`}>
                           <div className={`bg-gradient-to-br rounded-2xl p-3 border ${isStale(showCardPrecinct) ? 'from-gray-50 to-gray-100 border-gray-300' : 'from-[#fff3eb] to-[#fff8f3] border-[#e29578]/24'}`}>
                             <div className="flex items-center gap-2 mb-1"><Thermometer className={`w-4 h-4 ${isStale(showCardPrecinct) ? 'text-gray-500' : 'text-orange-600'}`} /><p className="text-sm text-gray-600">Temperature</p></div>
-                            <p className={`text-xl font-bold ${isStale(showCardPrecinct) ? 'text-gray-600' : 'text-orange-700'}`}>{showCardPrecinct.temperature !== null ? `${showCardPrecinct.temperature}°C` : 'N/A'}</p>
+                            <p className={`text-xl font-bold ${isStale(showCardPrecinct) ? 'text-gray-600' : 'text-orange-700'}`}>{showCardPrecinct.temperature !== null ? `${showCardPrecinct.temperature}掳C` : 'N/A'}</p>
                           </div>
                           <div className={`bg-gradient-to-br rounded-2xl p-3 border ${isStale(showCardPrecinct) ? 'from-gray-50 to-gray-100 border-gray-300' : 'from-[#edf6f9] to-[#f3fbf8] border-[#83c5be]/24'}`}>
                             <div className="flex items-center gap-2 mb-1"><Droplets className={`w-4 h-4 ${isStale(showCardPrecinct) ? 'text-gray-500' : 'text-blue-600'}`} /><p className="text-sm text-gray-600">Humidity</p></div>
@@ -1338,7 +1338,7 @@ export default function App({ mode }: { mode: "view" | "compare" }) {
               </>
             )}
 
-            {/* ── Compare Tab (unchanged) ── */}
+            {/* 閳光偓閳光偓 Compare Tab (unchanged) 閳光偓閳光偓 */}
             {activeTab === "compare" && (
               <>
                 <div className="p-6 pb-4">
@@ -1358,9 +1358,9 @@ export default function App({ mode }: { mode: "view" | "compare" }) {
                     <div className="absolute top-4 right-4 bg-[rgba(247,255,253,0.82)] backdrop-blur-md rounded-2xl shadow-[0_16px_34px_rgba(16,32,31,0.12)] p-4 z-30 pointer-events-none border border-[#83c5be]/16 text-[#10201f]">
                       <h3 className="font-semibold mb-3 text-sm">Comfort Levels</h3>
                       <div className="space-y-2">
-                        <div className="flex items-center gap-2"><div className="w-4 h-4 rounded-full bg-green-500" /><span className="text-xs font-medium">Comfortable (70–100)</span></div>
-                        <div className="flex items-center gap-2"><div className="w-4 h-4 rounded-full bg-yellow-500" /><span className="text-xs font-medium">Caution (40–69)</span></div>
-                        <div className="flex items-center gap-2"><div className="w-4 h-4 rounded-full bg-red-500" /><span className="text-xs font-medium">High Risk (0–39)</span></div>
+                        <div className="flex items-center gap-2"><div className="w-4 h-4 rounded-full bg-green-500" /><span className="text-xs font-medium">Comfortable (70- 00)</span></div>
+                        <div className="flex items-center gap-2"><div className="w-4 h-4 rounded-full bg-yellow-500" /><span className="text-xs font-medium">Caution (40- 9)</span></div>
+                        <div className="flex items-center gap-2"><div className="w-4 h-4 rounded-full bg-red-500" /><span className="text-xs font-medium">High Risk (0- 9)</span></div>
                       </div>
                     </div>
                     <LeafletMap
@@ -1396,7 +1396,7 @@ export default function App({ mode }: { mode: "view" | "compare" }) {
                     {!compareSelection1 && !compareSelection2 ? (
                       <div className="flex items-center justify-center h-full bg-[rgba(237,246,249,0.82)] rounded-[24px] border border-dashed border-[#83c5be]/34">
                         <div className="text-center p-6">
-                          <div className="text-4xl mb-4">👆</div>
+                          <div className="text-4xl mb-4">棣冩啘</div>
                           <h3 className="text-lg font-semibold text-gray-700 mb-2">Select Two Areas</h3>
                           <p className="text-sm text-gray-500">Click markers on the map to select areas to compare</p>
                         </div>
@@ -1431,7 +1431,7 @@ export default function App({ mode }: { mode: "view" | "compare" }) {
                               >
                                 {betterPrecinctId === id && (
                                   <div className="absolute -top-3 -right-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white px-3 py-1.5 rounded-full text-xs font-bold shadow-lg flex items-center gap-1">
-                                    <span>✓</span><span>Better</span>
+                                    <span>✅</span><span>Better</span>
                                   </div>
                                 )}
                                 {stale && (
@@ -1460,8 +1460,8 @@ export default function App({ mode }: { mode: "view" | "compare" }) {
                                 <div className="space-y-2">
                                   <div className="bg-[#fff3eb] rounded-xl p-2 border border-[#e29578]/24">
                                     <div className="flex items-center gap-1 mb-1"><Thermometer className="w-3 h-3 text-orange-600" /><p className="text-[10px] text-gray-600">Temperature</p></div>
-                                    <p className="text-sm font-bold text-orange-700">{p.temperature !== null ? `${p.temperature}°C` : 'N/A'}</p>
-                                    <p className="text-[10px] text-gray-500 mt-1">Recommended: 18-26°C</p>
+                                    <p className="text-sm font-bold text-orange-700">{p.temperature !== null ? `${p.temperature}掳C` : 'N/A'}</p>
+                                    <p className="text-[10px] text-gray-500 mt-1">Recommended: 18-26掳C</p>
                                   </div>
                                   <div className="bg-[#edf6f9] rounded-xl p-2 border border-[#83c5be]/24">
                                     <div className="flex items-center gap-1 mb-1"><Droplets className="w-3 h-3 text-blue-600" /><p className="text-[10px] text-gray-600">Humidity</p></div>
@@ -1530,3 +1530,5 @@ export default function App({ mode }: { mode: "view" | "compare" }) {
     </div>
   );
 }
+
+
