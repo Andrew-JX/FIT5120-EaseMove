@@ -40,20 +40,6 @@ export const extremeWeatherRisks: ExtremeWeatherRisk[] = [
     ],
   },
   {
-    id: "storm",
-    shortLabel: "Storm (Thunder and strong winds)",
-    riskName: "Storm-Related Injury Risk",
-    impactSummary: "Storms can cause sudden hazards from lightning, debris, and strong wind gusts.",
-    severity: "high",
-    whyItHappens:
-      "Thunderstorms combine strong wind, lightning, and unstable weather that can create fast-changing outdoor danger.",
-    whatYouCanDo: [
-      "Move indoors early and avoid open spaces during thunder activity.",
-      "Stay away from trees, loose objects, and construction zones.",
-      "Delay non-essential outdoor trips until the storm passes.",
-    ],
-  },
-  {
     id: "cold",
     shortLabel: "Cold (Very cold weather)",
     riskName: "Cold Stress",
@@ -65,34 +51,6 @@ export const extremeWeatherRisks: ExtremeWeatherRisk[] = [
       "Wear layered clothing and keep hands and head warm.",
       "Limit long outdoor stays and take warm indoor breaks.",
       "Stay dry and change wet clothing quickly.",
-    ],
-  },
-  {
-    id: "dry-conditions",
-    shortLabel: "Dry Conditions (Very little rain)",
-    riskName: "Dry Air Discomfort",
-    impactSummary: "Dry conditions can increase dehydration risk and irritation in the eyes, throat, and skin.",
-    severity: "mild",
-    whyItHappens:
-      "Low moisture in the air can dry out body surfaces and increase fluid loss during activity.",
-    whatYouCanDo: [
-      "Drink water regularly across the day.",
-      "Use shade and avoid long exposure during hotter dry periods.",
-      "Use protective clothing and eye protection when dust is present.",
-    ],
-  },
-  {
-    id: "bushfire-smoke",
-    shortLabel: "Bushfire Smoke (Smoky air)",
-    riskName: "Smoke Breathing Irritation",
-    impactSummary: "Smoky air can irritate breathing and worsen symptoms for people with sensitive lungs.",
-    severity: "high",
-    whyItHappens:
-      "Bushfire smoke contains fine particles that can travel deep into the lungs and reduce air quality quickly.",
-    whatYouCanDo: [
-      "Reduce outdoor activity and stay indoors when smoke levels are high.",
-      "Keep windows closed and monitor local air quality updates.",
-      "Use lower-exposure routes and postpone strenuous outdoor exercise.",
     ],
   },
 ];
@@ -130,17 +88,6 @@ export const extremeWeatherQuizQuestions: QuizQuestion[] = [
   },
   {
     id: "q3",
-    prompt: "What is the best safety response during a storm with lightning?",
-    options: [
-      "Stay in open outdoor areas",
-      "Seek shelter indoors immediately",
-      "Stand near tall trees",
-    ],
-    correctIndex: 1,
-    explanation: "Storm lightning can be life-threatening; indoor shelter is the safest option.",
-  },
-  {
-    id: "q4",
     prompt: "In very cold weather, which action helps prevent hypothermia risk?",
     options: [
       "Wear warm clothing and limit outdoor exposure time",
@@ -151,14 +98,58 @@ export const extremeWeatherQuizQuestions: QuizQuestion[] = [
     explanation: "Warm layers and shorter exposure reduce body heat loss in cold conditions.",
   },
   {
-    id: "q5",
-    prompt: "Under dry conditions, what is a recommended action?",
+    id: "q4",
+    prompt: "When heavy rain causes surface water, which choice is safer?",
     options: [
-      "Drink water regularly and avoid prolonged exposure",
-      "Avoid drinking water",
-      "Ignore throat and nose irritation",
+      "Walk through low-lying flooded paths to save time",
+      "Choose sheltered routes and avoid flooded areas",
+      "Keep the same speed and ignore reduced visibility",
+    ],
+    correctIndex: 1,
+    explanation: "Sheltered routes and avoiding flooded areas reduce slipping and water-related hazards.",
+  },
+  {
+    id: "q5",
+    prompt: "In hot weather, which early body sign should you treat as a warning?",
+    options: [
+      "Dizziness and unusual fatigue",
+      "Feeling slightly hungry",
+      "Mild boredom while walking",
     ],
     correctIndex: 0,
-    explanation: "Dry conditions increase dehydration and irritation risk, so hydration is essential.",
+    explanation: "Dizziness and fatigue are early heat stress signs and should be addressed quickly.",
+  },
+  {
+    id: "q6",
+    prompt: "For cold weather trips, what helps keep body heat more effectively?",
+    options: [
+      "A single thin layer",
+      "Layered clothing and keeping exposed skin protected",
+      "Wearing damp clothing for flexibility",
+    ],
+    correctIndex: 1,
+    explanation: "Layering and protecting exposed areas reduce heat loss in cold air and wind.",
+  },
+  {
+    id: "q7",
+    prompt: "Which statement best matches the heavy rain movement impact shown in the risk panel?",
+    options: [
+      "Wet roads can reduce visibility and increase slipping risk",
+      "Rain improves road grip and travel speed",
+      "Heavy rain has no impact on walking or cycling comfort",
+    ],
+    correctIndex: 0,
+    explanation: "Heavy rain commonly lowers visibility and increases slipping risk on wet surfaces.",
+  },
+  {
+    id: "q8",
+    prompt: "If you feel overheated during outdoor activity, what is the best immediate action?",
+    options: [
+      "Continue until the trip ends",
+      "Rest in shade or a cool indoor space and rehydrate",
+      "Wear extra thick layers to force sweating",
+    ],
+    correctIndex: 1,
+    explanation: "Cooling down and hydrating early can prevent progression to severe heat illness.",
   },
 ];

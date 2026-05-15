@@ -1,13 +1,10 @@
+import { ArrowLeft, MapPin, Tag, TrendingUp, Navigation, Bike, Footprints, Route } from "lucide-react";
 import {
-  ArrowLeft,
-  BookOpenText,
-  Compass,
-  Footprints,
-  MapPinned,
-  MoveRight,
-  Route,
-} from "lucide-react";
-import { getAreaComfortRouteItems, getAreaRecommendationItems, type AreaComfortRoute, type AreaInfo } from "../lib/areaInfo";
+  getAreaComfortRouteItems,
+  getAreaRecommendationItems,
+  type AreaComfortRoute,
+  type AreaInfo,
+} from "../lib/areaInfo";
 
 type AreaDetailPageProps = {
   area: AreaInfo;
@@ -24,173 +21,128 @@ export default function AreaDetailPage({
 }: AreaDetailPageProps) {
   const recommendations = getAreaRecommendationItems(area);
   const comfortRoutes = getAreaComfortRouteItems(area);
+  const heroImage = "https://images.unsplash.com/photo-1542159919831-40fb0656b45a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080";
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-cyan-50/30 to-white">
-      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+    <div className="min-h-screen" style={{ backgroundColor: "#081515" }}>
+      <div className="px-4 py-4">
         <button
           type="button"
           onClick={onBack}
-          className="mb-5 inline-flex items-center gap-2 rounded-full border border-teal-200 bg-white px-4 py-2 text-sm font-medium text-teal-700 shadow-sm transition hover:border-teal-300 hover:bg-teal-50"
+          className="flex items-center gap-2 text-white/90 hover:text-white transition-colors"
         >
-          <ArrowLeft className="h-4 w-4" />
-          Back to Interactive Map
+          <ArrowLeft className="w-5 h-5" />
+          <span>Back to Interactive Map</span>
         </button>
+      </div>
 
-        <div className="overflow-hidden rounded-3xl border border-white/60 bg-white/90 shadow-xl backdrop-blur">
-          <div className="border-b border-teal-100 bg-gradient-to-r from-teal-600 via-cyan-600 to-teal-500 px-6 py-8 text-white sm:px-8">
-            <div className="flex flex-wrap items-start gap-4">
-              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/15 shadow-lg ring-1 ring-white/20">
-                <MapPinned className="h-8 w-8" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-white/80">
-                  Area Introduction
-                </p>
-                <h1 className="mt-2 text-3xl font-bold sm:text-4xl">{area.name}</h1>
-                <p className="mt-3 max-w-3xl text-sm leading-7 text-white/85 sm:text-base">
-                  {area.heroBlurb}
-                </p>
+      <div className="relative h-72 overflow-hidden mb-8">
+        <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url('${heroImage}')` }}>
+          <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/50 to-[#081515]" />
+        </div>
+
+        <div className="relative z-10 px-4 h-full flex items-end pb-8">
+          <div className="max-w-6xl mx-auto w-full">
+            <div className="flex items-center gap-2 mb-3">
+              <MapPin className="w-6 h-6 text-emerald-400" />
+              <span className="text-emerald-400 font-medium">Area Introduction</span>
+            </div>
+            <h1 className="text-5xl font-bold text-white mb-4">{area.name}</h1>
+            <p className="text-white/90 text-lg max-w-3xl leading-relaxed">{area.heroBlurb}</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="max-w-6xl mx-auto px-4 pb-12 space-y-8">
+        <div className="grid lg:grid-cols-2 gap-8">
+          <div className="space-y-6">
+            <div>
+              <h2 className="text-2xl font-bold text-white mb-4">Area Character</h2>
+              <div className="bg-slate-800/90 backdrop-blur-sm rounded-2xl border border-slate-700/50 p-6">
+                <p className="text-slate-300 leading-relaxed mb-6">{area.description}</p>
+
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <Tag className="w-5 h-5 text-slate-400" />
+                    <h3 className="font-semibold text-white">Area Tags</h3>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {area.tags.map((tag) => (
+                      <span
+                        key={tag.label}
+                        className="px-4 py-2 bg-gradient-to-r from-emerald-500/20 to-cyan-500/20 border border-emerald-500/30 text-emerald-300 rounded-full text-sm font-medium"
+                      >
+                        {tag.label}
+                      </span>
+                    ))}
+                  </div>
+                </div>
               </div>
             </div>
           </div>
 
-          <div className="grid gap-6 p-6 sm:p-8 lg:grid-cols-[1.1fr_0.9fr]">
-            <section className="rounded-3xl border border-teal-100 bg-gradient-to-br from-teal-50 to-cyan-50 p-6 shadow-sm">
-              <div className="mb-4 flex items-center gap-3">
-                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-teal-600 text-white shadow-md">
-                  <BookOpenText className="h-5 w-5" />
-                </div>
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-teal-700/80">
-                    Area Character
-                  </p>
-                  <h2 className="text-2xl font-bold text-gray-900">
-                    What {area.name} feels like?
-                  </h2>
-                </div>
+          <div>
+            <div className="mb-4">
+              <div className="flex items-center gap-2 text-emerald-400">
+                <TrendingUp className="w-6 h-6" />
+                <span className="text-sm font-semibold uppercase tracking-[0.18em]">Recommendation</span>
               </div>
-              <p className="text-base leading-8 text-gray-700">{area.description}</p>
-
-              <div className="mt-8 border-t border-teal-200/70 pt-6">
-                <div className="mb-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-teal-700/80">
-                    Area Tags
-                  </p>
-                  <h3 className="mt-1 text-xl font-bold text-gray-900">
-                    Quickly understand the neighbourhood
+              <h2 className="mt-2 text-2xl font-bold text-white">Where to go?</h2>
+            </div>
+            <div className="space-y-3">
+              {recommendations.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => onRecommendationClick(item.id)}
+                  className="w-full text-left bg-slate-800/90 backdrop-blur-sm rounded-xl border border-slate-700/50 p-5 hover:border-emerald-500/50 transition-all group cursor-pointer"
+                >
+                  <h3 className="font-bold text-white text-lg mb-2 group-hover:text-emerald-400 transition-colors">
+                    {item.name}
                   </h3>
-                </div>
-
-                <div className="flex flex-wrap gap-3">
-                  {area.tags.map((tag) => (
-                    <div
-                      key={tag.label}
-                      className="inline-flex items-center gap-2 rounded-2xl border border-white/80 bg-white/75 px-3 py-2 text-sm font-medium text-gray-700 shadow-sm"
-                    >
-                      <span className="text-base">{tag.icon}</span>
-                      <span>{tag.label}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </section>
-
-            <section className="rounded-3xl border border-cyan-100 bg-white p-6 shadow-sm">
-              <div className="mb-4 flex items-center gap-3">
-                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-cyan-600 text-white shadow-md">
-                  <Compass className="h-5 w-5" />
-                </div>
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-700/80">
-                    Recommendation
-                  </p>
-                  <h2 className="text-2xl font-bold text-gray-900">Where to go ?</h2>
-                  <p className="mt-2 max-w-xl text-sm leading-6 text-gray-500">
-                    Tap a place to check nearby bike racks, drinking fountains, and
-                    seating within 500m.
-                  </p>
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                {recommendations.map((item, index) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => onRecommendationClick(item.id)}
-                    className="group w-full cursor-pointer rounded-2xl border border-gray-100 bg-gradient-to-r from-white to-cyan-50/50 p-4 text-left shadow-sm transition-all duration-200 hover:-translate-y-1 hover:border-cyan-300 hover:from-cyan-50 hover:to-teal-50 hover:shadow-lg active:translate-y-0 active:scale-[0.995] active:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-300"
-                  >
-                    <div className="flex items-start gap-3">
-                      <div className="mt-0.5 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-teal-600 text-sm font-bold text-white shadow-sm transition-transform duration-200 group-hover:scale-105">
-                        {index + 1}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0 flex-1">
-                            <p className="text-base font-semibold text-gray-900 transition-colors duration-200 group-hover:text-cyan-800 sm:text-lg">
-                              {item.name}
-                            </p>
-                            <p className="mt-1 text-sm leading-7 text-gray-700 sm:text-base">
-                              {item.description}
-                            </p>
-                            <p className="mt-3 text-xs font-semibold uppercase tracking-[0.14em] text-cyan-600 transition-colors duration-200 group-hover:text-cyan-700">
-                              View nearby facilities
-                            </p>
-                          </div>
-                          <MoveRight className="mt-1 h-5 w-5 flex-shrink-0 text-cyan-500 transition-all duration-200 group-hover:translate-x-1.5 group-hover:text-cyan-600" />
-                        </div>
-                      </div>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </section>
+                  <p className="text-slate-400 text-sm mb-4 leading-relaxed">{item.description}</p>
+                  <span className="flex items-center gap-2 text-emerald-400 hover:text-emerald-300 text-sm font-medium transition-colors">
+                    <Navigation className="w-4 h-4" />
+                    View nearby facilities
+                  </span>
+                </button>
+              ))}
+            </div>
           </div>
+        </div>
 
-          <div className="px-6 pb-6 sm:px-8 sm:pb-8">
-            <section className="rounded-3xl border border-emerald-100 bg-gradient-to-br from-white via-emerald-50/40 to-cyan-50/40 p-6 shadow-sm">
-              <div className="mb-5 flex items-center gap-3">
-                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-600 text-white shadow-md">
-                  <Footprints className="h-5 w-5" />
-                </div>
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700/80">
-                    Comfort Routes
-                  </p>
-                  <h2 className="text-2xl font-bold text-gray-900">
-                    Easy walking and cycling ideas
-                  </h2>
-                </div>
-              </div>
+        <div className="pt-8">
+          <div className="flex items-center gap-2 mb-5">
+            <Footprints className="w-6 h-6 text-blue-400" />
+            <h2 className="text-2xl font-bold text-white">Comfort Routes</h2>
+          </div>
+          <p className="text-slate-400 mb-6">Easy walking and cycling ideas</p>
 
-              <div className="space-y-4">
-                {comfortRoutes.map((route) => (
-                  <button
-                    key={route.id}
-                    type="button"
-                    onClick={() => onComfortRouteClick(route)}
-                    className="group w-full cursor-pointer rounded-2xl border border-white/80 bg-white/85 p-4 text-left shadow-sm ring-1 ring-emerald-100/70 transition-all duration-200 hover:-translate-y-1 hover:border-emerald-300 hover:bg-white hover:shadow-lg active:translate-y-0 active:scale-[0.995] focus:outline-none focus:ring-2 focus:ring-emerald-300"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0 flex-1">
-                        <h3 className="text-lg font-semibold text-gray-900 transition-colors duration-200 group-hover:text-emerald-800">
-                          {route.title}
-                        </h3>
-                        <p className="mt-2 text-sm leading-7 text-gray-700 sm:text-base">
-                          {route.description}
-                        </p>
-                        <div className="mt-3 flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-emerald-700">
-                          <Route className="h-4 w-4" />
-                          <span>Open in 3D Route</span>
-                        </div>
-                      </div>
-                      <MoveRight className="mt-1 h-5 w-5 flex-shrink-0 text-emerald-500 transition-all duration-200 group-hover:translate-x-1.5 group-hover:text-emerald-600" />
+          <div className="grid md:grid-cols-2 gap-4">
+            {comfortRoutes.map((route) => (
+              <button
+                key={route.id}
+                type="button"
+                onClick={() => onComfortRouteClick(route)}
+                className="bg-gradient-to-br from-slate-800/90 to-slate-900/80 backdrop-blur-sm rounded-xl border border-slate-700/50 p-6 hover:border-blue-500/50 transition-all group cursor-pointer"
+              >
+                <div className="flex items-start gap-4">
+                  <div className="p-3 bg-blue-500/20 rounded-xl text-blue-400 group-hover:scale-110 transition-transform shrink-0">
+                    <Bike className="w-6 h-6" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="font-bold text-white text-lg mb-2 group-hover:text-blue-400 transition-colors">
+                      {route.title}
+                    </h3>
+                    <p className="text-slate-400 text-sm leading-relaxed">{route.description}</p>
+                    <div className="mt-4 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-blue-300">
+                      <Route className="h-4 w-4" />
+                      <span>Open in 3D Route</span>
                     </div>
-                  </button>
-                ))}
-              </div>
-            </section>
+                  </div>
+                </div>
+              </button>
+            ))}
           </div>
         </div>
       </div>

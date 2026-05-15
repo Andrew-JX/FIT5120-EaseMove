@@ -150,6 +150,7 @@ export default function HowToUseScene() {
           <div className="landing-how-copy">
             <p className="landing-how-kicker">Plan with confidence</p>
             <h2>How to Use MoveComfortly</h2>
+            <span className="landing-how-flip-chip landing-how-flip-chip-accent">Choose a step</span>
 
             <div className="landing-how-steps-wrap">
               <div

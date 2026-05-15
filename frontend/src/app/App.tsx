@@ -1,10 +1,12 @@
-﻿import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useLocation, useNavigate } from "react-router";
 import {
   Thermometer, Droplets, Users, X, Wind, Map, ArrowLeft,
   Layers, List, Plus, Minus, ZoomIn, Snowflake, Tag,
-  ChevronDown, ChevronUp,
+  ChevronDown, ChevronUp, ThermometerSun, Sun, Moon, Clock, Lightbulb,
+  Eye, TrendingUp, Star, MapPin,
 } from "lucide-react";
+import { LineChart, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import L from "leaflet";
 import logo from "../assets/logo-transparent.png";
 import ideaIcon from "../assets/idea.png";
@@ -25,13 +27,18 @@ import {
   type Precinct,
   type TodayRecommendation,
 } from "../lib/api";
-import { getAreaInfo, getAreaRecommendation, type AreaComfortRoute } from "../lib/areaInfo";
+import {
+  getAreaInfo,
+  getAreaRecommendation,
+  type AreaComfortRoute,
+} from "../lib/areaInfo";
 import { type EasePlacesFeature } from "../lib/easePlaces";
 import { APP_ROUTES } from "../lib/navigation";
 import AreaDetailPage from "../pages/AreaDetailPage";
 import RecommendationFacilitiesPage from "../pages/RecommendationFacilitiesPage";
+let hasAutoShownMapGuideThisRuntime = false;
 
-// 閳光偓閳光偓閳光偓 Helpers 閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function riskLevel(label: string): 'low' | 'caution' | 'high' {
   if (label === 'Comfortable') return 'low';
@@ -188,7 +195,7 @@ function SensorStatusRow({
   }) {
     return (
       <div className="flex shrink-0 items-center justify-end gap-2 whitespace-nowrap">
-        <div className="hidden w-[126px] shrink-0 min-[721px]:block sm:w-[174px]">
+        <div className="w-[126px] shrink-0 sm:w-[174px]">
           {loading ? (
             <SensorStatusBadge tone="neutral" pulse>
               Loading sensors...
@@ -210,7 +217,7 @@ function SensorStatusRow({
   );
 }
 
-// 閳光偓閳光偓閳光偓 Ease Places Popup 閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓
+// ─── Ease Places Popup ────────────────────────────────────────────────────────
 
 function EasePlacesPopup({
   feature,
@@ -297,7 +304,7 @@ function EasePlacesPopup({
   );
 }
 
-// 閳光偓閳光偓閳光偓 Map Sidebar Controls 閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓
+// ─── Map Sidebar Controls ─────────────────────────────────────────────────────
 
 function MapSidebarControls({
   onZoomIn,
@@ -339,7 +346,7 @@ function MapSidebarControls({
   );
 }
 
-// 閳光偓閳光偓閳光偓 Map Filter Panel 閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓
+// ─── Map Filter Panel ─────────────────────────────────────────────────────────
 
 type MapFilters = {
   easePlaces: boolean;
@@ -380,7 +387,7 @@ function MapFilterPanel({
   );
 }
 
-// 閳光偓閳光偓閳光偓 Legend Panel 閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓
+// ─── Legend Panel ─────────────────────────────────────────────────────────────
 
 function FurnitureLegend() {
   return (
@@ -437,15 +444,15 @@ function LegendPanel() {
         <div className="legend-section-label">Comfort Level</div>
         <div className="legend-row">
           <div className="comfort-dot comfort-dot-comfortable" />
-          <span>Comfortable (70- 00)</span>
+          <span>Comfortable (70–100)</span>
         </div>
         <div className="legend-row">
           <div className="comfort-dot comfort-dot-caution" />
-          <span>Caution (40- 9)</span>
+          <span>Caution (40–69)</span>
         </div>
         <div className="legend-row">
           <div className="comfort-dot comfort-dot-high" />
-          <span>High Risk (0- 9)</span>
+          <span>High Risk (0–39)</span>
         </div>
         <div className="legend-row">
           <div className="comfort-dot comfort-dot-no-data" />
@@ -458,7 +465,7 @@ function LegendPanel() {
   );
 }
 
-// 閳光偓閳光偓閳光偓 App 閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓
+// ─── App ──────────────────────────────────────────────────────────────────────
 
 export default function App({ mode }: { mode: "view" | "compare" }) {
   const navigate = useNavigate();
@@ -490,13 +497,13 @@ export default function App({ mode }: { mode: "view" | "compare" }) {
   );
 
   const [showCard, setShowCard] = useState<string | null>(null);
-  // Left sidebar starts collapsed - only relevant when Comfort Area filter is enabled
-  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(true);
+  // Left sidebar starts collapsed — only relevant when Comfort Area filter is enabled
+  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(false);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [compareSelection1, setCompareSelection1] = useState<string | null>(null);
   const [compareSelection2, setCompareSelection2] = useState<string | null>(null);
 
-  // Right panel: 'layers' | 'legend' | null - mutually exclusive
+  // Right panel: 'layers' | 'legend' | null — mutually exclusive
   const [openPanel, setOpenPanel] = useState<'layers' | 'legend' | null>('legend');
 
   // Ease Places popup
@@ -512,7 +519,6 @@ export default function App({ mode }: { mode: "view" | "compare" }) {
   const [showTimeRecommendation, setShowTimeRecommendation] = useState(false);
   const [loadingToday, setLoadingToday] = useState(false);
   const nextCompareReplaceSlotRef = useRef<1 | 2>(1);
-  const previousPathnameRef = useRef<string | null>(null);
 
   // Leaflet map instance for programmatic zoom / flyTo
   const mapInstanceRef = useRef<L.Map | null>(null);
@@ -524,30 +530,6 @@ export default function App({ mode }: { mode: "view" | "compare" }) {
   const handleBrandClick = useCallback(() => {
     navigate(APP_ROUTES.home);
   }, [navigate]);
-
-  useEffect(() => {
-    const previousPathname = previousPathnameRef.current;
-    const isEnteringPrimaryMap =
-      location.pathname === APP_ROUTES.map && previousPathname !== APP_ROUTES.map;
-
-    if (
-      isEnteringPrimaryMap &&
-      activeTab === "view" &&
-      !selectedAreaId &&
-      !selectedRecommendationId &&
-      !showTimeRecommendation
-    ) {
-      setShowMapGuide(true);
-    }
-
-    previousPathnameRef.current = location.pathname;
-  }, [
-    activeTab,
-    location.pathname,
-    selectedAreaId,
-    selectedRecommendationId,
-    showTimeRecommendation,
-  ]);
 
   const handleAreaNavigation = useCallback((
     areaId: string | null,
@@ -584,11 +566,29 @@ export default function App({ mode }: { mode: "view" | "compare" }) {
   }, [location.search]);
 
   useEffect(() => {
+    if (
+      activeTab === "view" &&
+      !selectedAreaId &&
+      !selectedRecommendationId &&
+      !showTimeRecommendation &&
+      !hasAutoShownMapGuideThisRuntime
+    ) {
+      hasAutoShownMapGuideThisRuntime = true;
+      setShowMapGuide(true);
+    }
+  }, [
+    activeTab,
+    selectedAreaId,
+    selectedRecommendationId,
+    showTimeRecommendation,
+  ]);
+
+  useEffect(() => {
     const timer = setTimeout(() => setDebouncedWeights(weights), 800);
     return () => clearTimeout(timer);
   }, [weights]);
 
-  // 閳光偓閳光偓閳光偓 Map filters 閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓
+  // ─── Map filters ─────────────────────────────────────────────────────────────
 
   const handleToggleMapFilter = useCallback((key: keyof MapFilters) => {
     setMapFilters((current: MapFilters) => {
@@ -606,7 +606,7 @@ export default function App({ mode }: { mode: "view" | "compare" }) {
     });
   }, []);
 
-  // 閳光偓閳光偓閳光偓 Sidebar controls 閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓
+  // ─── Sidebar controls ────────────────────────────────────────────────────────
 
   const handleZoomIn = useCallback(() => { mapInstanceRef.current?.zoomIn(); }, []);
   const handleZoomOut = useCallback(() => { mapInstanceRef.current?.zoomOut(); }, []);
@@ -619,7 +619,7 @@ export default function App({ mode }: { mode: "view" | "compare" }) {
     setOpenPanel((p: 'layers' | 'legend' | null) => (p === 'legend' ? null : 'legend'));
   }, []);
 
-  // 閳光偓閳光偓閳光偓 Map click handlers 閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓
+  // ─── Map click handlers ──────────────────────────────────────────────────────
 
   const handleCompareClick = useCallback((id: string) => {
     if (compareSelection1 === id) {
@@ -716,7 +716,7 @@ export default function App({ mode }: { mode: "view" | "compare" }) {
     navigate(`${APP_ROUTES.map3dRoute}?${params.toString()}`);
   }, [navigate]);
 
-  // 閳光偓閳光偓閳光偓 Compare helpers 閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓
+  // ─── Compare helpers ─────────────────────────────────────────────────────────
 
   const compareRank = (p: Precinct): number => {
     const riskPriority = { low: 3, caution: 2, high: 1 } as const;
@@ -779,188 +779,333 @@ export default function App({ mode }: { mode: "view" | "compare" }) {
     if (p.temperature !== null && p.temperature > 30)
       advice.push({ icon: "☀️", text: "Wear lightweight, breathable clothing and carry a water bottle", category: "High Temperature", trigger: `Based on current temperature: ${p.temperature}°C` });
     if (p.pm25 !== null && p.pm25 > 25)
-      advice.push({ icon: "😷", text: "Air quality is currently poor - consider wearing a mask during strenuous outdoor activity", category: "Air Quality", trigger: `Based on PM2.5 reading: ${p.pm25} µg/m³` });
+      advice.push({ icon: "😷", text: "Air quality is currently poor — consider wearing a mask during strenuous outdoor activity", category: "Air Quality", trigger: `Based on PM2.5 reading: ${p.pm25} µg/m³` });
     if ((p.temperature === null || p.temperature < 28) && (p.pm25 === null || p.pm25 <= 25))
-      advice.push({ icon: "✅", text: "Conditions are comfortable - great time for a walk or ride!", category: "Comfortable Conditions", trigger: p.temperature !== null ? `Temperature: ${p.temperature}°C, PM2.5: ${p.pm25 ?? 'N/A'} µg/m³` : "Based on available sensor data" });
+      advice.push({ icon: "✅", text: "Conditions are comfortable — great time for a walk or ride!", category: "Comfortable Conditions", trigger: p.temperature !== null ? `Temperature: ${p.temperature}°C, PM2.5: ${p.pm25 ?? 'N/A'} µg/m³` : "Based on available sensor data" });
     if (p.temperature !== null && p.temperature >= 28 && p.temperature <= 30)
-      advice.push({ icon: "🌅", text: "Temperature is warm - stay hydrated and seek shade when possible", category: "Moderate Temperature", trigger: `Based on current temperature: ${p.temperature}°C` });
+      advice.push({ icon: "🌡️", text: "Temperature is warm — stay hydrated and seek shade when possible", category: "Moderate Temperature", trigger: `Based on current temperature: ${p.temperature}°C` });
     if (p.humidity !== null && p.humidity > 65)
-      advice.push({ icon: "💧", text: "High humidity - drink plenty of water and take breaks in air-conditioned areas", category: "Humidity", trigger: `Based on humidity level: ${p.humidity}%` });
+      advice.push({ icon: "💧", text: "High humidity — drink plenty of water and take breaks in air-conditioned areas", category: "Humidity", trigger: `Based on humidity level: ${p.humidity}%` });
     if (p.activity_level === "High")
-      advice.push({ icon: "👥", text: "High crowd density - plan extra time and consider visiting during off-peak hours", category: "Crowding", trigger: `Based on activity level: ${p.activity_level}` });
+      advice.push({ icon: "👥", text: "High crowd density — plan extra time and consider visiting during off-peak hours", category: "Crowding", trigger: `Based on activity level: ${p.activity_level}` });
     if (p.wind_speed !== null && p.wind_speed < 3)
-      advice.push({ icon: "🍃", text: "Low wind conditions - may feel warmer than temperature indicates", category: "Wind", trigger: `Based on wind speed: ${p.wind_speed} m/s` });
+      advice.push({ icon: "💨", text: "Low wind conditions — may feel warmer than temperature indicates", category: "Wind", trigger: `Based on wind speed: ${p.wind_speed} m/s` });
     if (advice.length === 0)
       advice.push({ icon: "✨", text: "Conditions look good for outdoor activities", category: "General", trigger: "Based on available sensor data" });
     return advice;
   };
 
-  // 閳光偓閳光偓閳光偓 Time Recommendation View 閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓
+  // ─── Time Recommendation View ────────────────────────────────────────────────
 
   if (showTimeRecommendation && selectedDestId) {
     const destPrecinct = precincts[selectedDestId];
     const destName = destPrecinct?.name ?? selectedDestId;
+    const currentScore = destPrecinct?.comfort_score ?? 0;
+    const currentTemp = destPrecinct?.temperature;
+    const currentHumidity = destPrecinct?.humidity;
+    const currentWind = destPrecinct?.wind_speed;
+    const crowdLevel = destPrecinct?.activity_level ?? "Unknown";
+    const currentStatus = todayData?.recommendation ?? (destPrecinct?.comfort_label === 'Comfortable'
+      ? 'Excellent conditions right now.'
+      : destPrecinct?.comfort_label === 'Caution'
+        ? 'Conditions are elevated. Consider safer time windows.'
+        : 'High risk conditions. Delay travel if possible.');
+
+    const hourlyData = [
+      { time: "6AM", score: Math.min(100, currentScore + 8), temp: currentTemp !== null && currentTemp !== undefined ? Math.max(8, currentTemp - 4) : 16, crowd: 24 },
+      { time: "9AM", score: Math.min(100, currentScore + 4), temp: currentTemp !== null && currentTemp !== undefined ? Math.max(10, currentTemp - 2) : 18, crowd: 42 },
+      { time: "12PM", score: Math.max(45, currentScore - 12), temp: currentTemp !== null && currentTemp !== undefined ? currentTemp + 2 : 24, crowd: 80 },
+      { time: "3PM", score: Math.max(48, currentScore - 8), temp: currentTemp !== null && currentTemp !== undefined ? currentTemp + 3 : 25, crowd: 72 },
+      { time: "6PM", score: Math.min(100, currentScore + 3), temp: currentTemp !== null && currentTemp !== undefined ? Math.max(10, currentTemp - 1) : 20, crowd: 44 },
+      { time: "9PM", score: Math.max(52, currentScore - 10), temp: currentTemp !== null && currentTemp !== undefined ? Math.max(8, currentTemp - 5) : 16, crowd: 18 },
+    ];
+
+    const timeSlots = [
+      {
+        period: "Morning Golden Hour",
+        time: "6:00 AM - 10:00 AM",
+        score: Math.min(100, currentScore + 8),
+        icon: <Sun className="w-7 h-7" />,
+        image: "https://images.unsplash.com/photo-1494548162494-384bba4ab999?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080",
+        reasons: [
+          "Cooler temperatures usually reduce heat stress.",
+          "Crowd density is typically lower in early hours.",
+          "Better comfort window for walking and cycling.",
+          "Lower exposure to peak daytime heat.",
+        ],
+        stats: [
+          { label: "Temperature", value: currentTemp !== null && currentTemp !== undefined ? `${Math.max(8, currentTemp - 4)}-${Math.max(10, currentTemp - 2)}°C` : "15-18°C", icon: <ThermometerSun className="w-4 h-4" /> },
+          { label: "Crowd", value: "Low", icon: <Users className="w-4 h-4" /> },
+          { label: "Visibility", value: "Good", icon: <Eye className="w-4 h-4" /> },
+        ],
+      },
+      {
+        period: "Evening Sunset",
+        time: "5:00 PM - 8:00 PM",
+        score: Math.min(100, currentScore + 3),
+        icon: <Moon className="w-7 h-7" />,
+        image: "https://images.unsplash.com/photo-1542159919831-40fb0656b45a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080",
+        reasons: [
+          "Temperature tends to drop from afternoon peaks.",
+          "Crowds usually become more manageable.",
+          "More relaxed travel conditions for casual routes.",
+          "Lower heat exposure than midday.",
+        ],
+        stats: [
+          { label: "Temperature", value: currentTemp !== null && currentTemp !== undefined ? `${Math.max(10, currentTemp - 1)}-${Math.max(8, currentTemp - 4)}°C` : "20-24°C", icon: <ThermometerSun className="w-4 h-4" /> },
+          { label: "Crowd", value: "Medium", icon: <Users className="w-4 h-4" /> },
+          { label: "Visibility", value: "Good", icon: <Eye className="w-4 h-4" /> },
+        ],
+      },
+    ];
+
+    const alternativeSlot = {
+      period: "Midday",
+      time: "12:00 PM - 2:00 PM",
+      score: Math.max(45, currentScore - 12),
+      note: "Usually hotter and busier than morning/evening windows.",
+    };
+
+    const preparations = [
+      {
+        icon: <ThermometerSun className="w-6 h-6" />,
+        title: "Sun Protection",
+        text: "Bring sunscreen, sunglasses, and a hat for stronger daytime heat exposure.",
+        priority: "High",
+      },
+      {
+        icon: <Droplets className="w-6 h-6" />,
+        title: "Hydration",
+        text: "Carry enough water and rehydrate before and during outdoor travel.",
+        priority: "High",
+      },
+      {
+        icon: <Wind className="w-6 h-6" />,
+        title: "Layered Clothing",
+        text: "Use breathable layers to adapt to temperature shifts across time periods.",
+        priority: "Medium",
+      },
+      {
+        icon: <Clock className="w-6 h-6" />,
+        title: "Arrival Time",
+        text: "Start earlier to avoid peak crowding and reduce midday heat exposure.",
+        priority: "High",
+      },
+    ];
 
     return (
-      <div className="relative min-h-[100dvh] overflow-hidden bg-[#f7fbfa] text-[#10201f]">
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute inset-0 bg-[linear-gradient(180deg,#122d2b_0%,#edf8f5_17%,#f7fbfa_74%,#dfeee9_100%)]" />
-          <div className="absolute inset-x-0 top-0 h-[26vh] bg-[radial-gradient(circle_at_50%_0%,rgba(131,197,190,0.26),transparent_62%)]" />
-          <div className="absolute inset-x-0 bottom-0 h-[24vh] bg-[radial-gradient(circle_at_50%_100%,rgba(23,65,63,0.14),transparent_66%)]" />
-          <div className="absolute -top-36 -right-28 h-80 w-80 rounded-full bg-[#83c5be]/10 blur-3xl" />
-          <div className="absolute -bottom-44 -left-24 h-96 w-96 rounded-full bg-[#83c5be]/12 blur-3xl" />
-        </div>
+      <div className="min-h-screen bg-[#081515]">
+        <div className="relative h-64 overflow-hidden">
+          <div
+            className="absolute inset-0 bg-cover bg-center"
+            style={{ backgroundImage: "url('https://images.unsplash.com/photo-1562310503-a918c4c61e38?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080')" }}
+          >
+            <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/40 to-transparent" />
+          </div>
 
-        <nav className="relative z-10 mb-6 px-4 pt-4 sm:px-6">
-          <div className="mx-auto max-w-[1400px] rounded-[28px] border border-white/40 bg-[radial-gradient(circle_at_18%_0%,rgba(255,255,255,0.52),transparent_36%),linear-gradient(135deg,rgba(255,255,255,0.72),rgba(237,246,249,0.54))] px-4 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.62),0_18px_40px_rgba(16,32,31,0.08)] backdrop-blur-md">
-            <div className="flex items-center justify-between">
-              <button
-                type="button"
-                className="relative h-14 w-56 cursor-pointer border-0 bg-transparent p-0"
-                onClick={handleBrandClick}
-                aria-label="Return to EaseMove landing"
-              >
-                <img src={logo} alt="EaseMove logo" className="absolute left-0 top-1/2 h-56 w-56 -translate-y-1/2 object-contain" />
-              </button>
-              <div />
+          <div className="relative z-10 px-4 py-6">
+            <button
+              type="button"
+              onClick={() => { setShowTimeRecommendation(false); setSelectedDestId(null); setTodayData(null); }}
+              className="flex items-center gap-2 text-white/90 hover:text-white mb-6 transition-colors"
+            >
+              <ArrowLeft className="w-5 h-5" />
+              <span>Back</span>
+            </button>
+
+            <div className="max-w-4xl mx-auto">
+              <div className="flex items-center gap-2 mb-2">
+                <MapPin className="w-5 h-5 text-emerald-400" />
+                <span className="text-emerald-400 text-sm font-medium">Destination</span>
+              </div>
+              <h1 className="text-3xl font-bold text-white mb-2">{destName}</h1>
+              <p className="text-white/80 text-sm">Optimal time recommendations based on weather, crowd, and conditions</p>
             </div>
           </div>
-        </nav>
+        </div>
 
-        <div className="px-6 pb-6 relative z-10">
-          <div className="max-w-5xl mx-auto">
-            <div className="mb-3">
-              <button
-                type="button"
-                onClick={() => { setShowTimeRecommendation(false); setSelectedDestId(null); setTodayData(null); }}
-                className="flex items-center gap-2 rounded-2xl bg-gradient-to-r from-[#006d77] to-[#17413f] px-3 py-2 text-sm text-white transition-colors hover:from-[#17413f] hover:to-[#006d77]"
-              >
-                <ArrowLeft className="h-4 w-4" />
-                <span>Back</span>
-              </button>
-            </div>
-            <div className="bg-[rgba(247,255,253,0.82)] backdrop-blur-sm rounded-[24px] shadow-[0_24px_58px_rgba(16,32,31,0.14)] p-6 mb-6 border border-[#83c5be]/14 text-[#10201f]">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="p-3 bg-gradient-to-br from-[#e29578] to-[#c96f4f] rounded-2xl shadow-lg">
-                  <Map className="w-6 h-6 text-white" />
+        <div className="max-w-4xl mx-auto px-4 py-8 space-y-8">
+          <div className="bg-gradient-to-br from-slate-800/90 to-slate-900/90 backdrop-blur-sm rounded-2xl border border-slate-700/50 overflow-hidden">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h2 className="text-2xl font-bold text-white mb-1">Right Now</h2>
+                  <p className="text-slate-400 text-sm">Current conditions at {destName}</p>
                 </div>
-                <div className="flex-1">
-                  <h2 className="text-2xl font-semibold bg-gradient-to-r from-[#17413f] to-[#006d77] bg-clip-text text-transparent">Time-slot Recommendation</h2>
-                  <p className="text-sm text-gray-600">Optimal travel times based on real-time sensor data</p>
-                </div>
+                <Clock className="w-8 h-8 text-emerald-400" />
               </div>
-              <div className="bg-gradient-to-r from-[#edf6f9] to-[#e3f3ef] rounded-2xl p-4 border border-[#83c5be]/30">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-teal-500 rounded-full flex items-center justify-center text-white">📍</div>
-                  <div>
-                    <p className="text-sm text-gray-600">Destination</p>
-                    <p className="text-xl font-bold text-teal-700">{destName}</p>
+
+              <div className="flex items-end gap-6 mb-8">
+                <div>
+                  <div className="text-7xl font-bold text-emerald-400">{currentScore}</div>
+                  <div className="flex items-center gap-2 mt-2">
+                    <Star className="w-5 h-5 text-yellow-400 fill-yellow-400" />
+                    <span className="text-slate-300">{currentStatus}</span>
+                  </div>
+                </div>
+
+                <div className="flex-1 pb-2">
+                  <div className="text-sm text-slate-400 mb-2">Score Trend</div>
+                  <div className="h-16">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={hourlyData}>
+                        <defs>
+                          <linearGradient id="scoreGradient" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
+                            <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                          </linearGradient>
+                        </defs>
+                        <Area type="monotone" dataKey="score" stroke="#10b981" strokeWidth={2} fill="url(#scoreGradient)" />
+                      </AreaChart>
+                    </ResponsiveContainer>
                   </div>
                 </div>
               </div>
+
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/30">
+                  <div className="flex items-center gap-2 mb-2">
+                    <ThermometerSun className="w-5 h-5 text-orange-400" />
+                    <span className="text-slate-400 text-xs">Temperature</span>
+                  </div>
+                  <div className="text-2xl font-bold text-white">{currentTemp !== null && currentTemp !== undefined ? `${currentTemp}°C` : "N/A"}</div>
+                </div>
+                <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/30">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Droplets className="w-5 h-5 text-blue-400" />
+                    <span className="text-slate-400 text-xs">Humidity</span>
+                  </div>
+                  <div className="text-2xl font-bold text-white">{currentHumidity !== null && currentHumidity !== undefined ? `${currentHumidity}%` : "N/A"}</div>
+                </div>
+                <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/30">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Wind className="w-5 h-5 text-cyan-400" />
+                    <span className="text-slate-400 text-xs">Wind Speed</span>
+                  </div>
+                  <div className="text-2xl font-bold text-white">{currentWind !== null && currentWind !== undefined ? `${currentWind} m/s` : "N/A"}</div>
+                </div>
+                <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/30">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Users className="w-5 h-5 text-purple-400" />
+                    <span className="text-slate-400 text-xs">Crowd Level</span>
+                  </div>
+                  <div className="text-2xl font-bold text-white">{crowdLevel}</div>
+                </div>
+              </div>
             </div>
 
-            <div className="bg-[rgba(247,255,253,0.82)] backdrop-blur-sm rounded-[24px] shadow-[0_24px_58px_rgba(16,32,31,0.14)] p-6 mb-6 border border-[#83c5be]/14 text-[#10201f]">
-              <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
-                <span className="text-2xl">🕒</span>
-                <span>Right Now</span>
-              </h3>
-              {loadingToday ? (
-                <div className="text-center py-4 text-gray-500">Loading sensor data...</div>
-              ) : destPrecinct ? (
-                <div className="bg-gradient-to-r from-[#edf6f9] to-[#e3f3ef] rounded-2xl p-5 border border-[#83c5be]/30">
+            <div className="px-6 pb-6">
+              <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-700/30">
+                <h3 className="text-white font-semibold mb-4">Today's Forecast</h3>
+                <ResponsiveContainer width="100%" height={120}>
+                  <LineChart data={hourlyData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                    <XAxis dataKey="time" stroke="#94a3b8" style={{ fontSize: "12px" }} />
+                    <YAxis stroke="#94a3b8" style={{ fontSize: "12px" }} />
+                    <Tooltip contentStyle={{ backgroundColor: "#1e293b", border: "1px solid #334155", borderRadius: "8px" }} labelStyle={{ color: "#e2e8f0" }} />
+                    <Line type="monotone" dataKey="score" stroke="#10b981" strokeWidth={2} dot={{ fill: "#10b981", r: 4 }} />
+                    <Line type="monotone" dataKey="temp" stroke="#f59e0b" strokeWidth={2} dot={{ fill: "#f59e0b", r: 4 }} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <div className="flex items-center gap-3 mb-6">
+              <TrendingUp className="w-6 h-6 text-emerald-400" />
+              <h2 className="text-2xl font-bold text-white">Recommended Time Slots</h2>
+            </div>
+
+            <div className="space-y-6">
+              {timeSlots.map((slot) => (
+                <div key={slot.period} className="group bg-slate-800/90 backdrop-blur-sm rounded-2xl border border-slate-700/50 overflow-hidden hover:border-emerald-500/50 transition-all cursor-pointer">
+                  <div className="grid md:grid-cols-5 gap-0">
+                    <div className="md:col-span-2 relative h-64 md:h-auto overflow-hidden">
+                      <img src={slot.image} alt={slot.period} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                      <div className="absolute inset-0 bg-gradient-to-r from-transparent to-slate-800/90" />
+                      <div className="absolute top-4 left-4 bg-emerald-500 text-white px-4 py-2 rounded-full font-bold text-lg">
+                        Score: {slot.score}
+                      </div>
+                    </div>
+
+                    <div className="md:col-span-3 p-6">
+                      <div className="flex items-start justify-between mb-4">
+                        <div className="flex items-center gap-3">
+                          <div className="p-3 bg-emerald-500/20 rounded-xl text-emerald-400">{slot.icon}</div>
+                          <div>
+                            <h3 className="text-xl font-bold text-white">{slot.period}</h3>
+                            <p className="text-slate-400">{slot.time}</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-3 mb-4">
+                        {slot.stats.map((stat) => (
+                          <div key={stat.label} className="bg-slate-900/50 rounded-lg p-3 border border-slate-700/30">
+                            <div className="flex items-center gap-2 text-slate-400 mb-1">
+                              {stat.icon}
+                              <span className="text-xs">{stat.label}</span>
+                            </div>
+                            <div className="text-white font-semibold text-sm">{stat.value}</div>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="space-y-2">
+                        {slot.reasons.map((reason) => (
+                          <div key={reason} className="flex items-start gap-2">
+                            <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1.5 shrink-0" />
+                            <span className="text-slate-300 text-sm">{reason}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+
+              <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl border border-slate-700/30 p-5">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Clock className="w-5 h-5 text-slate-400" />
+                      <span className="font-semibold text-white">{alternativeSlot.period}</span>
+                    </div>
+                    <div className="text-sm text-slate-400 mb-1">{alternativeSlot.time}</div>
+                    <div className="text-xs text-slate-500">{alternativeSlot.note}</div>
+                  </div>
+                  <div className="text-3xl font-bold text-slate-400">{alternativeSlot.score}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="pb-8">
+            <div className="flex items-center gap-3 mb-6">
+              <Lightbulb className="w-6 h-6 text-yellow-400" />
+              <h2 className="text-2xl font-bold text-white">Preparation Advice</h2>
+            </div>
+
+            <div className="grid md:grid-cols-2 gap-4">
+              {preparations.map((prep) => (
+                <div key={prep.title} className="bg-slate-800/90 backdrop-blur-sm rounded-xl border border-slate-700/50 p-5 hover:border-emerald-500/50 transition-colors">
                   <div className="flex items-start gap-4">
-                    <div className="flex-shrink-0 w-12 h-12 bg-green-500 rounded-full flex items-center justify-center text-white text-xl">✅</div>
+                    <div className="p-3 bg-gradient-to-br from-emerald-500/20 to-cyan-500/20 rounded-xl text-emerald-400 shrink-0">
+                      {prep.icon}
+                    </div>
                     <div className="flex-1">
-                      <p className="text-lg font-semibold text-green-900 mb-2">
-                        {todayData?.recommendation ?? (destPrecinct.comfort_label === 'Comfortable' ? 'Good time to travel. Conditions are comfortable right now.' : destPrecinct.comfort_label === 'Caution' ? 'Conditions are elevated. Consider travelling before 10am or after 5pm.' : 'High risk conditions. Consider waiting or using alternative transport.')}
-                      </p>
-                      <p className="text-sm text-gray-700 mb-3">
-                        Current comfort score for {destName} is <span className="font-bold text-green-700">{destPrecinct.comfort_score}/100</span>
-                      </p>
-                      <div className="grid grid-cols-2 gap-3 mt-3">
-                        <div className="bg-white/70 rounded-lg p-2 text-xs"><span className="text-gray-600">Temperature:</span><span className="font-bold ml-1">{destPrecinct.temperature !== null ? `${destPrecinct.temperature}°C` : 'N/A'}</span></div>
-                        <div className="bg-white/70 rounded-lg p-2 text-xs"><span className="text-gray-600">Humidity:</span><span className="font-bold ml-1">{destPrecinct.humidity !== null ? `${destPrecinct.humidity}%` : 'N/A'}</span></div>
-                        <div className="bg-white/70 rounded-lg p-2 text-xs"><span className="text-gray-600">Crowd Density:</span><span className="font-bold ml-1">{destPrecinct.activity_level}</span></div>
-                        <div className="bg-white/70 rounded-lg p-2 text-xs"><span className="text-gray-600">Wind Speed:</span><span className="font-bold ml-1">{destPrecinct.wind_speed !== null ? `${destPrecinct.wind_speed} m/s` : 'N/A'}</span></div>
+                      <div className="flex items-center justify-between mb-2">
+                        <h3 className="font-semibold text-white">{prep.title}</h3>
+                        <span className={`text-xs px-2 py-1 rounded-full ${prep.priority === "High" ? "bg-red-500/20 text-red-400" : "bg-yellow-500/20 text-yellow-400"}`}>
+                          {prep.priority}
+                        </span>
                       </div>
+                      <p className="text-sm text-slate-300">{prep.text}</p>
                     </div>
                   </div>
                 </div>
-              ) : (
-                <p className="text-gray-500 text-sm">No data available for this precinct.</p>
-              )}
-            </div>
-
-            <div className="bg-[rgba(247,255,253,0.82)] backdrop-blur-sm rounded-[24px] shadow-[0_24px_58px_rgba(16,32,31,0.14)] p-6 mb-6 border border-[#83c5be]/14 text-[#10201f]">
-              <h3 className="text-xl font-semibold mb-4">Recommended Time Slots</h3>
-              <div className="space-y-4">
-                <div className="bg-gradient-to-r from-[#edf6f9] to-[#eef8f5] rounded-2xl p-4 border border-[#83c5be]/24">
-                  <div className="flex items-center gap-3 mb-2">
-                    <span className="text-2xl">🌅</span>
-                    <div>
-                      <p className="font-bold text-lg text-blue-900">Morning 7:00 - 10:00</p>
-                      <p className="text-sm text-blue-700">Typically cooler with lower crowd density</p>
-                    </div>
-                  </div>
-                  <div className="mt-3 p-3 bg-white/60 rounded-lg">
-                    <p className="text-sm text-gray-700"><span className="font-semibold">Why:</span> Morning temperatures are generally more comfortable, crowds are lower, and air quality tends to be better before peak traffic.</p>
-                  </div>
-                </div>
-                <div className="bg-gradient-to-r from-[#fff4ef] to-[#fef8f3] rounded-2xl p-4 border border-[#e29578]/24">
-                  <div className="flex items-center gap-3 mb-2">
-                    <span className="text-2xl">🌙</span>
-                    <div>
-                      <p className="font-bold text-lg text-purple-900">Evening After 17:00</p>
-                      <p className="text-sm text-purple-700">Temperature drops, crowd density decreases</p>
-                    </div>
-                  </div>
-                  <div className="mt-3 p-3 bg-white/60 rounded-lg">
-                    <p className="text-sm text-gray-700"><span className="font-semibold">Why:</span> Evening conditions are typically cooler, avoiding the hottest afternoon period, with higher overall comfort levels.</p>
-                  </div>
-                </div>
-              </div>
-              <div className="mt-5 p-4 bg-[#fff7e8] rounded-2xl border-l-4 border-[#e29578]">
-                <p className="text-sm font-semibold text-yellow-900 mb-2">💡 Alternative Suggestion</p>
-                <p className="text-sm text-gray-700">If travelling between 12:00- 5:00, consider indoor routes or bring sun protection as temperatures are higher during this period.</p>
-              </div>
-            </div>
-
-            <div className="bg-[rgba(247,255,253,0.82)] backdrop-blur-sm rounded-[24px] shadow-[0_24px_58px_rgba(16,32,31,0.14)] p-6 border border-[#83c5be]/14 text-[#10201f]">
-              <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
-                <span className="text-2xl">🎒</span>
-                <span>Preparation Advice</span>
-              </h3>
-              <div className="space-y-3">
-                {destPrecinct && getPreparationAdvice(destPrecinct).map((adv, i) => (
-                  <div key={i} className="bg-gradient-to-r from-[#edf6f9] via-[#eef8f5] to-[#e3f3ef] rounded-2xl border border-[#83c5be]/24 hover:border-[#83c5be]/42 shadow-sm hover:shadow-md transition-all p-4">
-                    <div className="flex items-start gap-3 mb-2">
-                      <div className="flex-shrink-0 w-10 h-10 flex items-center justify-center bg-white rounded-full shadow-sm">
-                        <span className="text-2xl">{adv.icon}</span>
-                      </div>
-                      <div className="flex-1 pt-1">
-                        <p className="text-sm font-semibold text-gray-800 mb-2">{adv.text}</p>
-                        <span className="text-xs bg-white px-2 py-1 rounded-full text-gray-600 border border-gray-200 font-medium">{adv.category}</span>
-                      </div>
-                    </div>
-                    <div className="ml-14 mt-2 text-xs text-gray-600 bg-white/60 rounded-lg px-3 py-2 border border-gray-200">
-                      <span className="font-medium inline-flex items-center gap-1">
-                        <span>💡</span>
-                        {adv.trigger.includes('PM2.5') ? (
-                          <>
-                            <span>{adv.trigger.slice(0, adv.trigger.indexOf('PM2.5'))}</span>
-                            <span>PM2.5</span>
-                            <Pm25Info />
-                            <span>{adv.trigger.slice(adv.trigger.indexOf('PM2.5') + 'PM2.5'.length)}</span>
-                          </>
-                        ) : (
-                          <span>{adv.trigger}</span>
-                        )}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
+              ))}
             </div>
           </div>
         </div>
@@ -968,7 +1113,7 @@ export default function App({ mode }: { mode: "view" | "compare" }) {
     );
   }
 
-  // 閳光偓閳光偓閳光偓 Main Map View 閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓
+  // ─── Main Map View ────────────────────────────────────────────────────────────
 
   const showCardPrecinct = showCard ? precincts[showCard] : null;
   const betterPrecinctId = getBetterPrecinct();
@@ -1035,8 +1180,8 @@ export default function App({ mode }: { mode: "view" | "compare" }) {
               <div className="map-nav-status-shell ml-auto flex min-w-0 shrink-0 items-center justify-end gap-2 sm:gap-3">
                 <AppTopNav variant="app" className="app-map-top-nav" />
                 <SensorStatusRow loading={loading} error={error} />
-                {loading && <span className="hidden text-sm text-gray-400 animate-pulse min-[721px]:inline">Loading sensors...</span>}
-                {error && <span className="hidden text-sm text-red-500 min-[721px]:inline">! {error}</span>}
+                {loading && <span className="text-sm text-gray-400 animate-pulse">Loading sensors…</span>}
+                {error && <span className="text-sm text-red-500">⚠ {error}</span>}
                 <div className="hidden shrink-0 items-center gap-2 text-xs text-gray-500">
                 <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
                 Live sensors
@@ -1070,20 +1215,22 @@ export default function App({ mode }: { mode: "view" | "compare" }) {
                     </button>
                   ))}
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setShowMapGuide(true)}
-                  className="mb-2 inline-flex items-center gap-2 rounded-xl border border-[#83c5be]/28 bg-[rgba(247,255,253,0.94)] px-4 py-2 text-sm font-semibold text-[#17413f] shadow-[0_12px_28px_rgba(16,32,31,0.08)] transition-all hover:border-[#83c5be]/52 hover:bg-white hover:shadow-[0_16px_34px_rgba(16,32,31,0.12)]"
-                  aria-label="Open map tips"
-                  title="Open tips"
-                >
-                  <img src={ideaIcon} alt="" className="h-4 w-4 object-contain" aria-hidden="true" />
-                  <span>Tips</span>
-                </button>
+                {activeTab === "view" && (
+                  <button
+                    type="button"
+                    onClick={() => setShowMapGuide(true)}
+                    className="mb-2 inline-flex items-center gap-2 rounded-xl border border-[#83c5be]/28 bg-[rgba(247,255,253,0.94)] px-4 py-2 text-sm font-semibold text-[#17413f] shadow-[0_12px_28px_rgba(16,32,31,0.08)] transition-all hover:border-[#83c5be]/52 hover:bg-white hover:shadow-[0_16px_34px_rgba(16,32,31,0.12)]"
+                    aria-label="Open map tips"
+                    title="Open tips"
+                  >
+                    <img src={ideaIcon} alt="" className="h-4 w-4 object-contain" aria-hidden="true" />
+                    <span>Tips</span>
+                  </button>
+                )}
               </div>
             </div>
 
-            {/* 閳光偓閳光偓 View Tab 閳光偓閳光偓 */}
+            {/* ── View Tab ── */}
             {activeTab === "view" && (
               <>
                 <div className="p-6 pb-4">
@@ -1103,7 +1250,7 @@ export default function App({ mode }: { mode: "view" | "compare" }) {
                 </div>
 
                 <div className="flex">
-                  {/* Left sidebar - hidden when Ease Places is active */}
+                  {/* Left sidebar — hidden when Ease Places is active */}
                   <div
                     className={`border-r border-[#17413f]/8 bg-[linear-gradient(180deg,rgba(237,246,249,0.92),rgba(247,251,250,0.86))] transition-all duration-300 overflow-x-hidden overflow-y-auto ${
                       sidebarCollapsed || !mapFilters.comfortArea ? 'w-0' : 'w-56'
@@ -1175,7 +1322,7 @@ export default function App({ mode }: { mode: "view" | "compare" }) {
 
                   {/* Map area */}
                   <div className="flex-1 relative">
-                    {/* Left sidebar toggle - only visible when Comfort Area is enabled */}
+                    {/* Left sidebar toggle — only visible when Comfort Area is enabled */}
                     {mapFilters.comfortArea && (
                       <button
                         type="button"
@@ -1307,7 +1454,7 @@ export default function App({ mode }: { mode: "view" | "compare" }) {
                         <div className={`grid grid-cols-2 gap-3 mb-4 ${isStale(showCardPrecinct) ? 'opacity-60' : ''}`}>
                           <div className={`bg-gradient-to-br rounded-2xl p-3 border ${isStale(showCardPrecinct) ? 'from-gray-50 to-gray-100 border-gray-300' : 'from-[#fff3eb] to-[#fff8f3] border-[#e29578]/24'}`}>
                             <div className="flex items-center gap-2 mb-1"><Thermometer className={`w-4 h-4 ${isStale(showCardPrecinct) ? 'text-gray-500' : 'text-orange-600'}`} /><p className="text-sm text-gray-600">Temperature</p></div>
-                            <p className={`text-xl font-bold ${isStale(showCardPrecinct) ? 'text-gray-600' : 'text-orange-700'}`}>{showCardPrecinct.temperature !== null ? `${showCardPrecinct.temperature}掳C` : 'N/A'}</p>
+                            <p className={`text-xl font-bold ${isStale(showCardPrecinct) ? 'text-gray-600' : 'text-orange-700'}`}>{showCardPrecinct.temperature !== null ? `${showCardPrecinct.temperature}°C` : 'N/A'}</p>
                           </div>
                           <div className={`bg-gradient-to-br rounded-2xl p-3 border ${isStale(showCardPrecinct) ? 'from-gray-50 to-gray-100 border-gray-300' : 'from-[#edf6f9] to-[#f3fbf8] border-[#83c5be]/24'}`}>
                             <div className="flex items-center gap-2 mb-1"><Droplets className={`w-4 h-4 ${isStale(showCardPrecinct) ? 'text-gray-500' : 'text-blue-600'}`} /><p className="text-sm text-gray-600">Humidity</p></div>
@@ -1338,7 +1485,7 @@ export default function App({ mode }: { mode: "view" | "compare" }) {
               </>
             )}
 
-            {/* 閳光偓閳光偓 Compare Tab (unchanged) 閳光偓閳光偓 */}
+            {/* ── Compare Tab (unchanged) ── */}
             {activeTab === "compare" && (
               <>
                 <div className="p-6 pb-4">
@@ -1358,9 +1505,9 @@ export default function App({ mode }: { mode: "view" | "compare" }) {
                     <div className="absolute top-4 right-4 bg-[rgba(247,255,253,0.82)] backdrop-blur-md rounded-2xl shadow-[0_16px_34px_rgba(16,32,31,0.12)] p-4 z-30 pointer-events-none border border-[#83c5be]/16 text-[#10201f]">
                       <h3 className="font-semibold mb-3 text-sm">Comfort Levels</h3>
                       <div className="space-y-2">
-                        <div className="flex items-center gap-2"><div className="w-4 h-4 rounded-full bg-green-500" /><span className="text-xs font-medium">Comfortable (70- 00)</span></div>
-                        <div className="flex items-center gap-2"><div className="w-4 h-4 rounded-full bg-yellow-500" /><span className="text-xs font-medium">Caution (40- 9)</span></div>
-                        <div className="flex items-center gap-2"><div className="w-4 h-4 rounded-full bg-red-500" /><span className="text-xs font-medium">High Risk (0- 9)</span></div>
+                        <div className="flex items-center gap-2"><div className="w-4 h-4 rounded-full bg-green-500" /><span className="text-xs font-medium">Comfortable (70–100)</span></div>
+                        <div className="flex items-center gap-2"><div className="w-4 h-4 rounded-full bg-yellow-500" /><span className="text-xs font-medium">Caution (40–69)</span></div>
+                        <div className="flex items-center gap-2"><div className="w-4 h-4 rounded-full bg-red-500" /><span className="text-xs font-medium">High Risk (0–39)</span></div>
                       </div>
                     </div>
                     <LeafletMap
@@ -1396,7 +1543,7 @@ export default function App({ mode }: { mode: "view" | "compare" }) {
                     {!compareSelection1 && !compareSelection2 ? (
                       <div className="flex items-center justify-center h-full bg-[rgba(237,246,249,0.82)] rounded-[24px] border border-dashed border-[#83c5be]/34">
                         <div className="text-center p-6">
-                          <div className="text-4xl mb-4">棣冩啘</div>
+                          <div className="text-4xl mb-4">👆</div>
                           <h3 className="text-lg font-semibold text-gray-700 mb-2">Select Two Areas</h3>
                           <p className="text-sm text-gray-500">Click markers on the map to select areas to compare</p>
                         </div>
@@ -1431,7 +1578,7 @@ export default function App({ mode }: { mode: "view" | "compare" }) {
                               >
                                 {betterPrecinctId === id && (
                                   <div className="absolute -top-3 -right-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white px-3 py-1.5 rounded-full text-xs font-bold shadow-lg flex items-center gap-1">
-                                    <span>✅</span><span>Better</span>
+                                    <span>✓</span><span>Better</span>
                                   </div>
                                 )}
                                 {stale && (
@@ -1460,8 +1607,8 @@ export default function App({ mode }: { mode: "view" | "compare" }) {
                                 <div className="space-y-2">
                                   <div className="bg-[#fff3eb] rounded-xl p-2 border border-[#e29578]/24">
                                     <div className="flex items-center gap-1 mb-1"><Thermometer className="w-3 h-3 text-orange-600" /><p className="text-[10px] text-gray-600">Temperature</p></div>
-                                    <p className="text-sm font-bold text-orange-700">{p.temperature !== null ? `${p.temperature}掳C` : 'N/A'}</p>
-                                    <p className="text-[10px] text-gray-500 mt-1">Recommended: 18-26掳C</p>
+                                    <p className="text-sm font-bold text-orange-700">{p.temperature !== null ? `${p.temperature}°C` : 'N/A'}</p>
+                                    <p className="text-[10px] text-gray-500 mt-1">Recommended: 18-26°C</p>
                                   </div>
                                   <div className="bg-[#edf6f9] rounded-xl p-2 border border-[#83c5be]/24">
                                     <div className="flex items-center gap-1 mb-1"><Droplets className="w-3 h-3 text-blue-600" /><p className="text-[10px] text-gray-600">Humidity</p></div>
@@ -1530,5 +1677,3 @@ export default function App({ mode }: { mode: "view" | "compare" }) {
     </div>
   );
 }
-
-
