@@ -93,4 +93,16 @@ describe("landing presentation hooks", () => {
 
     view.unmount();
   });
+
+  test("marks the how-to detail back face as a dedicated scroll region", () => {
+    const view = render(
+      <MemoryRouter>
+        <HowToUseScene />
+      </MemoryRouter>
+    );
+
+    expect(view.container.querySelector(".landing-how-detail-shell.landing-how-detail-scroll")).not.toBeNull();
+
+    view.unmount();
+  });
 });

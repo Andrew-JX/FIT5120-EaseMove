@@ -69,9 +69,9 @@ export default function AboutUsPage() {
         <p className="aboutus-hero-kicker">MoveComfortly Melbourne</p>
         <h1>About MoveComfortly</h1>
         <p className="aboutus-hero-sub">
-          MoveComfortly is a concept-driven web experience exploring how public urban
-          data can support more comfortable walking and riding decisions across
-          inner Melbourne during hotter days.
+          MoveComfortly helps young walkers and riders understand street-level
+          comfort before they travel, combining public urban data, live sensor
+          signals, route previews, and weather-risk guidance for inner Melbourne.
         </p>
         <div className="aboutus-hero-actions">
           <button className="aboutus-btn-primary" onClick={() => navigate("/")}>
@@ -91,27 +91,28 @@ export default function AboutUsPage() {
               <div className="aboutus-qa-block">
                 <h3>What is MoveComfortly?</h3>
                 <p>
-                  MoveComfortly is a prototype that explores how public environmental
-                  and city activity information can be translated into more
-                  understandable travel-comfort guidance for young walkers and
-                  riders.
+                  MoveComfortly is an interactive planning experience for comparing
+                  Melbourne precincts by comfort score, environmental conditions,
+                  crowd activity, nearby support places, and route context before
+                  heading outdoors.
                 </p>
               </div>
               <div className="aboutus-qa-block">
                 <h3>Who is it for?</h3>
                 <p>
-                  MoveComfortly is designed with young adults in mind, especially
-                  students and part-time workers moving through inner Melbourne
-                  on foot or by bike.
+                  It is designed for students, young workers, walkers, cyclists,
+                  and anyone making short everyday trips through inner Melbourne
+                  who wants clearer comfort information than a single city-wide
+                  weather forecast can provide.
                 </p>
               </div>
               <div className="aboutus-qa-block">
                 <h3>Why does it matter?</h3>
                 <p>
-                  Hotter days can make everyday movement more tiring, less
-                  comfortable, and sometimes less safe. General weather
-                  information is often too broad to reflect how different city
-                  precincts may feel at street level.
+                  Heat, rain, cold, air quality, shade, facilities, and activity
+                  levels can change how a trip feels from one precinct to another.
+                  MoveComfortly turns those signals into practical comparisons,
+                  better-time suggestions, 3D route previews, and safety learning.
                 </p>
               </div>
             </div>
@@ -124,11 +125,11 @@ export default function AboutUsPage() {
                 </div>
                 <div className="aboutus-tags">
                   <span className="aboutus-tag">Urban comfort</span>
-                  <span className="aboutus-tag">Public data</span>
+                  <span className="aboutus-tag">Live sensors</span>
+                  <span className="aboutus-tag">Comfort score</span>
+                  <span className="aboutus-tag">3D route preview</span>
+                  <span className="aboutus-tag">Extreme weather risks</span>
                   <span className="aboutus-tag">Walking &amp; cycling</span>
-                  <span className="aboutus-tag">Inner Melbourne</span>
-                  <span className="aboutus-tag">Heat resilience</span>
-                  <span className="aboutus-tag">Educational prototype</span>
                 </div>
               </div>
             </div>
@@ -142,10 +143,10 @@ export default function AboutUsPage() {
           <p className="aboutus-data-note-kicker">How the concept is informed</p>
           <h2>Grounded in public research</h2>
           <p>
-            The project is informed by public Melbourne-related resources on
-            walking, cooling, heat, and place-based comfort. It explores how
-            environmental and urban activity signals could support more locally
-            meaningful movement decisions.
+            The project combines public Melbourne-related data with design research
+            on walkability, microclimate, heat exposure, urban cooling, and safer
+            outdoor movement. Its guidance is educational and decision-supportive,
+            helping users compare conditions rather than replacing official advice.
           </p>
         </div>
       </section>
@@ -156,7 +157,10 @@ export default function AboutUsPage() {
           <div className="aboutus-portfolio-header">
             <p className="aboutus-portfolio-kicker">Documentation</p>
             <h2>Project portfolio</h2>
-            <p>View our supporting portfolio and project documentation.</p>
+            <p>
+              View the supporting portfolio, research decisions, interface process,
+              and project documentation behind MoveComfortly.
+            </p>
           </div>
           <PortfolioEmbed />
         </div>
@@ -167,8 +171,8 @@ export default function AboutUsPage() {
         <p className="aboutus-cta-kicker">Get started</p>
         <h2>Explore MoveComfortly</h2>
         <p className="aboutus-cta-sub">
-          Explore the landing story or go directly to the interactive map
-          experience.
+          Start with the story, compare precinct comfort on the map, preview a
+          3D route, or learn how extreme weather affects outdoor movement.
         </p>
         <div className="aboutus-cta-actions">
           <button className="aboutus-btn-primary" onClick={() => navigate("/")}>

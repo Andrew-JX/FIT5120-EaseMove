@@ -217,7 +217,7 @@ export default function HowToUseScene() {
                   </figure>
                 </span>
                 <span className="landing-how-flip-face landing-how-flip-face-back">
-                  <span className="landing-how-detail-shell">
+                  <span className="landing-how-detail-shell landing-how-detail-scroll">
                     <span className="landing-how-detail-topline">
                       <span>{activeStep.eyebrow}</span>
                       <strong>{activeStep.shortLabel}</strong>
