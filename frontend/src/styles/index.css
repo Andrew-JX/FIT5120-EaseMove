@@ -3,3 +3,7 @@
 @import './theme.css';
 @import './map.css';
 
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
