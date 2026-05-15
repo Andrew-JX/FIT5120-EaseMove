@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { useLocation, useNavigate } from "react-router";
 
 const screenshotUrls = [
@@ -96,11 +96,9 @@ const steps = [
 export default function HowToUseScene() {
   const navigate = useNavigate();
   const location = useLocation();
-  const detailFaceRef = useRef<HTMLSpanElement | null>(null);
   const [activeStepIndex, setActiveStepIndex] = useState(0);
   const [isDetailFlipped, setIsDetailFlipped] = useState(false);
   const [imageAspectRatio, setImageAspectRatio] = useState<number>(16 / 10);
-  const [detailMinHeight, setDetailMinHeight] = useState(0);
   const activeStep = steps[activeStepIndex];
   const activeCallout = activeStep.callout;
   const activeScreenshotUrl = screenshotUrls[activeStepIndex];
@@ -140,32 +138,6 @@ export default function HowToUseScene() {
       activateStep(activeStepIndex - 1);
     }
   };
-
-  useEffect(() => {
-    const node = detailFaceRef.current;
-    if (!node) return;
-
-    const updateDetailHeight = () => {
-      setDetailMinHeight(node.scrollHeight);
-    };
-
-    updateDetailHeight();
-
-    if (typeof ResizeObserver === "undefined") {
-      window.addEventListener("resize", updateDetailHeight);
-      return () => window.removeEventListener("resize", updateDetailHeight);
-    }
-
-    const observer = new ResizeObserver(() => {
-      updateDetailHeight();
-    });
-
-    observer.observe(node);
-
-    return () => {
-      observer.disconnect();
-    };
-  }, [activeStepIndex]);
 
   return (
     <section
@@ -218,10 +190,7 @@ export default function HowToUseScene() {
           <div className="landing-how-product">
             <div
               className={`landing-how-flip-scene${isDetailFlipped ? " is-flipped" : ""}`}
-              style={{
-                aspectRatio: imageAspectRatio,
-                minHeight: detailMinHeight > 0 ? `${detailMinHeight}px` : undefined,
-              }}
+              style={{ aspectRatio: imageAspectRatio }}
             >
               <button
                 className="landing-how-flip-card"
@@ -246,10 +215,7 @@ export default function HowToUseScene() {
                     />
                   </figure>
                 </span>
-                <span
-                  ref={detailFaceRef}
-                  className="landing-how-flip-face landing-how-flip-face-back"
-                >
+                <span className="landing-how-flip-face landing-how-flip-face-back">
                   <span className="landing-how-detail-shell">
                     <span className="landing-how-detail-topline">
                       <span>{activeStep.eyebrow}</span>
