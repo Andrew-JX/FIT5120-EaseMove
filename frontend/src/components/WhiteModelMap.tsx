@@ -112,18 +112,19 @@ function toFeatureCollection(features: GeoJSON.Feature[]): FeatureCollection {
 
 function createMarkerElement(color: string, label: string) {
   const el = document.createElement("div");
-  el.style.width = "24px";
-  el.style.height = "24px";
+  el.style.width = "38px";
+  el.style.height = "38px";
   el.style.borderRadius = "999px";
-  el.style.border = "3px solid white";
-  el.style.boxShadow = "0 14px 28px rgba(15, 23, 42, 0.28)";
+  el.style.border = "5px solid white";
+  el.style.boxShadow = "0 0 0 8px rgba(255,255,255,0.28), 0 0 0 16px rgba(255,255,255,0.1), 0 22px 40px rgba(15, 23, 42, 0.42)";
   el.style.background = color;
   el.style.display = "grid";
   el.style.placeItems = "center";
   el.style.color = "white";
-  el.style.fontSize = "11px";
-  el.style.fontWeight = "800";
+  el.style.fontSize = "15px";
+  el.style.fontWeight = "900";
   el.style.lineHeight = "1";
+  el.style.textShadow = "0 1px 2px rgba(0,0,0,0.3)";
   el.textContent = label;
   el.title = label === "S" ? "Start point" : "End point";
   return el;
@@ -210,6 +211,7 @@ export default function WhiteModelMap({
   const onMapErrorRef = useRef(onMapError);
   const onEasePlaceSelectRef = useRef(onEasePlaceSelect);
   const routeRef = useRef(route);
+  const hasFocusedInitialRouteRef = useRef(false);
   const showEasePlacesRef = useRef(showEasePlaces);
   const showNaturalPlacesRef = useRef(showNaturalPlaces);
   const showStreetFacilitiesRef = useRef(showStreetFacilities);
@@ -277,9 +279,9 @@ export default function WhiteModelMap({
         "line-join": "round",
       },
       paint: {
-        "line-color": "#f8fafc",
-        "line-width": 11,
-        "line-opacity": 0.95,
+        "line-color": "#2b1a12",
+        "line-width": 14,
+        "line-opacity": 0.9,
       },
     });
 
@@ -292,8 +294,8 @@ export default function WhiteModelMap({
         "line-join": "round",
       },
       paint: {
-        "line-color": "#0f766e",
-        "line-width": 5.5,
+        "line-color": "#ff7a1a",
+        "line-width": 7.5,
         "line-opacity": 1,
       },
     });
@@ -369,6 +371,20 @@ export default function WhiteModelMap({
       duration: 1100,
       pitch: 58,
       bearing: -18,
+    });
+  };
+
+  const focusStartPoint = (point: RoutePoint) => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    map.easeTo({
+      center: [point.lng, point.lat],
+      zoom: Math.max(map.getZoom(), 16.4),
+      pitch: 62,
+      bearing: -18,
+      duration: 900,
+      essential: true,
     });
   };
 
@@ -755,6 +771,12 @@ export default function WhiteModelMap({
   }, [route]);
 
   useEffect(() => {
+    if (!route) {
+      hasFocusedInitialRouteRef.current = false;
+    }
+  }, [route]);
+
+  useEffect(() => {
     showEasePlacesRef.current = showEasePlaces;
   }, [showEasePlaces]);
 
@@ -968,6 +990,7 @@ export default function WhiteModelMap({
 
       if (routeRef.current?.geometry) {
         drawRoute(routeRef.current.geometry);
+        fitRoute(routeRef.current.geometry);
       }
     });
 
@@ -1045,7 +1068,7 @@ export default function WhiteModelMap({
     if (startPoint) {
       if (!startMarkerRef.current) {
         startMarkerRef.current = new mapboxgl.Marker({
-          element: createMarkerElement("#111827", "S"),
+          element: createMarkerElement("#0f766e", "S"),
           anchor: "center",
         });
       }
@@ -1063,7 +1086,7 @@ export default function WhiteModelMap({
     if (endPoint) {
       if (!endMarkerRef.current) {
         endMarkerRef.current = new mapboxgl.Marker({
-          element: createMarkerElement("#2563eb", "E"),
+          element: createMarkerElement("#ea580c", "E"),
           anchor: "center",
         });
       }
@@ -1083,17 +1106,42 @@ export default function WhiteModelMap({
       return;
     }
 
-    if (map.isStyleLoaded()) {
+    const drawAndFocusRoute = () => {
+      if (!mapRef.current || mapRef.current !== map || routeRef.current !== route || !map.isStyleLoaded()) {
+        return;
+      }
       drawRoute(route.geometry);
+      ensureRouteOnTop();
+
+      if (startPoint) {
+        hasFocusedInitialRouteRef.current = true;
+        focusStartPoint(startPoint);
+        return;
+      }
+
       fitRoute(route.geometry);
+    };
+
+    const scheduleRouteStabilizers = () => {
+      window.setTimeout(drawAndFocusRoute, 140);
+      window.setTimeout(drawAndFocusRoute, 420);
+      window.setTimeout(drawAndFocusRoute, 1100);
+    };
+
+    if (map.isStyleLoaded()) {
+      drawAndFocusRoute();
+      map.once("idle", drawAndFocusRoute);
+      scheduleRouteStabilizers();
       return;
     }
 
     map.once("style.load", () => {
-      drawRoute(route.geometry);
-      fitRoute(route.geometry);
+      if (routeRef.current !== route) return;
+      drawAndFocusRoute();
+      map.once("idle", drawAndFocusRoute);
+      scheduleRouteStabilizers();
     });
-  }, [route]);
+  }, [route, startPoint, endPoint]);
 
   useEffect(() => {
     const map = mapRef.current;
