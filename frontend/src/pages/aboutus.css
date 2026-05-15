@@ -53,6 +53,9 @@
   letter-spacing: 0.1em;
   color: #83c5be;
   margin-bottom: 18px;
+  opacity: 0;
+  transform: translate3d(0, 18px, 0);
+  animation: aboutus-hero-kicker-reveal 0.7s cubic-bezier(0.16, 1, 0.3, 1) 0.08s both;
 }
 
 .aboutus-hero h1 {
@@ -61,6 +64,10 @@
   font-weight: 700;
   letter-spacing: -0.02em;
   line-height: 0.96;
+  opacity: 0;
+  transform: translate3d(0, 46px, 0) scale(0.96);
+  filter: blur(10px);
+  animation: aboutus-title-rise 0.92s cubic-bezier(0.16, 1.28, 0.28, 1) 0.18s both;
 }
 
 .aboutus-hero-sub {
@@ -69,6 +76,10 @@
   color: rgba(237, 246, 249, 0.68);
   line-height: 1.65;
   max-width: 600px;
+  opacity: 0;
+  transform: translate3d(0, 28px, 0);
+  filter: blur(8px);
+  animation: aboutus-copy-reveal 0.9s cubic-bezier(0.16, 1, 0.3, 1) 0.34s both;
 }
 
 .aboutus-hero-actions {
@@ -76,6 +87,70 @@
   gap: 12px;
   justify-content: center;
   flex-wrap: wrap;
+  opacity: 0;
+  transform: translate3d(0, 18px, 0);
+  animation: aboutus-copy-reveal 0.78s cubic-bezier(0.16, 1, 0.3, 1) 0.52s both;
+}
+
+@keyframes aboutus-hero-kicker-reveal {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 18px, 0);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes aboutus-title-rise {
+  0% {
+    opacity: 0;
+    letter-spacing: -0.09em;
+    filter: blur(12px);
+    transform: translate3d(0, 54px, 0) scale(0.94);
+  }
+
+  68% {
+    opacity: 1;
+    letter-spacing: -0.014em;
+    filter: blur(1px);
+    transform: translate3d(0, -5px, 0) scale(1.018);
+  }
+
+  100% {
+    opacity: 1;
+    letter-spacing: -0.02em;
+    filter: blur(0);
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes aboutus-copy-reveal {
+  from {
+    opacity: 0;
+    filter: blur(8px);
+    transform: translate3d(0, 28px, 0);
+  }
+
+  to {
+    opacity: 1;
+    filter: blur(0);
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aboutus-hero-kicker,
+  .aboutus-hero h1,
+  .aboutus-hero-sub,
+  .aboutus-hero-actions {
+    opacity: 1;
+    filter: none;
+    transform: none;
+    animation: none;
+  }
 }
 
 .aboutus-btn-primary {
