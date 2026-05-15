@@ -763,7 +763,7 @@ export default function ExtremeWeatherRisksPage() {
     >
       <div className="fixed top-0 left-0 right-0 z-40 px-3 sm:px-4 pt-2 sm:pt-3 pointer-events-none">
         <div className="pointer-events-auto">
-          <AppTopNav variant="landing" onBackToTop={handleTopNavBackToTop} />
+          <AppTopNav variant="app" onBackToTop={handleTopNavBackToTop} />
         </div>
       </div>
 
