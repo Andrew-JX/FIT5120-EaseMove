@@ -1,32 +1,47 @@
 import { useMemo, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import { useNavigate } from "react-router";
-import { extremeWeatherQuizQuestions } from "../data/extremeWeather";
+import { type QuizQuestion, extremeWeatherQuizQuestions } from "../data/extremeWeather";
 
 type AnswerMap = Record<string, number | null>;
+const QUESTIONS_PER_SET = 3;
+
+function pickRandomQuestions(pool: QuizQuestion[], count: number): QuizQuestion[] {
+  const shuffled = [...pool].sort(() => Math.random() - 0.5);
+  return shuffled.slice(0, Math.min(count, shuffled.length));
+}
 
 export default function ExtremeWeatherQuizPage() {
   const navigate = useNavigate();
-  const createInitialAnswers = (): AnswerMap =>
-    Object.fromEntries(extremeWeatherQuizQuestions.map((q) => [q.id, null]));
+  const [activeQuestions, setActiveQuestions] = useState<QuizQuestion[]>(() =>
+    extremeWeatherQuizQuestions.slice(0, Math.min(QUESTIONS_PER_SET, extremeWeatherQuizQuestions.length))
+  );
+  const createInitialAnswers = (questions: QuizQuestion[]): AnswerMap =>
+    Object.fromEntries(questions.map((q) => [q.id, null]));
 
-  const [answers, setAnswers] = useState<AnswerMap>(() => createInitialAnswers());
+  const [answers, setAnswers] = useState<AnswerMap>(() => createInitialAnswers(activeQuestions));
   const [submitted, setSubmitted] = useState<Record<string, boolean>>({});
   const resetQuiz = () => {
-    setAnswers(createInitialAnswers());
+    setAnswers(createInitialAnswers(activeQuestions));
+    setSubmitted({});
+  };
+  const replaceQuestions = () => {
+    const nextSet = pickRandomQuestions(extremeWeatherQuizQuestions, QUESTIONS_PER_SET);
+    setActiveQuestions(nextSet);
+    setAnswers(createInitialAnswers(nextSet));
     setSubmitted({});
   };
 
   const score = useMemo(() => {
-    return extremeWeatherQuizQuestions.reduce((sum, q) => {
+    return activeQuestions.reduce((sum, q) => {
       const answer = answers[q.id];
       if (answer === null) return sum;
       return sum + (answer === q.correctIndex ? 1 : 0);
     }, 0);
-  }, [answers]);
+  }, [answers, activeQuestions]);
 
   const completedCount = Object.values(submitted).filter(Boolean).length;
-  const allCompleted = completedCount === extremeWeatherQuizQuestions.length;
+  const allCompleted = completedCount === activeQuestions.length;
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: "#081515" }}>
@@ -50,7 +65,7 @@ export default function ExtremeWeatherQuizPage() {
           <p className="text-sm text-gray-600 mt-1">Choose one answer for each question and submit to get instant feedback.</p>
 
           <div className="mt-6 space-y-6">
-            {extremeWeatherQuizQuestions.map((q, index) => {
+            {activeQuestions.map((q, index) => {
               const selected = answers[q.id];
               const isSubmitted = Boolean(submitted[q.id]);
               const isCorrect = selected === q.correctIndex;
@@ -100,17 +115,24 @@ export default function ExtremeWeatherQuizPage() {
             <div className="mt-6 rounded-lg border border-blue-200 bg-blue-50 p-4">
               <h3 className="font-bold text-blue-900">Quiz Summary</h3>
               <p className="text-sm text-blue-900 mt-1">
-                You scored {score} out of {extremeWeatherQuizQuestions.length}.
+                You scored {score} out of {activeQuestions.length}.
               </p>
               <p className="text-sm text-blue-900 mt-1">
-                {score === extremeWeatherQuizQuestions.length
+                {score === activeQuestions.length
                   ? "Great work. You are ready to apply these safety steps outdoors."
                   : "Good progress. Review the feedback above and try applying it in your next trip."}
               </p>
             </div>
           )}
 
-          <div className="mt-8 flex justify-center">
+          <div className="mt-8 flex flex-wrap justify-center gap-3">
+            <button
+              type="button"
+              onClick={replaceQuestions}
+              className="px-5 py-2.5 rounded-lg border border-amber-500 text-amber-700 font-semibold hover:bg-amber-50 transition-colors"
+            >
+              Replace Questions
+            </button>
             <button
               type="button"
               onClick={resetQuiz}
