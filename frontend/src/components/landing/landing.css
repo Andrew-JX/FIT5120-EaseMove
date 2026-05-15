@@ -1720,11 +1720,17 @@
   display: grid;
   gap: 12px;
   justify-items: center;
+  width: 100%;
+  max-width: min(100%, 34rem);
+  margin: 0 auto;
+  overflow-x: clip;
 }
 
 .landing-start-title-tag {
   margin: 0;
   padding: 8px 16px;
+  width: fit-content;
+  max-width: 100%;
   border: 1px solid rgba(131, 197, 190, 0.24);
   border-radius: 999px;
   color: rgba(237, 246, 249, 0.84);
@@ -1743,12 +1749,15 @@
   display: grid;
   gap: 6px;
   margin: 0;
+  width: 100%;
   text-align: center;
   text-wrap: balance;
+  overflow-x: clip;
 }
 
 .landing-start-title-main {
   display: block;
+  max-width: 100%;
   color: #f7fffd;
   font-size: clamp(2.3rem, 5.8vw, 5.2rem);
   line-height: 0.92;
@@ -1761,6 +1770,7 @@
 .landing-start-title-echo {
   position: relative;
   display: inline-block;
+  max-width: 100%;
   color: transparent;
   font-size: clamp(2.2rem, 6.1vw, 5.9rem);
   line-height: 0.94;
@@ -2887,19 +2897,25 @@
 
   .landing-start-title-shell {
     gap: 10px;
+    max-width: min(100%, 20rem);
   }
 
   .landing-start-title-tag {
     padding: 7px 14px;
     font-size: 0.72rem;
+    max-width: calc(100% - 4px);
   }
 
   .landing-start-title-main {
-    font-size: clamp(2rem, 11vw, 3.5rem);
+    font-size: clamp(1.95rem, 9.8vw, 3.2rem);
+    line-height: 0.96;
+    letter-spacing: -0.03em;
   }
 
   .landing-start-title-echo {
-    font-size: clamp(2rem, 12vw, 3.85rem);
+    font-size: clamp(1.85rem, 9.8vw, 3.2rem);
+    line-height: 0.98;
+    letter-spacing: -0.035em;
   }
 
   .landing-start-copy {
