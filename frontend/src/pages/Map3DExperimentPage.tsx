@@ -1,4 +1,4 @@
-import {
+﻿import {
   AlertTriangle,
   ArrowLeft,
   Bike,
@@ -28,6 +28,8 @@ import { APP_ROUTES } from "../lib/navigation";
 const MAPBOX_PUBLIC_TOKEN = (import.meta.env.VITE_MAPBOX_PUBLIC_TOKEN as string | undefined)?.trim() || null;
 const ROUTE_REQUEST_TIMEOUT_MS = 12000;
 const LOW_ACCURACY_THRESHOLD_METERS = 120;
+const MOBILE_PANEL_MEDIA_QUERY = "(max-width: 767px)";
+const ROUTE_GUIDE_STORAGE_KEY = "easemove:map3d-route-guide-seen";
 const liquidGlassPanelStyle: CSSProperties = {
   background:
     "radial-gradient(circle at 18% 0%, rgba(255,255,255,0.52), transparent 36%), linear-gradient(135deg, rgba(247,255,253,0.5), rgba(237,246,249,0.32) 54%, rgba(255,248,232,0.24))",
@@ -193,9 +195,15 @@ function geolocationMessage(error: GeolocationPositionError) {
   return "We could not read your location. You can still select points manually.";
 }
 
+function isMobilePanelViewport() {
+  if (typeof window === "undefined") return false;
+  return window.matchMedia(MOBILE_PANEL_MEDIA_QUERY).matches;
+}
+
 export default function Map3DExperimentPage() {
   const navigate = useNavigate();
   const location = useLocation();
+  const initialIsMobileViewport = isMobilePanelViewport();
   const [profile, setProfile] = useState<RouteProfile>("walking");
   const [startPoint, setStartPoint] = useState<RoutePoint | null>(null);
   const [endPoint, setEndPoint] = useState<RoutePoint | null>(null);
@@ -209,7 +217,9 @@ export default function Map3DExperimentPage() {
         }
   );
   const [isRouteLoading, setIsRouteLoading] = useState(false);
-  const [activePanel, setActivePanel] = useState<PanelView>("route");
+  const [activePanel, setActivePanel] = useState<PanelView>(initialIsMobileViewport ? null : "route");
+  const [isMobileViewport, setIsMobileViewport] = useState(initialIsMobileViewport);
+  const [showGuide, setShowGuide] = useState(false);
   const [focusedStepIndex, setFocusedStepIndex] = useState<number | null>(null);
   const [areaLayers, setAreaLayers] = useState<AreaLayerState>({
     easePlaces: false,
@@ -297,12 +307,12 @@ export default function Map3DExperimentPage() {
 
   const handleMapClick = useCallback(
     (point: RoutePoint) => {
-      setActivePanel("route");
       setFocusedStepIndex(null);
       setGeolocation((current) => (current.status === "loading" ? current : { status: "idle", message: null }));
       setRouteError(null);
 
       if (!startPoint || (startPoint && endPoint)) {
+        setActivePanel(isMobileViewport ? null : "route");
         requestIdRef.current += 1;
         setStartPoint(point);
         setEndPoint(null);
@@ -311,10 +321,11 @@ export default function Map3DExperimentPage() {
         return;
       }
 
+      setActivePanel("route");
       setEndPoint(point);
       void requestRoute(profile, startPoint, point);
     },
-    [endPoint, profile, requestRoute, startPoint]
+    [endPoint, isMobileViewport, profile, requestRoute, startPoint]
   );
 
   const handleProfileChange = useCallback(
@@ -345,7 +356,6 @@ export default function Map3DExperimentPage() {
   }, [clearRouteOnly]);
 
   const handleUseCurrentLocation = useCallback((targetEndPoint: RoutePoint | null = endPoint) => {
-    setActivePanel("route");
     setFocusedStepIndex(null);
     if (!navigator.geolocation) {
       setGeolocation({
@@ -366,7 +376,10 @@ export default function Map3DExperimentPage() {
         setStartPoint(point);
         setRouteError(null);
         if (targetEndPoint) {
+          setActivePanel("route");
           void requestRoute(profile, point, targetEndPoint);
+        } else {
+          setActivePanel(isMobileViewport ? null : "route");
         }
 
         if (position.coords.accuracy > LOW_ACCURACY_THRESHOLD_METERS) {
@@ -394,7 +407,7 @@ export default function Map3DExperimentPage() {
         maximumAge: 30000,
       }
     );
-  }, [clearRouteOnly, endPoint, profile, requestRoute]);
+  }, [clearRouteOnly, endPoint, isMobileViewport, profile, requestRoute]);
 
   const handleMapError = useCallback((message: string) => {
     setRouteError({
@@ -470,6 +483,34 @@ export default function Map3DExperimentPage() {
   }, [route]);
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+    const hasSeenGuide = window.localStorage.getItem(ROUTE_GUIDE_STORAGE_KEY) === "1";
+    if (!hasSeenGuide) {
+      setShowGuide(true);
+    }
+  }, []);
+
+  const dismissGuide = useCallback(() => {
+    setShowGuide(false);
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(ROUTE_GUIDE_STORAGE_KEY, "1");
+    }
+  }, []);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia(MOBILE_PANEL_MEDIA_QUERY);
+    const syncViewport = (event?: MediaQueryListEvent) => {
+      setIsMobileViewport(event ? event.matches : mediaQuery.matches);
+    };
+
+    syncViewport();
+    mediaQuery.addEventListener("change", syncViewport);
+    return () => {
+      mediaQuery.removeEventListener("change", syncViewport);
+    };
+  }, []);
+
+  useEffect(() => {
     if (hasAppliedSearchRef.current) return;
 
     const endFromSearch = parsePointFromSearch(location.search, "end");
@@ -479,7 +520,7 @@ export default function Map3DExperimentPage() {
     if (!endFromSearch && !startFromSearch && !autoLocate) return;
 
     hasAppliedSearchRef.current = true;
-    setActivePanel("route");
+    setActivePanel(!isMobileViewport || Boolean(endFromSearch) ? "route" : null);
     setFocusedStepIndex(null);
     setRouteError(null);
     clearRouteOnly();
@@ -499,7 +540,7 @@ export default function Map3DExperimentPage() {
     if (autoLocate) {
       handleUseCurrentLocation(endFromSearch);
     }
-  }, [clearRouteOnly, handleUseCurrentLocation, location.search, profile, requestRoute]);
+  }, [clearRouteOnly, handleUseCurrentLocation, isMobileViewport, location.search, profile, requestRoute]);
 
   useEffect(() => {
     if (!areaLayers.easePlaces) {
@@ -534,6 +575,57 @@ export default function Map3DExperimentPage() {
         onMapError={handleMapError}
         onEasePlaceSelect={handleEasePlaceSelect}
       />
+      {showGuide ? (
+        <div
+          style={liquidGlassPanelStyle}
+          className="absolute left-1/2 top-20 z-30 w-[min(34rem,calc(100vw-2rem))] -translate-x-1/2 rounded-[30px] border border-white/60 px-6 py-6 text-[#17413f] shadow-[0_28px_70px_rgba(4,14,14,0.18)] sm:top-24 sm:px-7 sm:py-7"
+        >
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#5f8682]">Quick guide</p>
+                <h2 className="mt-1 text-[1.45rem] font-semibold leading-tight sm:text-[1.65rem]">3D Route Preview</h2>
+              </div>
+              <button
+                type="button"
+                onClick={dismissGuide}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/45 bg-white/40 text-[#456765] transition hover:bg-white/65 hover:text-[#17413f]"
+                aria-label="Close 3D route guide"
+                title="Close"
+              >
+                <XCircle className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="mt-5 space-y-3.5 text-[0.96rem] leading-6 text-[#456765]">
+              <div className={`rounded-2xl px-4 py-3.5 ${liquidGlassCardClass}`}>
+                Tap or click the map once to choose your start point.
+              </div>
+              <div className={`rounded-2xl px-4 py-3.5 ${liquidGlassCardClass}`}>
+                Pick the end point next and the route panel will expand with directions.
+              </div>
+              <div className={`rounded-2xl px-4 py-3.5 ${liquidGlassCardClass}`}>
+                Switch between <span className="font-semibold text-[#17413f]">Route</span> and <span className="font-semibold text-[#17413f]">Layers</span> in the lower panel any time.
+              </div>
+              <div className={`rounded-2xl px-4 py-3.5 ${liquidGlassCardClass}`}>
+                In <span className="font-semibold text-[#17413f]">Layers</span>, you can turn on <span className="font-semibold text-[#17413f]">Natural Places</span> for parks and water, <span className="font-semibold text-[#17413f]">Ease Places</span> for supportive destinations, and <span className="font-semibold text-[#17413f]">Public Facilities</span> for bike racks, fountains, and seating.
+              </div>
+              <div className={`rounded-2xl px-4 py-3.5 ${liquidGlassCardClass}`}>
+                When a layer is active, the <span className="font-semibold text-[#17413f]">Layer legend</span> below updates so you can quickly understand what each colour and symbol means on the 3D map.
+              </div>
+            </div>
+
+            <div className="mt-6 flex items-center justify-between gap-3">
+              <p className="max-w-[15rem] text-xs leading-5 text-[#6b8582]">This guide appears only the first time you open this page.</p>
+              <button
+                type="button"
+                onClick={dismissGuide}
+                className="inline-flex min-h-11 items-center justify-center rounded-full border border-[#83c5be]/55 bg-[#17413f] px-4 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(23,65,63,0.24)] transition hover:bg-[#0f3230] active:scale-[0.98]"
+              >
+                Got it
+              </button>
+            </div>
+        </div>
+      ) : null}
       {selectedEasePlace && areaLayers.easePlaces ? (
         <EasePlacesDetailPopup
           feature={selectedEasePlace.feature}
@@ -544,16 +636,27 @@ export default function Map3DExperimentPage() {
       ) : null}
 
       <div className="absolute left-3 top-3 z-20 sm:left-4 sm:top-4">
-        <button
-          type="button"
-          onClick={handleBack}
-          className={`${floatingChromeButtonClass} h-11 px-4 max-sm:w-11 max-sm:px-0`}
-          title="Back to previous page"
-          aria-label="Back to previous page"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          <span className="max-sm:hidden">Back</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handleBack}
+            className={`${floatingChromeButtonClass} h-11 px-4 max-sm:w-11 max-sm:px-0`}
+            title="Back to previous page"
+            aria-label="Back to previous page"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            <span className="max-sm:hidden">Back</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowGuide(true)}
+            className={`${floatingChromeButtonClass} h-11 px-4 text-xs uppercase tracking-[0.16em] text-[#5f8682] max-sm:px-3`}
+            title="Open quick guide"
+            aria-label="Open quick guide"
+          >
+            Tips
+          </button>
+        </div>
       </div>
 
       <aside
@@ -804,7 +907,7 @@ export default function Map3DExperimentPage() {
                       <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#5f8682]">Time of day</p>
                       <p className="mt-1 text-sm font-semibold text-[#17413f]">
                         {activityDensity.date && activityDensity.selectedHour !== null
-                          ? `${activityDensity.date} · ${formatHourLabel(activityDensity.selectedHour)}`
+                          ? `${activityDensity.date} 路 ${formatHourLabel(activityDensity.selectedHour)}`
                           : activityDensity.loading
                             ? "Loading latest available day..."
                             : activityDensity.loaded
@@ -946,16 +1049,28 @@ function LayerToggle({
         </div>
         <p className="mt-1 text-xs text-[#6b8582]">{description}</p>
       </div>
-      <span
-        className={`relative inline-flex h-7 w-12 shrink-0 rounded-full border transition ${
-          checked
-            ? "border-[#3f8f87] bg-[#83c5be]/80"
-            : "border-white/45 bg-white/35"
-        }`}
-      >
+      <span className={`relative inline-flex shrink-0 text-[1rem] [perspective:400px] ${disabled ? "opacity-70" : ""}`}>
         <span
-          className={`absolute top-0.5 h-[22px] w-[22px] rounded-full bg-white shadow-[0_6px_14px_rgba(15,23,42,0.18)] transition ${
-            checked ? "left-[1.35rem]" : "left-0.5"
+          className={`relative inline-block h-7 w-[3.85rem] overflow-hidden rounded-full border shadow-[inset_0_1px_0_rgba(255,255,255,0.55),0_10px_22px_rgba(4,14,14,0.12)] transition-all duration-300 ease-in-out ${
+            checked
+              ? "border-[#58ada4] bg-[linear-gradient(90deg,#66d2c5,#4da79e)]"
+              : "border-white/60 bg-[linear-gradient(180deg,rgba(229,233,233,0.96),rgba(203,209,209,0.92))]"
+          }`}
+        >
+          <span
+            aria-hidden="true"
+            className={`pointer-events-none absolute z-20 h-[0.34rem] w-[0.62rem] transition-all duration-500 ease-in-out ${
+              checked ? "left-[2.42rem] top-[0.48rem] rotate-y-180" : "left-[0.34rem] top-[0.48rem]"
+            }`}
+          >
+            <span className={`absolute left-0 top-0 h-[0.12rem] w-[0.12rem] rounded-full ${checked ? "bg-[#0f5f5a]" : "bg-[#8b9494]"}`} />
+            <span className={`absolute right-0 top-0 h-[0.12rem] w-[0.12rem] rounded-full ${checked ? "bg-[#0f5f5a]" : "bg-[#8b9494]"}`} />
+            <span className={`absolute left-[0.08rem] top-[0.16rem] h-[0.16rem] w-[0.46rem] rounded-b-full border-b-[1.5px] border-x-[1.5px] border-transparent ${checked ? "border-b-[#0f5f5a]" : "border-b-[#7f8888]"}`} />
+          </span>
+        </span>
+        <span
+          className={`absolute z-10 top-[0.18rem] h-[1.18rem] w-[1.18rem] rounded-full bg-[linear-gradient(145deg,#eef4f4,#ffffff)] shadow-[0_7px_14px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.8)] transition-all duration-300 ease-in-out ${
+            checked ? "left-[2.45rem]" : "left-[0.18rem]"
           }`}
         />
       </span>
