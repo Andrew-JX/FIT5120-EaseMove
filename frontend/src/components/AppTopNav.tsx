@@ -1,8 +1,9 @@
-import { Menu } from "lucide-react";
+import { Menu, X } from "lucide-react";
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { NavLink } from "react-router";
 import { useLocation, useNavigate } from "react-router";
 import landingLogo from "../assets/logo-transparent.png";
+import landingOverlayVisual from "../assets/landing/2.png";
 import { APP_ROUTES } from "../lib/navigation";
 import "./app-top-nav.css";
 
@@ -267,6 +268,10 @@ export default function AppTopNav({
             <div className="app-top-nav__landing-overlay-inner">
               <div className="app-top-nav__landing-overlay-brand">
                 <img src={landingLogo} alt="EaseMove" className="app-top-nav__landing-logo" />
+              </div>
+
+              <div className="app-top-nav__landing-overlay-visual" aria-hidden="true">
+                <img src={landingOverlayVisual} alt="" className="app-top-nav__landing-overlay-visual-image" />
               </div>
 
               <div className="app-top-nav__landing-overlay-nav-wrap">
