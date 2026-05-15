@@ -15,6 +15,8 @@ vi.mock("motion/react", async () => {
     AnimatePresence: ({ children }: { children: React.ReactNode }) => <>{children}</>,
     motion: {
       div: createMotionComponent("div"),
+      h2: createMotionComponent("h2"),
+      button: createMotionComponent("button"),
       svg: createMotionComponent("svg"),
       g: createMotionComponent("g"),
       path: createMotionComponent("path"),
@@ -56,7 +58,7 @@ function render(element: React.ReactNode) {
 
 function getCircleSegmentPaths(container: HTMLDivElement) {
   const sections = Array.from(container.querySelectorAll("section"));
-  const ringSection = sections[1];
+  const ringSection = sections[0];
   expect(ringSection).toBeTruthy();
   return Array.from(ringSection.querySelectorAll("svg path"));
 }
@@ -73,7 +75,7 @@ afterEach(() => {
 });
 
 describe("ExtremeWeatherRisksPage - Epic 4", () => {
-  test("renders the hero section and section navigation labels", () => {
+  test("renders the ring section directly and section navigation labels", () => {
     const view = render(
       <MemoryRouter initialEntries={["/extreme-weather-risks"]}>
         <Routes>
@@ -82,13 +84,7 @@ describe("ExtremeWeatherRisksPage - Epic 4", () => {
       </MemoryRouter>
     );
 
-    expect(view.container.textContent).toContain("Extreme Weather");
-    expect(view.container.textContent).toContain(
-      "Understanding the risks and impacts of severe weather events on human health and safety"
-    );
-    expect(view.container.textContent).toContain("Extreme Weather Introduction");
-    expect(view.container.textContent).toContain("Circle");
-    expect(view.container.textContent).toContain("Risk Detail");
+    expect(view.container.textContent).toContain("Extreme Weather Panel");
     expect(view.container.textContent).toContain("Start Quiz");
 
     view.unmount();
@@ -104,7 +100,7 @@ describe("ExtremeWeatherRisksPage - Epic 4", () => {
     );
 
     const svgPaths = getCircleSegmentPaths(view.container);
-    expect(svgPaths.length).toBe(5);
+    expect(svgPaths.length).toBe(3);
 
     act(() => {
       svgPaths[0].dispatchEvent(new MouseEvent("click", { bubbles: true }));
@@ -116,7 +112,7 @@ describe("ExtremeWeatherRisksPage - Epic 4", () => {
     expect(view.container.textContent).toContain("Smoke Exposure");
     expect(view.container.textContent).toContain("Impact on Human Body:");
     expect(view.container.textContent).toContain("Severity: High");
-    expect(view.container.textContent).toContain("Learn More");
+    expect(view.container.textContent).toContain("Explore Impacts");
 
     view.unmount();
   });
@@ -141,7 +137,7 @@ describe("ExtremeWeatherRisksPage - Epic 4", () => {
     });
 
     const learnMoreButton = Array.from(view.container.querySelectorAll("button")).find((button) =>
-      button.textContent?.includes("Learn More")
+      button.textContent?.includes("Explore Impacts")
     );
     expect(learnMoreButton).toBeTruthy();
 
