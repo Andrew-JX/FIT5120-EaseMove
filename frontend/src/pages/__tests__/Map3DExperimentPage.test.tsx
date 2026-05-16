@@ -296,6 +296,7 @@ describe("Map3DExperimentPage - Epic 5", () => {
     expect(view.container.textContent).toContain("3D Route Preview");
     expect(view.container.textContent).toContain("Mock 3D city view");
     expect(view.container.textContent).toContain("Drag to pan, scroll to zoom, and right-drag");
+    expect(view.container.textContent).toContain("Tap Start to lock or re-arm map picking");
     expect(
       view.container.querySelector('button[aria-label="Open landing navigation menu"]')
     ).toBeTruthy();
@@ -362,6 +363,144 @@ describe("Map3DExperimentPage - Epic 5", () => {
     expect(view.container.querySelector('[data-testid="point-badge-end"]')?.className).toContain("border-[4px]");
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(String(fetchMock.mock.calls[0]?.[0])).toContain("/walking/");
+
+    view.unmount();
+  });
+
+  test("map point selection toggle locks map clicks until the user turns it back on", async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => createRouteResponse("walking"),
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const Map3DExperimentPage = await loadPageWithToken();
+    const view = render(
+      <MemoryRouter initialEntries={["/map/3d-route"]}>
+        <Routes>
+          <Route path="/map/3d-route" element={<Map3DExperimentPage />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    clickByText(view.container, "Map click start");
+    expect(view.container.textContent).toContain("-37.81360, 144.96310");
+
+    const selectionToggle = view.container.querySelector('button[aria-label="Disable map point selection"]');
+    expect(selectionToggle).toBeTruthy();
+
+    act(() => {
+      selectionToggle!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    clickByText(view.container, "Map click end");
+    await view.flush();
+
+    expect(view.container.textContent).toContain("Not selected");
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(view.container.querySelector('button[aria-label="Enable map point selection"]')).toBeTruthy();
+
+    const enableSelectionToggle = view.container.querySelector('button[aria-label="Enable map point selection"]');
+    expect(enableSelectionToggle).toBeTruthy();
+
+    act(() => {
+      enableSelectionToggle!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    clickByText(view.container, "Map click end");
+    await view.flush();
+
+    expect(view.container.textContent).toContain("-37.79910, 144.98120");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    view.unmount();
+  });
+
+  test("the Start card can also lock and unlock map point selection with a highlighted status", async () => {
+    const Map3DExperimentPage = await loadPageWithToken();
+    const view = render(
+      <MemoryRouter initialEntries={["/map/3d-route"]}>
+        <Routes>
+          <Route path="/map/3d-route" element={<Map3DExperimentPage />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    expect(view.container.textContent).toContain("Map picking ON");
+    expect(view.container.textContent).toContain("Tap Start to lock or re-arm map picking");
+
+    const startToggle = view.container.querySelector('button[aria-label="Disable map point selection from Start card"]');
+    expect(startToggle).toBeTruthy();
+
+    act(() => {
+      startToggle!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(view.container.textContent).toContain("Map picking LOCKED");
+
+    const startUnlock = view.container.querySelector('button[aria-label="Enable map point selection from Start card"]');
+    expect(startUnlock).toBeTruthy();
+
+    act(() => {
+      startUnlock!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(view.container.textContent).toContain("Map picking ON");
+
+    view.unmount();
+  });
+
+  test("deleting start and end does not unlock map point selection automatically", async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => createRouteResponse("walking"),
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const Map3DExperimentPage = await loadPageWithToken();
+    const view = render(
+      <MemoryRouter initialEntries={["/map/3d-route"]}>
+        <Routes>
+          <Route path="/map/3d-route" element={<Map3DExperimentPage />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    clickByText(view.container, "Map click start");
+    clickByText(view.container, "Map click end");
+    await view.flush();
+
+    const disableSelectionToggle = view.container.querySelector('button[aria-label="Disable map point selection"]');
+    expect(disableSelectionToggle).toBeTruthy();
+
+    act(() => {
+      disableSelectionToggle!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    const deleteStartButton = view.container.querySelector('button[aria-label="Delete Start point"]');
+    expect(deleteStartButton).toBeTruthy();
+
+    act(() => {
+      deleteStartButton!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    clickByText(view.container, "Map click reset");
+    await view.flush();
+
+    expect(view.container.textContent).toContain("Not selected");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(view.container.querySelector('button[aria-label="Enable map point selection"]')).toBeTruthy();
+
+    const reenableSelectionToggle = view.container.querySelector('button[aria-label="Enable map point selection"]');
+    expect(reenableSelectionToggle).toBeTruthy();
+
+    act(() => {
+      reenableSelectionToggle!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    clickByText(view.container, "Map click reset");
+
+    expect(view.container.textContent).toContain("-37.82040, 144.95020");
 
     view.unmount();
   });
@@ -669,7 +808,7 @@ describe("Map3DExperimentPage - Epic 5", () => {
     expect(firstView.container.textContent).toContain("Quick guide");
     expect(firstView.container.textContent).toContain("3D Route Preview");
     expect(firstView.container.querySelector('[data-testid="route-guide-overlay"]')?.className).toContain(
-      "map-guide-dialog-scroll"
+      "overflow-y-auto"
     );
     firstView.unmount();
 
