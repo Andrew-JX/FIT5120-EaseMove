@@ -25,7 +25,8 @@ const SOURCE_IDS = {
 const LAYER_IDS = {
   routeCasing: "route-line-casing",
   route: "route-line",
-  parksFill: "parks-fill-3d",
+  parksFillBase: "parks-fill-base-3d",
+  parksFillGlow: "parks-fill-glow-3d",
   parksLine: "parks-line-3d",
   waterFill: "waterbodies-fill-3d",
   waterLine: "waterbodies-line-3d",
@@ -67,6 +68,11 @@ export type RouteSummary = {
   geometry: GeoJSON.LineString;
 };
 
+export type MapViewportControls = {
+  zoomIn: () => void;
+  zoomOut: () => void;
+};
+
 type WhiteModelMapProps = {
   mapboxToken: string | null;
   startPoint: RoutePoint | null;
@@ -76,8 +82,10 @@ type WhiteModelMapProps = {
   showEasePlaces: boolean;
   showNaturalPlaces: boolean;
   showStreetFacilities: boolean;
+  showNavigationControl?: boolean;
   onMapClick: (point: RoutePoint) => void;
   onMapError: (message: string) => void;
+  onViewportControlsReady?: (controls: MapViewportControls | null) => void;
   onEasePlaceSelect?: (
     feature: EasePlacesFeature,
     point: { x: number; y: number },
@@ -192,8 +200,10 @@ export default function WhiteModelMap({
   showEasePlaces,
   showNaturalPlaces,
   showStreetFacilities,
+  showNavigationControl = true,
   onMapClick,
   onMapError,
+  onViewportControlsReady,
   onEasePlaceSelect,
 }: WhiteModelMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -209,6 +219,7 @@ export default function WhiteModelMap({
   const streetFacilitiesDataRef = useRef<FeatureCollection | null>(null);
   const onMapClickRef = useRef(onMapClick);
   const onMapErrorRef = useRef(onMapError);
+  const onViewportControlsReadyRef = useRef(onViewportControlsReady);
   const onEasePlaceSelectRef = useRef(onEasePlaceSelect);
   const routeRef = useRef(route);
   const hasFocusedInitialRouteRef = useRef(false);
@@ -449,16 +460,32 @@ export default function WhiteModelMap({
       });
     }
 
-    if (!map.getLayer(LAYER_IDS.parksFill)) {
+    if (!map.getLayer(LAYER_IDS.parksFillBase)) {
       map.addLayer(
         {
-          id: LAYER_IDS.parksFill,
+          id: LAYER_IDS.parksFillBase,
           type: "fill",
           source: SOURCE_IDS.parks,
           layout: visibilityLayout(visible),
           paint: {
-            "fill-color": "#b8d9a6",
-            "fill-opacity": 0.24,
+            "fill-color": "#bcebad",
+            "fill-opacity": 0.34,
+          },
+        },
+        beforeLayerId
+      );
+    }
+
+    if (!map.getLayer(LAYER_IDS.parksFillGlow)) {
+      map.addLayer(
+        {
+          id: LAYER_IDS.parksFillGlow,
+          type: "fill",
+          source: SOURCE_IDS.parks,
+          layout: visibilityLayout(visible),
+          paint: {
+            "fill-color": "#e2f8d6",
+            "fill-opacity": 0.18,
           },
         },
         beforeLayerId
@@ -473,14 +500,15 @@ export default function WhiteModelMap({
           source: SOURCE_IDS.parks,
           layout: visibilityLayout(visible),
           paint: {
-            "line-color": "#4b7b46",
-            "line-width": 1.1,
-            "line-opacity": 0.88,
+            "line-color": "#4f8246",
+            "line-width": 1.35,
+            "line-opacity": 0.94,
           },
         },
         beforeLayerId
       );
     }
+
   };
 
   const addEasePlacesLayers = (map: mapboxgl.Map, visible: boolean, beforeLayerId?: string) => {
@@ -763,6 +791,10 @@ export default function WhiteModelMap({
   }, [onMapError]);
 
   useEffect(() => {
+    onViewportControlsReadyRef.current = onViewportControlsReady;
+  }, [onViewportControlsReady]);
+
+  useEffect(() => {
     onEasePlaceSelectRef.current = onEasePlaceSelect;
   }, [onEasePlaceSelect]);
 
@@ -870,7 +902,24 @@ export default function WhiteModelMap({
     }
     map.getCanvas().style.touchAction = "none";
     map.getContainer().style.touchAction = "none";
-    map.addControl(new mapboxgl.NavigationControl({ visualizePitch: true }), "top-right");
+    if (showNavigationControl) {
+      map.addControl(new mapboxgl.NavigationControl({ visualizePitch: true }), "top-right");
+    }
+
+    onViewportControlsReadyRef.current?.({
+      zoomIn: () => {
+        map.easeTo({
+          zoom: Math.min(map.getZoom() + 0.9, 20),
+          duration: 280,
+        });
+      },
+      zoomOut: () => {
+        map.easeTo({
+          zoom: Math.max(map.getZoom() - 0.9, 11.5),
+          duration: 280,
+        });
+      },
+    });
 
     map.on("error", (event) => {
       const status = (event.error as { status?: number } | undefined)?.status;
@@ -936,13 +985,19 @@ export default function WhiteModelMap({
               "fill-extrusion-color": [
                 "interpolate",
                 ["linear"],
-                ["zoom"],
-                14,
-                "#e8d7b5",
-                17,
-                "#f0dfbd",
+                ["coalesce", ["get", "height"], 8],
+                0,
+                "#c8bfb2",
+                12,
+                "#d8cfbf",
+                28,
+                "#e7dece",
+                52,
+                "#f3ebdc",
+                96,
+                "#fff8ec",
               ],
-              "fill-extrusion-opacity": 0.92,
+              "fill-extrusion-opacity": 0.88,
               "fill-extrusion-height": [
                 "interpolate",
                 ["linear"],
@@ -971,12 +1026,12 @@ export default function WhiteModelMap({
       addEasePlacesLayers(map, showEasePlacesRef.current, labelLayerId);
       addStreetFacilitiesLayers(map, showStreetFacilitiesRef.current, labelLayerId);
       bindNaturalPopup(map, LAYER_IDS.waterFill, "Waterbody", ["NAME_LABEL", "NAME"]);
-      bindNaturalPopup(map, LAYER_IDS.parksFill, "Park", ["NAME_LABEL", "NAME"]);
+      bindNaturalPopup(map, LAYER_IDS.parksFillBase, "Park", ["NAME_LABEL", "NAME"]);
       bindEasePlacesPopup(map);
       bindStreetFacilitiesPopup(map);
 
       setLayerVisibility(
-        [LAYER_IDS.parksFill, LAYER_IDS.parksLine, LAYER_IDS.waterFill, LAYER_IDS.waterLine],
+        [LAYER_IDS.parksFillBase, LAYER_IDS.parksFillGlow, LAYER_IDS.parksLine, LAYER_IDS.waterFill, LAYER_IDS.waterLine],
         showNaturalPlacesRef.current
       );
       setLayerVisibility(
@@ -1007,6 +1062,7 @@ export default function WhiteModelMap({
     });
 
     return () => {
+      onViewportControlsReadyRef.current?.(null);
       startMarkerRef.current?.remove();
       endMarkerRef.current?.remove();
       focusedStepMarkerRef.current?.remove();
@@ -1020,13 +1076,13 @@ export default function WhiteModelMap({
       endMarkerRef.current = null;
       focusedStepMarkerRef.current = null;
     };
-  }, [mapboxToken]);
+  }, [mapboxToken, showNavigationControl]);
 
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !map.isStyleLoaded()) return;
     setLayerVisibility(
-      [LAYER_IDS.parksFill, LAYER_IDS.parksLine, LAYER_IDS.waterFill, LAYER_IDS.waterLine],
+      [LAYER_IDS.parksFillBase, LAYER_IDS.parksFillGlow, LAYER_IDS.parksLine, LAYER_IDS.waterFill, LAYER_IDS.waterLine],
       showNaturalPlaces
     );
     if (!showNaturalPlaces) {

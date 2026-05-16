@@ -381,7 +381,7 @@
   appearance: none;
   -webkit-appearance: none;
   border-radius: 0;
-  color: inherit;
+  color: #f5efe3;
   background: transparent;
   border: 0;
   margin: 0;
@@ -391,6 +391,11 @@
   line-height: 0.98;
   letter-spacing: -0.04em;
   text-align: left;
+}
+
+.app-top-nav__landing-overlay-link--button:hover,
+.app-top-nav__landing-overlay-link--button:focus-visible {
+  color: #ffffff;
 }
 
 .app-top-nav__landing-overlay.is-opening .app-top-nav__landing-overlay-link,
@@ -841,6 +846,107 @@
   font-size: 0.88rem;
 }
 
+.app-top-nav--route-page {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+}
+
+.app-top-nav--route-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 280;
+  pointer-events: none;
+}
+
+.app-top-nav--route-page .app-top-nav__compact-trigger {
+  position: static;
+  top: auto;
+  right: auto;
+  min-height: 36px;
+  min-width: 36px;
+  padding: 0 10px;
+  gap: 4px;
+  border-radius: 999px;
+  color: #173f3d;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+  transform: none;
+}
+
+.app-top-nav--route-page .app-top-nav__landing-overlay,
+.app-top-nav--route-page .app-top-nav__landing-overlay-backdrop {
+  pointer-events: auto;
+}
+
+.route-page-toolbar-button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  gap: 6px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #173f3d;
+  font-size: 0.94rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition:
+    color 0.24s ease,
+    transform 0.24s ease,
+    opacity 0.24s ease;
+}
+
+.route-page-toolbar-button:hover,
+.route-page-toolbar-button:focus-visible,
+.app-top-nav--route-page .app-top-nav__compact-trigger:hover,
+.app-top-nav--route-page .app-top-nav__compact-trigger:focus-visible {
+  color: #0d2e2c;
+}
+
+.route-page-toolbar-button:active,
+.app-top-nav--route-page .app-top-nav__compact-trigger:active {
+  transform: translateY(1px);
+}
+
+.route-page-toolbar-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.route-page-toolbar-button--icon {
+  min-width: 36px;
+  padding: 0 10px;
+  letter-spacing: 0;
+}
+
+.route-page-toolbar-button--text {
+  white-space: nowrap;
+}
+
+.route-page-toolbar-active-pill {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.82), rgba(255, 255, 255, 0.42));
+  box-shadow:
+    0 10px 24px rgba(23, 65, 63, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.86);
+}
+
+.route-page-toolbar-divider {
+  width: 1px;
+  align-self: stretch;
+  margin: 2px 4px;
+  background: linear-gradient(180deg, rgba(23, 65, 63, 0.08), rgba(23, 65, 63, 0.32), rgba(23, 65, 63, 0.08));
+}
+
 .map-nav-status-shell > span,
 .map-nav-status-shell > div.hidden {
   display: none !important;
@@ -865,6 +971,30 @@
     pointer-events: auto !important;
     transform: none;
   }
+
+  .app-top-nav--route-page .app-top-nav__compact-trigger {
+    min-height: 32px;
+    min-width: 32px;
+    padding: 0 8px;
+    gap: 3px;
+  }
+
+  .route-page-toolbar-button {
+    min-height: 32px;
+    font-size: 0.88rem;
+    letter-spacing: 0.08em;
+    padding: 0 8px;
+  }
+
+  .route-page-toolbar-button--icon {
+    min-width: 32px;
+    padding: 0 8px;
+  }
+
+  .route-page-toolbar-divider {
+    margin: 2px 2px;
+  }
+
 
   .app-top-nav__landing-hero-layer .app-top-nav__links {
     display: flex;

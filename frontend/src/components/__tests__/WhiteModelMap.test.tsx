@@ -170,6 +170,43 @@ afterEach(() => {
 });
 
 describe("WhiteModelMap", () => {
+  test("can disable the default mapbox navigation control and expose viewport controls", async () => {
+    const module = await import("../WhiteModelMap");
+    const WhiteModelMap = module.default;
+    const onViewportControlsReady = vi.fn();
+
+    const view = render(
+      <WhiteModelMap
+        mapboxToken="token"
+        startPoint={null}
+        endPoint={null}
+        route={null}
+        focusedStep={null}
+        showEasePlaces={false}
+        showNaturalPlaces={false}
+        showStreetFacilities={false}
+        showNavigationControl={false}
+        onMapClick={vi.fn()}
+        onMapError={vi.fn()}
+        onViewportControlsReady={onViewportControlsReady}
+      />
+    );
+
+    const map = mapInstances[0];
+    expect(map).toBeTruthy();
+    expect(map.addControl).not.toHaveBeenCalled();
+    expect(onViewportControlsReady).toHaveBeenCalledWith(
+      expect.objectContaining({
+        zoomIn: expect.any(Function),
+        zoomOut: expect.any(Function),
+      })
+    );
+
+    view.unmount();
+
+    expect(onViewportControlsReady).toHaveBeenLastCalledWith(null);
+  });
+
   test("preloaded routes are focused from the start point and route styling stays visually prominent", async () => {
     const module = await import("../WhiteModelMap");
     const WhiteModelMap = module.default;
@@ -231,4 +268,74 @@ describe("WhiteModelMap", () => {
 
     view.unmount();
   });
+
+  test("registers upgraded park highlight layers without changing route behavior", async () => {
+    const module = await import("../WhiteModelMap");
+    const WhiteModelMap = module.default;
+
+    const view = render(
+      <WhiteModelMap
+        mapboxToken="token"
+        startPoint={null}
+        endPoint={null}
+        route={null}
+        focusedStep={null}
+        showEasePlaces={false}
+        showNaturalPlaces={true}
+        showStreetFacilities={false}
+        onMapClick={vi.fn()}
+        onMapError={vi.fn()}
+      />
+    );
+
+    const map = mapInstances[0];
+    expect(map).toBeTruthy();
+
+    act(() => {
+      map.trigger("style.load");
+    });
+
+    expect(map.layers.has("parks-fill-base-3d")).toBe(true);
+    expect(map.layers.has("parks-fill-glow-3d")).toBe(true);
+    expect(map.layers.has("parks-line-3d")).toBe(true);
+
+    view.unmount();
+  });
+
+  test("uses a height-driven warm neutral extrusion palette for buildings", async () => {
+    const module = await import("../WhiteModelMap");
+    const WhiteModelMap = module.default;
+
+    const view = render(
+      <WhiteModelMap
+        mapboxToken="token"
+        startPoint={null}
+        endPoint={null}
+        route={null}
+        focusedStep={null}
+        showEasePlaces={false}
+        showNaturalPlaces={false}
+        showStreetFacilities={false}
+        onMapClick={vi.fn()}
+        onMapError={vi.fn()}
+      />
+    );
+
+    const map = mapInstances[0];
+    expect(map).toBeTruthy();
+
+    act(() => {
+      map.trigger("style.load");
+    });
+
+    const buildingLayer = map.layers.get("white-model-buildings");
+    expect(buildingLayer).toBeTruthy();
+    expect(buildingLayer?.paint?.["fill-extrusion-color"]).toEqual(
+      expect.arrayContaining(["interpolate", ["linear"], ["coalesce", ["get", "height"], 8]])
+    );
+    expect(buildingLayer?.paint?.["fill-extrusion-opacity"]).toBeLessThan(0.92);
+
+    view.unmount();
+  });
+
 });
