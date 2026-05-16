@@ -19,58 +19,59 @@ export default function AreaDetailPage({
   onRecommendationClick,
   onComfortRouteClick,
 }: AreaDetailPageProps) {
+  const homeSecondSectionBackground =
+    "linear-gradient(180deg, #122d2b 0%, #eef8f5 25%, #f7fbfa 75%, #122d2b 100%)";
+  const mapButtonGradient = "linear-gradient(180deg, #122d2b 0%, #17413f 100%)";
   const recommendations = getAreaRecommendationItems(area);
   const comfortRoutes = getAreaComfortRouteItems(area);
-  const heroImage = "https://images.unsplash.com/photo-1542159919831-40fb0656b45a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080";
 
   return (
-    <div className="min-h-screen" style={{ backgroundColor: "#081515" }}>
-      <div className="px-4 py-4">
+    <div className="min-h-screen text-[#2a2a2a]" style={{ background: homeSecondSectionBackground }}>
+      <div className="px-4 py-4 text-white">
         <button
           type="button"
           onClick={onBack}
-          className="flex items-center gap-2 text-white/90 hover:text-white transition-colors"
+          className="flex items-center gap-2 rounded-md border border-white/30 px-3 py-1.5 text-white/95 shadow-[0_8px_18px_rgba(0,0,0,0.18)] transition-colors hover:text-white"
+          style={{
+            backgroundImage: mapButtonGradient,
+            backgroundColor: "#122d2b",
+          }}
         >
           <ArrowLeft className="w-5 h-5" />
           <span>Back to Interactive Map</span>
         </button>
       </div>
 
-      <div className="relative h-72 overflow-hidden mb-8">
-        <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url('${heroImage}')` }}>
-          <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/50 to-[#081515]" />
-        </div>
-
-        <div className="relative z-10 px-4 h-full flex items-end pb-8">
-          <div className="max-w-6xl mx-auto w-full">
-            <div className="flex items-center gap-2 mb-3">
-              <MapPin className="w-6 h-6 text-emerald-400" />
-              <span className="text-emerald-400 font-medium">Area Introduction</span>
+      <div className="relative mb-8 px-4 pb-2 pt-10 sm:pt-12">
+        <div className="mx-auto w-full max-w-6xl">
+            <div className="mb-3 flex items-center gap-2">
+              <MapPin className="h-6 w-6 text-[#17413f]" />
+              <span className="font-medium text-[#17413f]">Area Introduction</span>
             </div>
-            <h1 className="text-5xl font-bold text-white mb-4">{area.name}</h1>
-            <p className="text-white/90 text-lg max-w-3xl leading-relaxed">{area.heroBlurb}</p>
+            <h1 className="mb-4 text-5xl font-bold text-[#10201f]">{area.name}</h1>
+            <p className="max-w-3xl text-lg leading-relaxed text-[#294745]">{area.heroBlurb}</p>
           </div>
         </div>
-      </div>
+      
 
       <div className="max-w-6xl mx-auto px-4 pb-12 space-y-8">
         <div className="grid lg:grid-cols-2 gap-8">
           <div className="space-y-6">
             <div>
-              <h2 className="text-2xl font-bold text-white mb-4">Area Character</h2>
-              <div className="bg-slate-800/90 backdrop-blur-sm rounded-2xl border border-slate-700/50 p-6">
-                <p className="text-slate-300 leading-relaxed mb-6">{area.description}</p>
+              <h2 className="mb-4 text-2xl font-bold text-[#2a2a2a]">Area Character</h2>
+              <div className="rounded-2xl border border-[#d9d1c6] bg-[#fbf8f1]/95 p-6 shadow-[0_10px_28px_rgba(0,0,0,0.06)] backdrop-blur-sm">
+                <p className="mb-6 leading-relaxed text-[#3b3b3b]">{area.description}</p>
 
                 <div>
                   <div className="flex items-center gap-2 mb-3">
-                    <Tag className="w-5 h-5 text-slate-400" />
-                    <h3 className="font-semibold text-white">Area Tags</h3>
+                    <Tag className="h-5 w-5 text-[#6f7f5c]" />
+                    <h3 className="font-semibold text-[#2a2a2a]">Area Tags</h3>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     {area.tags.map((tag) => (
                       <span
                         key={tag.label}
-                        className="px-4 py-2 bg-gradient-to-r from-emerald-500/20 to-cyan-500/20 border border-emerald-500/30 text-emerald-300 rounded-full text-sm font-medium"
+                        className="rounded-full border border-[#9aa884] bg-[#eef3e6] px-4 py-2 text-sm font-medium text-[#4a5c3a]"
                       >
                         {tag.label}
                       </span>
@@ -83,11 +84,11 @@ export default function AreaDetailPage({
 
           <div>
             <div className="mb-4">
-              <div className="flex items-center gap-2 text-emerald-400">
+              <div className="flex items-center gap-2 text-[#4a5c3a]">
                 <TrendingUp className="w-6 h-6" />
                 <span className="text-sm font-semibold uppercase tracking-[0.18em]">Recommendation</span>
               </div>
-              <h2 className="mt-2 text-2xl font-bold text-white">Where to go?</h2>
+              <h2 className="mt-2 text-2xl font-bold text-[#2a2a2a]">Where to go?</h2>
             </div>
             <div className="space-y-3">
               {recommendations.map((item) => (
@@ -95,13 +96,13 @@ export default function AreaDetailPage({
                   key={item.id}
                   type="button"
                   onClick={() => onRecommendationClick(item.id)}
-                  className="w-full text-left bg-slate-800/90 backdrop-blur-sm rounded-xl border border-slate-700/50 p-5 hover:border-emerald-500/50 transition-all group cursor-pointer"
+                  className="group w-full cursor-pointer rounded-xl border border-[#9aa884]/35 bg-gradient-to-b from-[#f6f3ea] to-[#f1ecdf] p-5 text-left shadow-[0_8px_22px_rgba(0,0,0,0.05)] transition-all hover:border-[#4a5c3a]/45 hover:bg-gradient-to-b hover:from-[#f1ecdf] hover:to-[#ece5d6]"
                 >
-                  <h3 className="font-bold text-white text-lg mb-2 group-hover:text-emerald-400 transition-colors">
+                  <h3 className="mb-2 text-lg font-bold text-[#2a2a2a] transition-colors group-hover:text-[#4a5c3a]">
                     {item.name}
                   </h3>
-                  <p className="text-slate-400 text-sm mb-4 leading-relaxed">{item.description}</p>
-                  <span className="flex items-center gap-2 text-emerald-400 hover:text-emerald-300 text-sm font-medium transition-colors">
+                  <p className="mb-4 text-sm leading-relaxed text-[#4a4a4a]">{item.description}</p>
+                  <span className="flex items-center gap-2 text-sm font-medium text-[#17413f] transition-colors group-hover:text-[#122d2b]">
                     <Navigation className="w-4 h-4" />
                     View nearby facilities
                   </span>
@@ -113,10 +114,10 @@ export default function AreaDetailPage({
 
         <div className="pt-8">
           <div className="flex items-center gap-2 mb-5">
-            <Footprints className="w-6 h-6 text-blue-400" />
-            <h2 className="text-2xl font-bold text-white">Comfort Routes</h2>
+            <Footprints className="h-6 w-6 text-[#4a5c3a]" />
+            <h2 className="text-2xl font-bold text-[#2a2a2a]">Comfort Routes</h2>
           </div>
-          <p className="text-slate-400 mb-6">Easy walking and cycling ideas</p>
+          <p className="mb-6 text-[#5a5a5a]">Easy walking and cycling ideas</p>
 
           <div className="grid md:grid-cols-2 gap-4">
             {comfortRoutes.map((route) => (
@@ -124,18 +125,18 @@ export default function AreaDetailPage({
                 key={route.id}
                 type="button"
                 onClick={() => onComfortRouteClick(route)}
-                className="bg-gradient-to-br from-slate-800/90 to-slate-900/80 backdrop-blur-sm rounded-xl border border-slate-700/50 p-6 hover:border-blue-500/50 transition-all group cursor-pointer"
+                className="group cursor-pointer rounded-xl border border-[#9aa884]/35 bg-gradient-to-b from-[#f6f3ea] to-[#f1ecdf] p-6 shadow-[0_8px_22px_rgba(0,0,0,0.05)] transition-all hover:border-[#4a5c3a]/45 hover:bg-gradient-to-b hover:from-[#f1ecdf] hover:to-[#ece5d6]"
               >
                 <div className="flex items-start gap-4">
-                  <div className="p-3 bg-blue-500/20 rounded-xl text-blue-400 group-hover:scale-110 transition-transform shrink-0">
+                  <div className="shrink-0 rounded-xl bg-[#e8efdd] p-3 text-[#4a5c3a] transition-transform group-hover:scale-110">
                     <Bike className="w-6 h-6" />
                   </div>
                   <div className="flex-1">
-                    <h3 className="font-bold text-white text-lg mb-2 group-hover:text-blue-400 transition-colors">
+                    <h3 className="mb-2 text-lg font-bold text-[#2a2a2a] transition-colors group-hover:text-[#4a5c3a]">
                       {route.title}
                     </h3>
-                    <p className="text-slate-400 text-sm leading-relaxed">{route.description}</p>
-                    <div className="mt-4 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-blue-300">
+                    <p className="text-sm leading-relaxed text-[#4a4a4a]">{route.description}</p>
+                    <div className="mt-4 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-[#4a5c3a]">
                       <Route className="h-4 w-4" />
                       <span>Open in 3D Route</span>
                     </div>

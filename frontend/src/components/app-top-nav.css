@@ -1180,3 +1180,9 @@
       gap: 8px;
     }
   }
+
+@media (min-width: 768px) {
+  .app-top-nav--lift-right .app-top-nav__links {
+    transform: translateY(-8px);
+  }
+}
