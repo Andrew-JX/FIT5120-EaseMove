@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { motion, useMotionValue, useSpring, useTransform } from "framer-motion";
 import IconMarquee from "./IconMarquee";
+import { LANDING_REVEAL_SHIFT, LANDING_SETTLE_SPRING } from "./landingMotion";
 import {
   acquire,
   bridgeResidualScroll,
@@ -124,11 +125,7 @@ export default function HeroSplitScene() {
   const [completed, setCompleted] = useState(false);
   const [isHeroControlEnabled, setIsHeroControlEnabled] = useState(true);
   const targetProgress = useMotionValue(0);
-  const smoothedProgress = useSpring(targetProgress, {
-    stiffness: 115,
-    damping: 26,
-    mass: 0.9,
-  });
+  const smoothedProgress = useSpring(targetProgress, LANDING_SETTLE_SPRING);
   const touchYRef = useRef<number | null>(null);
   const reentryTouchYRef = useRef<number | null>(null);
   const completedRef = useRef(false);
@@ -396,8 +393,15 @@ export default function HeroSplitScene() {
   const heroLabelY = useTransform(smoothedProgress, [0, 0.42], ["0px", "22px"]);
 
   const copyOpacity = useTransform(smoothedProgress, [0.24, 0.48, 0.65], [0, 0.88, 1]);
-  const copyX = useTransform(smoothedProgress, [0.24, 0.65], ["44px", "0px"]);
-  const copyY = useTransform(smoothedProgress, [0.24, 0.65], ["18px", "0px"]);
+  const copyX = useTransform(smoothedProgress, [0.24, 0.65], [LANDING_REVEAL_SHIFT.large, "0px"]);
+  const copyY = useTransform(smoothedProgress, [0.24, 0.65], [LANDING_REVEAL_SHIFT.medium, "0px"]);
+  const copyScale = useTransform(smoothedProgress, [0.24, 0.54, 0.65], [0.965, 1.012, 1]);
+  const copyFilter = useTransform(smoothedProgress, [0.24, 0.48, 0.65], ["blur(14px)", "blur(3px)", "blur(0px)"]);
+  const titleAccentOpacity = useTransform(smoothedProgress, [0.28, 0.52, 0.68], [0, 0.78, 0.4]);
+  const titleAccentX = useTransform(smoothedProgress, [0.28, 0.65], ["30px", "0px"]);
+  const cueScale = useTransform(smoothedProgress, [0, 0.12, 0.24], [1, 1.025, 1]);
+  const cueRingScale = useTransform(smoothedProgress, [0, 0.14, 0.28], [0.92, 1.06, 1]);
+  const cueRingOpacity = useTransform(smoothedProgress, [0, 0.12, 0.24], [0.22, 0.54, 0.3]);
 
   const marqueeOpacity = useTransform(smoothedProgress, [0.28, 0.55, 0.72], [0, 0.82, 1]);
   const marqueeY = useTransform(smoothedProgress, [0.28, 0.72], ["24px", "0px"]);
@@ -416,7 +420,7 @@ export default function HeroSplitScene() {
   };
 
   return (
-    <section className="landing-hero-scene">
+    <section className="landing-hero-scene" data-landing-motion="signature">
       <div className="landing-hero-sticky">
         <div className="landing-hero-backdrop" />
 
@@ -470,24 +474,36 @@ export default function HeroSplitScene() {
 
         <motion.button
           className="landing-hero-scroll-cue"
-          style={{ opacity: heroLabelOpacity, y: heroLabelY }}
+          style={{ opacity: heroLabelOpacity, y: heroLabelY, scale: cueScale }}
           type="button"
           onClick={scrollToNextSection}
           aria-label="Scroll to the next section"
         >
+          <motion.span
+            className="landing-hero-scroll-cue-ring"
+            style={{ scale: cueRingScale, opacity: cueRingOpacity }}
+            aria-hidden="true"
+          />
           <span className="landing-hero-scroll-arrow">
             <span className="landing-hero-scroll-arrow-head" />
           </span>
-          <span>Scroll down to continue</span>
+          <span className="landing-hero-scroll-cue-copy">Scroll down to continue</span>
         </motion.button>
 
         <div className="landing-compose-grid">
           <motion.div
             className="landing-copy-panel"
-            style={{ opacity: copyOpacity, x: copyX, y: copyY }}
+            style={{ opacity: copyOpacity, x: copyX, y: copyY, scale: copyScale, filter: copyFilter }}
           >
-            <div className="landing-hero-title" role="heading" aria-level={1}>
-              Helping young Melburnians move through their city, comfortably.
+            <div className="landing-hero-title-shell">
+              <motion.span
+                className="landing-hero-title-accent"
+                style={{ opacity: titleAccentOpacity, x: titleAccentX }}
+                aria-hidden="true"
+              />
+              <div className="landing-hero-title" role="heading" aria-level={1}>
+                Helping young Melburnians move through their city, comfortably.
+              </div>
             </div>
             <p>
               Compare precincts, tune comfort priorities, and choose better travel times with

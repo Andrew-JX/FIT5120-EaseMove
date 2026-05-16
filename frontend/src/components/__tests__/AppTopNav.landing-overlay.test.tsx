@@ -72,8 +72,10 @@ describe("AppTopNav landing overlay", () => {
     expect(view.container.querySelector(".app-top-nav__landing-overlay")).not.toBeNull();
     expect(openButton?.textContent).toContain("Close");
     expect(view.container.querySelectorAll(".app-top-nav__landing-overlay-link-mask")).toHaveLength(5);
-    expect(view.container.textContent).toContain("Go!");
-    expect(view.container.textContent).toContain("Plan!");
+    expect(view.container.textContent).toContain("Open route");
+    expect(view.container.textContent).toContain("Route rehearsal");
+    expect(view.container.textContent).toContain("Open map");
+    expect(view.container.textContent).toContain("Comfort planning");
 
     view.unmount();
   });
@@ -112,7 +114,7 @@ describe("AppTopNav landing overlay", () => {
 
     const landingPageAction = Array.from(
       view.container.querySelectorAll("button, a")
-    ).find((element) => element.textContent?.trim() === "Landing Page");
+    ).find((element) => element.textContent?.includes("Landing Page"));
 
     act(() => {
       landingPageAction?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
@@ -130,7 +132,7 @@ describe("AppTopNav landing overlay", () => {
     openOverlay();
 
     const goAction = Array.from(view.container.querySelectorAll("button, a")).find(
-      (element) => element.textContent?.trim() === "Go!"
+      (element) => element.textContent?.includes("Open route")
     );
 
     act(() => {
