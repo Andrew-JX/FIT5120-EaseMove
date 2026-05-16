@@ -67,8 +67,8 @@ describe("landing presentation hooks", () => {
     const scene = view.container.querySelector(".landing-start-scene");
     expect(scene?.classList.contains("is-title-revealed")).toBe(false);
     expect(observerOptions[0]).toMatchObject({
-      threshold: 0.72,
-      rootMargin: "-4% 0px -18% 0px",
+      threshold: 0.38,
+      rootMargin: "-4% 0px -8% 0px",
     });
 
     act(() => {
@@ -78,6 +78,69 @@ describe("landing presentation hooks", () => {
     expect(scene?.classList.contains("is-title-revealed")).toBe(true);
     expect(view.container.querySelector(".landing-start-title-main.back-in-left")).not.toBeNull();
     expect(view.container.querySelector(".landing-start-title-echo.back-in-right")).not.toBeNull();
+
+    view.unmount();
+  });
+
+  test("replays the start scene choreography every time the scene re-enters the viewport", () => {
+    const view = render(
+      <MemoryRouter>
+        <StartUsingScene />
+      </MemoryRouter>
+    );
+
+    const scene = view.container.querySelector(".landing-start-scene");
+    expect(scene?.getAttribute("data-choreo-seq")).toBe("0");
+    expect(scene?.classList.contains("is-choreo-active")).toBe(false);
+
+    act(() => {
+      observerCallbacks[0]?.([{ isIntersecting: true } as IntersectionObserverEntry]);
+    });
+
+    expect(scene?.getAttribute("data-choreo-seq")).toBe("1");
+    expect(scene?.classList.contains("is-choreo-active")).toBe(true);
+
+    act(() => {
+      observerCallbacks[0]?.([{ isIntersecting: false } as IntersectionObserverEntry]);
+    });
+
+    expect(scene?.classList.contains("is-title-revealed")).toBe(false);
+    expect(scene?.classList.contains("is-choreo-active")).toBe(false);
+
+    act(() => {
+      observerCallbacks[0]?.([{ isIntersecting: true } as IntersectionObserverEntry]);
+    });
+
+    expect(scene?.getAttribute("data-choreo-seq")).toBe("2");
+    expect(scene?.classList.contains("is-title-revealed")).toBe(true);
+    expect(scene?.classList.contains("is-choreo-active")).toBe(true);
+
+    view.unmount();
+  });
+
+  test("keeps the start scene visible while the section is still partially in view", () => {
+    const view = render(
+      <MemoryRouter>
+        <StartUsingScene />
+      </MemoryRouter>
+    );
+
+    const scene = view.container.querySelector(".landing-start-scene");
+
+    act(() => {
+      observerCallbacks[0]?.([{ isIntersecting: true } as IntersectionObserverEntry]);
+    });
+
+    expect(scene?.getAttribute("data-choreo-seq")).toBe("1");
+    expect(scene?.classList.contains("is-choreo-active")).toBe(true);
+
+    act(() => {
+      observerCallbacks[0]?.([{ isIntersecting: true } as IntersectionObserverEntry]);
+    });
+
+    expect(scene?.getAttribute("data-choreo-seq")).toBe("1");
+    expect(scene?.classList.contains("is-title-revealed")).toBe(true);
+    expect(scene?.classList.contains("is-choreo-active")).toBe(true);
 
     view.unmount();
   });

@@ -31,6 +31,29 @@ const navItems = [
   { to: APP_ROUTES.about, label: "About us" },
 ] as const;
 
+const overlayCopyByRoute: Record<string, string> = {
+  [APP_ROUTES.home]: "Return to the opening story and reset the tour.",
+  [APP_ROUTES.map]: "Compare comfort, nearby support, and route context.",
+  [APP_ROUTES.map3dRoute]: "Rehearse the journey before you step outside.",
+  [APP_ROUTES.risks]: "Study how weather shifts the feel of a route.",
+  [APP_ROUTES.about]: "Read the concept, process, and project rationale.",
+};
+
+const overlayShortcutItems = [
+  {
+    label: "Open route",
+    copy: "Route rehearsal",
+    path: APP_ROUTES.map3dRoute,
+    className: "app-top-nav__landing-shortcut--route",
+  },
+  {
+    label: "Open map",
+    copy: "Comfort planning",
+    path: APP_ROUTES.map,
+    className: "app-top-nav__landing-shortcut--map",
+  },
+] as const;
+
 export default function AppTopNav({
   variant,
   brand,
@@ -51,6 +74,7 @@ export default function AppTopNav({
     "closed" | "opening" | "open" | "closing"
   >("closed");
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const routeOverlayContext = className.includes("app-top-nav--route-page");
   const isEnhancedLanding = variant === "landing" && landingMode !== undefined;
   const clampedLandingProgress = Math.min(1, Math.max(0, landingTransitionProgress));
   const effectiveLandingOverlayOpen =
@@ -275,17 +299,42 @@ export default function AppTopNav({
               </div>
 
               <div className="app-top-nav__landing-overlay-visual" aria-hidden="true">
-                <img src={landingOverlayVisual} alt="" className="app-top-nav__landing-overlay-visual-image" />
+                <div className="app-top-nav__landing-overlay-visual-shell">
+                  <img src={landingOverlayVisual} alt="" className="app-top-nav__landing-overlay-visual-image" />
+                  <div className="app-top-nav__landing-overlay-visual-wash"></div>
+                  <div className="app-top-nav__landing-overlay-orbit app-top-nav__landing-overlay-orbit--outer"></div>
+                  <div className="app-top-nav__landing-overlay-orbit app-top-nav__landing-overlay-orbit--inner"></div>
+                  <div className="app-top-nav__landing-overlay-visual-copy">
+                    <p className="app-top-nav__landing-overlay-visual-kicker">
+                      {routeOverlayContext ? "3D route menu" : "Landing menu"}
+                    </p>
+                    <h2>{routeOverlayContext ? "Route-first navigation." : "Move through the product faster."}</h2>
+                    <p>
+                      {routeOverlayContext
+                        ? "Jump between the map, route rehearsal, and supporting pages without losing the journey context."
+                        : "Open the story, compare comfort, preview the route, or step into the project background."}
+                    </p>
+                  </div>
+                </div>
               </div>
 
               <div className="app-top-nav__landing-overlay-nav-wrap">
+                <div className="app-top-nav__landing-overlay-nav-intro">
+                  <p className="app-top-nav__landing-overlay-nav-kicker">Navigation</p>
+                  <p className="app-top-nav__landing-overlay-nav-caption">
+                    Choose a destination, then move straight into the right mode.
+                  </p>
+                </div>
                 <div className="app-top-nav__landing-overlay-link-mask" style={{ ["--landing-link-index" as string]: 0 }}>
                   <button
                     type="button"
                     className="app-top-nav__landing-overlay-link app-top-nav__landing-overlay-link--button"
                     onClick={handleLandingPageAction}
                   >
-                    Landing Page
+                    <span className="app-top-nav__landing-overlay-link-main">Landing Page</span>
+                    <span className="app-top-nav__landing-overlay-link-meta">
+                      {overlayCopyByRoute[APP_ROUTES.home]}
+                    </span>
                   </button>
                 </div>
                 {navItems
@@ -301,26 +350,26 @@ export default function AppTopNav({
                         className="app-top-nav__landing-overlay-link"
                         onClick={closeLandingOverlay}
                       >
-                        {label}
+                        <span className="app-top-nav__landing-overlay-link-main">{label}</span>
+                        <span className="app-top-nav__landing-overlay-link-meta">{overlayCopyByRoute[to]}</span>
                       </NavLink>
                     </div>
                   ))}
               </div>
 
-              <button
-                type="button"
-                className="app-top-nav__landing-corner app-top-nav__landing-corner--go"
-                onClick={() => handleCornerRoute(APP_ROUTES.map3dRoute)}
-              >
-                Go!
-              </button>
-              <button
-                type="button"
-                className="app-top-nav__landing-corner app-top-nav__landing-corner--plan"
-                onClick={() => handleCornerRoute(APP_ROUTES.map)}
-              >
-                Plan!
-              </button>
+              <div className="app-top-nav__landing-shortcut-row">
+                {overlayShortcutItems.map((item) => (
+                  <button
+                    key={item.path}
+                    type="button"
+                    className={`app-top-nav__landing-shortcut ${item.className}`}
+                    onClick={() => handleCornerRoute(item.path)}
+                  >
+                    <span className="app-top-nav__landing-shortcut-label">{item.label}</span>
+                    <span className="app-top-nav__landing-shortcut-copy">{item.copy}</span>
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         ) : null}
