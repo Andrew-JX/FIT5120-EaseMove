@@ -20,6 +20,7 @@ type AppTopNavProps = {
   landingTransitionProgress?: number;
   landingOverlayOpen?: boolean;
   onLandingOverlayOpenChange?: (open: boolean) => void;
+  hideCompactTrigger?: boolean;
 };
 
 const navItems = [
@@ -40,6 +41,7 @@ export default function AppTopNav({
   landingTransitionProgress = 0,
   landingOverlayOpen = false,
   onLandingOverlayOpenChange,
+  hideCompactTrigger = false,
 }: AppTopNavProps) {
   const location = useLocation();
   const navigate = useNavigate();
@@ -235,33 +237,35 @@ export default function AppTopNav({
           </div>
         ) : null}
 
-        <button
-          type="button"
-          className={`app-top-nav__compact-trigger${overlayVisible ? " is-open" : ""}`}
-          aria-label={overlayVisible ? "Close landing navigation menu" : "Open landing navigation menu"}
-          aria-expanded={overlayVisible}
-          onClick={toggleLandingOverlay}
-          style={{
-            opacity: overlayVisible ? 1 : compactOpacity,
-            pointerEvents: landingMode === "hero" && !overlayVisible ? "none" : "auto",
-          }}
-        >
-          <span className="app-top-nav__compact-copy">
-            <span className="app-top-nav__compact-label app-top-nav__compact-label--menu">Menu</span>
-            <span className="app-top-nav__compact-label app-top-nav__compact-label--close">Close</span>
-          </span>
-          <span className="app-top-nav__compact-icon-slot" aria-hidden="true">
-            <span className="app-top-nav__compact-icon app-top-nav__compact-bars">
-              <span></span>
-              <span></span>
-              <span></span>
+        {!hideCompactTrigger ? (
+          <button
+            type="button"
+            className={`app-top-nav__compact-trigger${overlayVisible ? " is-open" : ""}`}
+            aria-label={overlayVisible ? "Close landing navigation menu" : "Open landing navigation menu"}
+            aria-expanded={overlayVisible}
+            onClick={toggleLandingOverlay}
+            style={{
+              opacity: overlayVisible ? 1 : compactOpacity,
+              pointerEvents: landingMode === "hero" && !overlayVisible ? "none" : "auto",
+            }}
+          >
+            <span className="app-top-nav__compact-copy">
+              <span className="app-top-nav__compact-label app-top-nav__compact-label--menu">Menu</span>
+              <span className="app-top-nav__compact-label app-top-nav__compact-label--close">Close</span>
             </span>
-            <span className="app-top-nav__compact-icon app-top-nav__compact-close">
-              <span className="app-top-nav__compact-close-stroke app-top-nav__compact-close-stroke--a"></span>
-              <span className="app-top-nav__compact-close-stroke app-top-nav__compact-close-stroke--b"></span>
+            <span className="app-top-nav__compact-icon-slot" aria-hidden="true">
+              <span className="app-top-nav__compact-icon app-top-nav__compact-bars">
+                <span></span>
+                <span></span>
+                <span></span>
+              </span>
+              <span className="app-top-nav__compact-icon app-top-nav__compact-close">
+                <span className="app-top-nav__compact-close-stroke app-top-nav__compact-close-stroke--a"></span>
+                <span className="app-top-nav__compact-close-stroke app-top-nav__compact-close-stroke--b"></span>
+              </span>
             </span>
-          </span>
-        </button>
+          </button>
+        ) : null}
 
         {overlayVisible ? (
           <div className={`app-top-nav__landing-overlay ${overlayClassName}`.trim()}>

@@ -35,8 +35,10 @@ type WhiteModelMapProps = {
   showEasePlaces: boolean;
   showNaturalPlaces: boolean;
   showStreetFacilities: boolean;
+  showNavigationControl?: boolean;
   onMapClick: (point: MockRoutePoint) => void;
   onMapError: (message: string) => void;
+  onViewportControlsReady?: (controls: { zoomIn: () => void; zoomOut: () => void } | null) => void;
   onEasePlaceSelect?: (
     feature: {
       id: string;
@@ -68,8 +70,12 @@ vi.mock("motion/react", async () => {
 
   return {
     AnimatePresence: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+    LayoutGroup: ({ children }: { children: React.ReactNode }) => <>{children}</>,
     motion: {
+      aside: createMotionComponent("aside"),
+      button: createMotionComponent("button"),
       div: createMotionComponent("div"),
+      span: createMotionComponent("span"),
       svg: createMotionComponent("svg"),
       g: createMotionComponent("g"),
       path: createMotionComponent("path"),
@@ -82,6 +88,16 @@ vi.mock("../../components/WhiteModelMap", async () => {
 
   function MockWhiteModelMap(props: WhiteModelMapProps) {
     latestMapProps = props;
+
+    ReactModule.useEffect(() => {
+      props.onViewportControlsReady?.({
+        zoomIn: vi.fn(),
+        zoomOut: vi.fn(),
+      });
+      return () => {
+        props.onViewportControlsReady?.(null);
+      };
+    }, []);
 
     return (
       <div data-testid="mock-3d-map">
@@ -280,6 +296,37 @@ describe("Map3DExperimentPage - Epic 5", () => {
     expect(view.container.textContent).toContain("3D Route Preview");
     expect(view.container.textContent).toContain("Mock 3D city view");
     expect(view.container.textContent).toContain("Drag to pan, scroll to zoom, and right-drag");
+    expect(
+      view.container.querySelector('button[aria-label="Open landing navigation menu"]')
+    ).toBeTruthy();
+
+    view.unmount();
+  });
+
+  test("shows the landing-style MENU/CLOSE control on the 3D page and opens the overlay navigation", async () => {
+    const Map3DExperimentPage = await loadPageWithToken();
+    const view = render(
+      <MemoryRouter initialEntries={["/map/3d-route"]}>
+        <Routes>
+          <Route path="/map/3d-route" element={<Map3DExperimentPage />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    const openButton = view.container.querySelector('button[aria-label="Open landing navigation menu"]');
+    expect(openButton).toBeTruthy();
+
+    act(() => {
+      openButton!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    await view.flushTimers(800);
+
+    expect(
+      view.container.querySelector('button[aria-label="Close landing navigation menu"]')
+    ).toBeTruthy();
+    expect(view.container.textContent).toContain("Landing Page");
+    expect(view.container.textContent).toContain("3D Route");
 
     view.unmount();
   });
@@ -650,7 +697,7 @@ describe("Map3DExperimentPage - Epic 5", () => {
     reloadedView.unmount();
   });
 
-  test("mobile collapsed controls keep the Route and Layers launchers in one row", async () => {
+  test("mobile collapsed state hides the floating side panel and keeps panel launchers in the top bar", async () => {
     Object.defineProperty(window, "matchMedia", {
       writable: true,
       value: vi.fn().mockImplementation(() => ({
@@ -674,9 +721,9 @@ describe("Map3DExperimentPage - Epic 5", () => {
       </MemoryRouter>
     );
 
-    expect(view.container.querySelector('[data-testid="collapsed-panel-actions"]')?.className).not.toContain(
-      "max-sm:grid-cols-1"
-    );
+    expect(view.container.querySelector('[data-testid="collapsed-panel-actions"]')).toBeNull();
+    expect(view.container.textContent).toContain("Route");
+    expect(view.container.textContent).toContain("Layers");
 
     view.unmount();
   });

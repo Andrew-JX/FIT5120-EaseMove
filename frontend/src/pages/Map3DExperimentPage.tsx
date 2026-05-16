@@ -9,13 +9,18 @@
   Loader2,
   LocateFixed,
   MapPinned,
+  Minus,
   Navigation,
+  Plus,
   Trash2,
   XCircle,
 } from "lucide-react";
+import { AnimatePresence, LayoutGroup, motion } from "motion/react";
 import { type CSSProperties, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
+import AppTopNav from "../components/AppTopNav";
 import WhiteModelMap, {
+  type MapViewportControls,
   type RoutePoint,
   type RouteProfile,
   type RouteStepItem,
@@ -37,6 +42,15 @@ const liquidGlassPanelStyle: CSSProperties = {
   WebkitBackdropFilter: "blur(16px) saturate(1.42) brightness(1.06)",
   boxShadow:
     "0 26px 64px rgba(4,14,14,0.16), inset 0 1px 0 rgba(255,255,255,0.68), inset 0 -18px 42px rgba(23,65,63,0.08), inset 1px 0 0 rgba(255,255,255,0.24)",
+};
+
+const routeToolbarStyle: CSSProperties = {
+  background:
+    "radial-gradient(circle at 14% 0%, rgba(255,255,255,0.54), transparent 34%), linear-gradient(135deg, rgba(248,255,253,0.56), rgba(236,245,248,0.36) 56%, rgba(255,247,234,0.24))",
+  backdropFilter: "url(#route-liquid-glass-filter) blur(18px) saturate(1.2) brightness(1.03)",
+  WebkitBackdropFilter: "blur(18px) saturate(1.2) brightness(1.03)",
+  boxShadow:
+    "0 18px 42px rgba(4,14,14,0.14), inset 0 1px 0 rgba(255,255,255,0.7), inset 0 -12px 24px rgba(23,65,63,0.06)",
 };
 
 const liquidGlassCardClass =
@@ -220,6 +234,10 @@ export default function Map3DExperimentPage() {
   const [activePanel, setActivePanel] = useState<PanelView>(initialIsMobileViewport ? null : "route");
   const [isMobileViewport, setIsMobileViewport] = useState(initialIsMobileViewport);
   const [showGuide, setShowGuide] = useState(false);
+  const [landingMenuOpen, setLandingMenuOpen] = useState(false);
+  const [mapViewportControls, setMapViewportControls] = useState<MapViewportControls | null>(null);
+  const [mobileSheetMode, setMobileSheetMode] = useState<"expanded" | "peek">("expanded");
+  const [mobileSheetHeight, setMobileSheetHeight] = useState(0);
   const [focusedStepIndex, setFocusedStepIndex] = useState<number | null>(null);
   const [areaLayers, setAreaLayers] = useState<AreaLayerState>({
     easePlaces: false,
@@ -238,6 +256,7 @@ export default function Map3DExperimentPage() {
   });
   const requestIdRef = useRef(0);
   const hasAppliedSearchRef = useRef(false);
+  const sheetRef = useRef<HTMLElement | null>(null);
 
   const routeReady = Boolean(route && startPoint && endPoint);
   const canUseRouteApi = Boolean(MAPBOX_PUBLIC_TOKEN);
@@ -550,6 +569,26 @@ export default function Map3DExperimentPage() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!isMobileViewport || activePanel === null) return;
+    setMobileSheetMode("expanded");
+  }, [activePanel, isMobileViewport]);
+
+  useEffect(() => {
+    if (!isMobileViewport || activePanel === null) return;
+    const updateHeight = () => {
+      const nextHeight = sheetRef.current?.getBoundingClientRect().height ?? 0;
+      setMobileSheetHeight(nextHeight);
+    };
+    updateHeight();
+    window.addEventListener("resize", updateHeight);
+    return () => {
+      window.removeEventListener("resize", updateHeight);
+    };
+  }, [activePanel, isMobileViewport]);
+
+  const mobileSheetPeekOffset = Math.max(0, mobileSheetHeight - 88);
+
   return (
     <div className="relative min-h-[100dvh] w-full overflow-hidden bg-[#edf0f2]">
       <svg aria-hidden="true" className="pointer-events-none fixed h-0 w-0">
@@ -558,6 +597,102 @@ export default function Map3DExperimentPage() {
           <feDisplacementMap in="SourceGraphic" in2="noise" scale="10" xChannelSelector="R" yChannelSelector="G" />
         </filter>
       </svg>
+      <AppTopNav
+        variant="landing"
+        landingMode="compact"
+        landingTone="dark"
+        landingTransitionProgress={1}
+        landingOverlayOpen={landingMenuOpen}
+        onLandingOverlayOpenChange={setLandingMenuOpen}
+        hideCompactTrigger
+        className="app-top-nav--route-page app-top-nav--route-overlay"
+      />
+      <AnimatePresence initial={false}>
+        {landingMenuOpen ? (
+          <motion.div
+            className="fixed right-3 top-[max(0.75rem,env(safe-area-inset-top))] z-[300] sm:right-4 sm:top-4"
+            initial={{ opacity: 0, scale: 0.9, y: -10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.92, y: -10 }}
+            transition={{ type: "spring", stiffness: 240, damping: 18, mass: 0.84 }}
+          >
+            <RoutePageMenuTrigger open onToggle={() => setLandingMenuOpen(false)} />
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
+      <motion.div
+        className="fixed inset-x-0 top-[max(0.75rem,env(safe-area-inset-top))] z-[300] flex justify-center px-2 sm:top-4 sm:px-4"
+        animate={{
+          opacity: landingMenuOpen ? 0 : 1,
+          y: landingMenuOpen ? -18 : 0,
+          scale: landingMenuOpen ? 0.98 : 1,
+        }}
+        transition={{ type: "spring", stiffness: 220, damping: 20, mass: 0.9 }}
+        style={{ pointerEvents: landingMenuOpen ? "none" : "auto" }}
+      >
+        <div
+          style={routeToolbarStyle}
+          className="flex min-h-14 w-[min(92vw,112rem)] items-center gap-1 rounded-[28px] border border-white/55 px-2 py-2 text-[#17413f] shadow-[inset_0_1px_0_rgba(255,255,255,0.74)]"
+        >
+          <div className="flex min-w-0 items-center gap-1">
+            <TopBarActionButton
+              label="Back"
+              icon={<ArrowLeft className="h-4 w-4" />}
+              onClick={handleBack}
+              title="Back to previous page"
+              ariaLabel="Back to previous page"
+              compactOnMobile
+            />
+            <div className="route-page-toolbar-divider" aria-hidden="true" />
+            <LayoutGroup id="route-page-bar-panels">
+              <div className="flex items-center gap-1">
+                <TopBarActionButton
+                  label="Route"
+                  icon={<Navigation className="h-4 w-4" />}
+                  active={activePanel === "route"}
+                  onClick={() => openPanel("route")}
+                />
+                <TopBarActionButton
+                  label="Layers"
+                  icon={<Layers3 className="h-4 w-4" />}
+                  active={activePanel === "layers"}
+                  onClick={() => openPanel("layers")}
+                />
+              </div>
+            </LayoutGroup>
+          </div>
+          <div className="min-w-6 flex-1" />
+          <div className="flex min-w-0 items-center justify-end gap-1">
+            <TopBarActionButton
+              label="Tips"
+              active={showGuide}
+              onClick={() => setShowGuide(true)}
+              title="Open quick guide"
+              ariaLabel="Open quick guide"
+            />
+            <RoutePageMenuTrigger open={landingMenuOpen} onToggle={() => setLandingMenuOpen((current) => !current)} />
+            <div className="route-page-toolbar-divider" aria-hidden="true" />
+            <TopBarActionButton
+              label="Zoom out"
+              icon={<Minus className="h-4 w-4" />}
+              onClick={() => mapViewportControls?.zoomOut()}
+              title="Zoom out"
+              ariaLabel="Zoom out"
+              iconOnly
+              disabled={!mapViewportControls}
+            />
+            <TopBarActionButton
+              label="Zoom in"
+              icon={<Plus className="h-4 w-4" />}
+              onClick={() => mapViewportControls?.zoomIn()}
+              title="Zoom in"
+              ariaLabel="Zoom in"
+              iconOnly
+              disabled={!mapViewportControls}
+            />
+          </div>
+        </div>
+      </motion.div>
       <WhiteModelMap
         mapboxToken={MAPBOX_PUBLIC_TOKEN}
         startPoint={startPoint}
@@ -567,15 +702,22 @@ export default function Map3DExperimentPage() {
         showEasePlaces={areaLayers.easePlaces}
         showNaturalPlaces={areaLayers.naturalPlaces}
         showStreetFacilities={areaLayers.streetFacilities}
+        showNavigationControl={false}
         onMapClick={handleMapClick}
         onMapError={handleMapError}
+        onViewportControlsReady={setMapViewportControls}
         onEasePlaceSelect={handleEasePlaceSelect}
       />
-      {showGuide ? (
-        <div
+      <AnimatePresence>
+        {showGuide ? (
+        <motion.div
           data-testid="route-guide-overlay"
           style={liquidGlassPanelStyle}
           className="map-guide-dialog-scroll fixed left-1/2 top-[max(0.75rem,env(safe-area-inset-top))] z-30 max-h-[calc(100dvh-max(1.5rem,env(safe-area-inset-top)+env(safe-area-inset-bottom)))] w-[min(34rem,calc(100vw-1.5rem))] -translate-x-1/2 overflow-y-auto rounded-[30px] border border-white/60 px-5 py-5 text-[#17413f] shadow-[0_28px_70px_rgba(4,14,14,0.18)] sm:top-24 sm:max-h-[calc(100dvh-6rem)] sm:w-[min(34rem,calc(100vw-2rem))] sm:px-7 sm:py-7"
+          initial={{ opacity: 0, scale: 0.82, y: 46 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.9, y: 18 }}
+          transition={{ type: "spring", stiffness: 210, damping: 18, mass: 0.9 }}
         >
             <div className="flex items-start justify-between gap-4">
               <div>
@@ -621,8 +763,9 @@ export default function Map3DExperimentPage() {
                 Got it
               </button>
             </div>
-        </div>
+        </motion.div>
       ) : null}
+      </AnimatePresence>
       {selectedEasePlace && areaLayers.easePlaces ? (
         <EasePlacesDetailPopup
           feature={selectedEasePlace.feature}
@@ -632,56 +775,56 @@ export default function Map3DExperimentPage() {
         />
       ) : null}
 
-      <div className="absolute left-3 top-3 z-20 sm:left-4 sm:top-4">
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={handleBack}
-            className={`${floatingChromeButtonClass} h-11 px-4 max-sm:w-11 max-sm:px-0`}
-            title="Back to previous page"
-            aria-label="Back to previous page"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            <span className="max-sm:hidden">Back</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setShowGuide(true)}
-            className={`${floatingChromeButtonClass} h-11 px-4 text-xs uppercase tracking-[0.16em] text-[#5f8682] max-sm:px-3`}
-            title="Open quick guide"
-            aria-label="Open quick guide"
-          >
-            Tips
-          </button>
-        </div>
-      </div>
-
-      <aside
+      <AnimatePresence initial={false}>
+      {!panelCollapsed ? (
+      <motion.aside
+        ref={(node) => {
+          sheetRef.current = node;
+        }}
         style={liquidGlassPanelStyle}
-        className={`absolute left-4 top-20 z-10 flex max-w-[calc(100vw-2rem)] flex-col overflow-hidden border border-white/55 max-md:bottom-3 max-md:left-3 max-md:right-3 max-md:top-auto max-md:max-w-none max-md:pb-[max(env(safe-area-inset-bottom),0px)] ${
-          panelCollapsed
-            ? "w-[184px] rounded-[18px] max-md:w-auto"
-            : panelHasDenseContent
-              ? "bottom-4 w-[386px] rounded-[24px] max-md:max-h-[58dvh] max-md:w-auto"
-              : "w-[386px] rounded-[24px] max-md:max-h-[58dvh] max-md:w-auto"
+        className={`absolute left-4 top-20 z-10 flex max-w-[calc(100vw-2rem)] flex-col overflow-hidden border border-white/55 max-md:fixed max-md:bottom-0 max-md:left-3 max-md:right-3 max-md:top-auto max-md:max-w-none max-md:rounded-t-[26px] max-md:rounded-b-[18px] max-md:pb-[max(env(safe-area-inset-bottom),0px)] ${
+          panelHasDenseContent
+            ? "bottom-4 w-[386px] rounded-[24px] max-md:max-h-[58dvh] max-md:w-auto"
+            : "w-[386px] rounded-[24px] max-md:max-h-[58dvh] max-md:w-auto"
         }`}
+        initial={isMobileViewport ? { opacity: 0, scale: 0.96, y: 120 } : { opacity: 0, scale: 0.88, x: -26, y: 18 }}
+        animate={
+          isMobileViewport
+            ? { opacity: 1, scale: 1, x: 0, y: mobileSheetMode === "peek" ? mobileSheetPeekOffset : 0 }
+            : { opacity: 1, scale: 1, x: 0, y: 0 }
+        }
+        exit={isMobileViewport ? { opacity: 0, scale: 0.97, y: 140 } : { opacity: 0, scale: 0.94, x: -14, y: 10 }}
+        drag={isMobileViewport ? "y" : false}
+        dragConstraints={isMobileViewport ? { top: 0, bottom: mobileSheetPeekOffset } : undefined}
+        dragElastic={0.08}
+        onDragEnd={(_, info) => {
+          if (!isMobileViewport) return;
+          if (info.offset.y > 80 || info.velocity.y > 520) {
+            setMobileSheetMode("peek");
+            return;
+          }
+          if (info.offset.y < -80 || info.velocity.y < -520) {
+            setMobileSheetMode("expanded");
+            return;
+          }
+          setMobileSheetMode(info.offset.y > mobileSheetPeekOffset / 2 ? "peek" : "expanded");
+        }}
+        transition={{ type: "spring", stiffness: 210, damping: 20, mass: 0.92 }}
       >
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_0%,rgba(255,255,255,0.48),transparent_34%),linear-gradient(120deg,rgba(255,255,255,0.12),transparent_42%,rgba(255,255,255,0.1)_68%,transparent)]" />
-        {panelCollapsed ? (
-          <div data-testid="collapsed-panel-actions" className="grid grid-cols-2 gap-2 p-2">
-            <CollapsedPanelButton
-              label="Route"
-              icon={<Navigation className="h-4 w-4" />}
-              onClick={() => openPanel("route")}
-            />
-            <CollapsedPanelButton
-              label="Layers"
-              icon={<Layers3 className="h-4 w-4" />}
-              onClick={() => openPanel("layers")}
-            />
-          </div>
-        ) : (
           <>
+        {isMobileViewport ? (
+          <div className="flex justify-center px-4 pt-3">
+            <button
+              type="button"
+              onClick={() => setMobileSheetMode((current) => (current === "expanded" ? "peek" : "expanded"))}
+              className="route-page-sheet-handle"
+              aria-label={mobileSheetMode === "expanded" ? "Collapse panel preview" : "Expand panel preview"}
+            >
+              <span className="route-page-sheet-handle-bar" />
+            </button>
+          </div>
+        ) : null}
         <div className="relative border-b border-white/38 px-4 py-4 shadow-[inset_0_-1px_0_rgba(23,65,63,0.06)] sm:px-5">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0 flex-1">
@@ -711,21 +854,6 @@ export default function Map3DExperimentPage() {
                 <ChevronLeft className="h-4 w-4" />
               </button>
             </div>
-          </div>
-
-          <div className="mt-3 grid grid-cols-2 rounded-full border border-white/32 bg-white/28 p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.55)]">
-            <PanelTabButton
-              active={activePanel === "route"}
-              icon={<Navigation className="h-4 w-4" />}
-              label="Route"
-              onClick={() => openPanel("route")}
-            />
-            <PanelTabButton
-              active={activePanel === "layers"}
-              icon={<Layers3 className="h-4 w-4" />}
-              label="Layers"
-              onClick={() => openPanel("layers")}
-            />
           </div>
         </div>
 
@@ -961,8 +1089,9 @@ export default function Map3DExperimentPage() {
           ) : null}
         </div>
           </>
-        )}
-      </aside>
+      </motion.aside>
+      ) : null}
+      </AnimatePresence>
     </div>
   );
 }
@@ -1035,7 +1164,7 @@ function LayerToggle({
       type="button"
       onClick={onToggle}
       disabled={disabled}
-      className={`flex items-center justify-between gap-3 rounded-2xl p-3 text-left ${liquidGlassInteractiveClass} ${disabled ? "cursor-not-allowed opacity-65" : ""} max-sm:items-start`}
+      className={`flex w-full items-center justify-between gap-3 rounded-2xl p-3 text-left ${liquidGlassInteractiveClass} ${disabled ? "cursor-not-allowed opacity-65" : ""} max-sm:items-start`}
       aria-pressed={checked}
     >
       <div className="min-w-0">
@@ -1159,48 +1288,85 @@ function LegendRow({
   );
 }
 
-function PanelTabButton({
-  active,
+function TopBarActionButton({
+  active = false,
   icon,
   label,
   onClick,
+  title,
+  ariaLabel,
+  disabled = false,
+  iconOnly = false,
+  compactOnMobile = false,
 }: {
-  active: boolean;
-  icon: ReactNode;
+  active?: boolean;
+  icon?: ReactNode;
   label: string;
   onClick: () => void;
+  title?: string;
+  ariaLabel?: string;
+  disabled?: boolean;
+  iconOnly?: boolean;
+  compactOnMobile?: boolean;
 }) {
   return (
-    <button
+    <motion.button
       type="button"
       onClick={onClick}
-      className={`inline-flex items-center justify-center gap-2 rounded-full px-3 py-2 text-sm font-semibold transition active:scale-[0.98] max-sm:min-h-11 ${
-        active ? "bg-white/72 text-[#17413f] shadow-[0_8px_18px_rgba(23,65,63,0.08),inset_0_1px_0_rgba(255,255,255,0.8)]" : "text-[#5f8682] hover:text-[#17413f]"
+      title={title}
+      aria-label={ariaLabel ?? label}
+      disabled={disabled}
+      className={`route-page-toolbar-button ${iconOnly ? "route-page-toolbar-button--icon" : "route-page-toolbar-button--text"} ${
+        compactOnMobile ? "route-page-toolbar-button--compact-mobile" : ""
       }`}
+      animate={{
+        scale: active ? 1.03 : 1,
+      }}
+      whileHover={disabled ? undefined : { scale: active ? 1.035 : 1.02 }}
+      whileTap={disabled ? undefined : { scale: 0.96 }}
+      transition={{ type: "spring", stiffness: 260, damping: 18, mass: 0.82 }}
     >
-      {icon}
-      {label}
-    </button>
+      {active ? <motion.span layoutId="route-page-toolbar-active-pill" className="route-page-toolbar-active-pill" /> : null}
+      {icon ? <span className="relative z-[1]">{icon}</span> : null}
+      {!iconOnly ? (
+        <span className={`relative z-[1] ${compactOnMobile ? "max-sm:hidden" : ""}`}>{label}</span>
+      ) : (
+        <span className="sr-only">{label}</span>
+      )}
+    </motion.button>
   );
 }
 
-function CollapsedPanelButton({
-  icon,
-  label,
-  onClick,
-}: {
-  icon: ReactNode;
-  label: string;
-  onClick: () => void;
-}) {
+function RoutePageMenuTrigger({ open, onToggle }: { open: boolean; onToggle: () => void }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="inline-flex h-12 items-center justify-center gap-2 rounded-[14px] border border-white/40 bg-white/28 px-3 text-sm font-semibold text-[#17413f] transition hover:bg-white/38 active:scale-[0.98] max-sm:h-11"
+    <motion.div
+      className="app-top-nav app-top-nav--route-page app-top-nav--tone-dark"
+      animate={{ scale: open ? 1.04 : 1 }}
+      transition={{ type: "spring", stiffness: 240, damping: 18, mass: 0.82 }}
     >
-      {icon}
-      {label}
-    </button>
+      <button
+        type="button"
+        className={`app-top-nav__compact-trigger${open ? " is-open" : ""}`}
+        aria-label={open ? "Close landing navigation menu" : "Open landing navigation menu"}
+        aria-expanded={open}
+        onClick={onToggle}
+      >
+        <span className="app-top-nav__compact-copy">
+          <span className="app-top-nav__compact-label app-top-nav__compact-label--menu">Menu</span>
+          <span className="app-top-nav__compact-label app-top-nav__compact-label--close">Close</span>
+        </span>
+        <span className="app-top-nav__compact-icon-slot" aria-hidden="true">
+          <span className="app-top-nav__compact-icon app-top-nav__compact-bars">
+            <span></span>
+            <span></span>
+            <span></span>
+          </span>
+          <span className="app-top-nav__compact-icon app-top-nav__compact-close">
+            <span className="app-top-nav__compact-close-stroke app-top-nav__compact-close-stroke--a"></span>
+            <span className="app-top-nav__compact-close-stroke app-top-nav__compact-close-stroke--b"></span>
+          </span>
+        </span>
+      </button>
+    </motion.div>
   );
 }
