@@ -947,6 +947,29 @@
   background: linear-gradient(180deg, rgba(23, 65, 63, 0.08), rgba(23, 65, 63, 0.32), rgba(23, 65, 63, 0.08));
 }
 
+.route-3d-map .mapboxgl-ctrl-top-right {
+  top: 5.75rem;
+  right: 1rem;
+}
+
+.route-3d-map .mapboxgl-ctrl-group {
+  border-radius: 18px;
+  overflow: hidden;
+  box-shadow:
+    0 14px 32px rgba(4, 14, 14, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.72);
+}
+
+.route-3d-map .mapboxgl-ctrl-group button {
+  width: 36px;
+  height: 36px;
+}
+
+.route-3d-map .mapboxgl-ctrl-group .mapboxgl-ctrl-zoom-in,
+.route-3d-map .mapboxgl-ctrl-group .mapboxgl-ctrl-zoom-out {
+  display: none;
+}
+
 .map-nav-status-shell > span,
 .map-nav-status-shell > div.hidden {
   display: none !important;
@@ -993,6 +1016,11 @@
 
   .route-page-toolbar-divider {
     margin: 2px 2px;
+  }
+
+  .route-3d-map .mapboxgl-ctrl-top-right {
+    top: 5rem;
+    right: 0.75rem;
   }
 
 

@@ -236,6 +236,7 @@ export default function Map3DExperimentPage() {
   const [showGuide, setShowGuide] = useState(false);
   const [landingMenuOpen, setLandingMenuOpen] = useState(false);
   const [mapViewportControls, setMapViewportControls] = useState<MapViewportControls | null>(null);
+  const [isMapPointSelectionEnabled, setIsMapPointSelectionEnabled] = useState(true);
   const [mobileSheetMode, setMobileSheetMode] = useState<"expanded" | "peek">("expanded");
   const [mobileSheetHeight, setMobileSheetHeight] = useState(0);
   const [focusedStepIndex, setFocusedStepIndex] = useState<number | null>(null);
@@ -326,6 +327,7 @@ export default function Map3DExperimentPage() {
 
   const handleMapClick = useCallback(
     (point: RoutePoint) => {
+      if (!isMapPointSelectionEnabled) return;
       setFocusedStepIndex(null);
       setGeolocation((current) => (current.status === "loading" ? current : { status: "idle", message: null }));
       setRouteError(null);
@@ -344,7 +346,7 @@ export default function Map3DExperimentPage() {
       setEndPoint(point);
       void requestRoute(profile, startPoint, point);
     },
-    [endPoint, isMobileViewport, profile, requestRoute, startPoint]
+    [endPoint, isMapPointSelectionEnabled, isMobileViewport, profile, requestRoute, startPoint]
   );
 
   const handleProfileChange = useCallback(
@@ -445,12 +447,13 @@ export default function Map3DExperimentPage() {
 
   const currentInstruction = useMemo(() => {
     if (!canUseRouteApi) return "Configure the Mapbox public token before using the 3D route preview.";
+    if (!isMapPointSelectionEnabled) return "Point picking is locked. Turn the map point toggle back on before selecting a new start or end point.";
     if (!startPoint) return "Click the map once to set a start point.";
     if (!endPoint) return "Click the map again to set the destination.";
     if (isRouteLoading) return `Loading the default ${profile} route...`;
     if (routeReady) return "Route preview is ready.";
     return "Reselect points or switch travel mode to try again.";
-  }, [canUseRouteApi, endPoint, isRouteLoading, profile, routeReady, startPoint]);
+  }, [canUseRouteApi, endPoint, isMapPointSelectionEnabled, isRouteLoading, profile, routeReady, startPoint]);
 
   const panelHasDenseContent = Boolean(route || routeError || isRouteLoading);
   const activeLayerCount =
@@ -702,7 +705,7 @@ export default function Map3DExperimentPage() {
         showEasePlaces={areaLayers.easePlaces}
         showNaturalPlaces={areaLayers.naturalPlaces}
         showStreetFacilities={areaLayers.streetFacilities}
-        showNavigationControl={false}
+        showNavigationControl
         onMapClick={handleMapClick}
         onMapError={handleMapError}
         onViewportControlsReady={setMapViewportControls}
@@ -713,7 +716,7 @@ export default function Map3DExperimentPage() {
         <motion.div
           data-testid="route-guide-overlay"
           style={liquidGlassPanelStyle}
-          className="map-guide-dialog-scroll fixed left-1/2 top-[max(0.75rem,env(safe-area-inset-top))] z-30 max-h-[calc(100dvh-max(1.5rem,env(safe-area-inset-top)+env(safe-area-inset-bottom)))] w-[min(34rem,calc(100vw-1.5rem))] -translate-x-1/2 overflow-y-auto rounded-[30px] border border-white/60 px-5 py-5 text-[#17413f] shadow-[0_28px_70px_rgba(4,14,14,0.18)] sm:top-24 sm:max-h-[calc(100dvh-6rem)] sm:w-[min(34rem,calc(100vw-2rem))] sm:px-7 sm:py-7"
+          className="fixed left-1/2 top-[max(0.75rem,env(safe-area-inset-top))] z-30 max-h-[calc(100dvh-max(1.5rem,env(safe-area-inset-top)+env(safe-area-inset-bottom)))] w-[min(34rem,calc(100vw-1.5rem))] -translate-x-1/2 overflow-y-auto rounded-[30px] border border-white/60 px-5 py-5 text-[#17413f] shadow-[0_28px_70px_rgba(4,14,14,0.18)] sm:top-24 sm:max-h-[calc(100dvh-6rem)] sm:w-[min(34rem,calc(100vw-2rem))] sm:px-7 sm:py-7"
           initial={{ opacity: 0, scale: 0.82, y: 46 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.9, y: 18 }}
@@ -741,6 +744,12 @@ export default function Map3DExperimentPage() {
               </div>
               <div className={`rounded-2xl px-4 py-3.5 ${liquidGlassCardClass}`}>
                 Pick the end point next and the route panel will expand with directions.
+              </div>
+              <div className={`rounded-2xl px-4 py-3.5 ${liquidGlassCardClass}`}>
+                Use the <span className="font-semibold text-[#17413f]">pin button</span> or tap the <span className="font-semibold text-[#17413f]">Start card</span> to lock map point picking. While locked, map clicks will not replace your route points.
+              </div>
+              <div className={`rounded-2xl px-4 py-3.5 ${liquidGlassCardClass}`}>
+                To choose new points again, delete <span className="font-semibold text-[#17413f]">Start</span> or <span className="font-semibold text-[#17413f]">End</span>, then turn point picking back on.
               </div>
               <div className={`rounded-2xl px-4 py-3.5 ${liquidGlassCardClass}`}>
                 Switch between <span className="font-semibold text-[#17413f]">Route</span> and <span className="font-semibold text-[#17413f]">Layers</span> in the lower panel any time.
@@ -834,6 +843,20 @@ export default function Map3DExperimentPage() {
             <div className="flex shrink-0 items-center gap-2 self-start">
               <button
                 type="button"
+                onClick={() => setIsMapPointSelectionEnabled((current) => !current)}
+                disabled={!canUseRouteApi}
+                aria-label={isMapPointSelectionEnabled ? "Disable map point selection" : "Enable map point selection"}
+                title={isMapPointSelectionEnabled ? "Disable point picking" : "Enable point picking"}
+                className={`inline-flex h-10 w-10 items-center justify-center rounded-full border shadow-[inset_0_1px_0_rgba(255,255,255,0.7),0_8px_18px_rgba(23,65,63,0.08)] transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-45 ${
+                  isMapPointSelectionEnabled
+                    ? "border-[#83c5be]/55 bg-[#17413f] text-white hover:bg-[#0f3230]"
+                    : "border-white/42 bg-white/42 text-[#6b8582] hover:bg-white/62 hover:text-[#17413f]"
+                }`}
+              >
+                <MapPinned className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
                 onClick={handleUseCurrentLocation}
                 disabled={geolocation.status === "loading" || !canUseRouteApi}
                 className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/42 bg-white/42 text-[#17413f] shadow-[inset_0_1px_0_rgba(255,255,255,0.7),0_8px_18px_rgba(23,65,63,0.08)] transition hover:bg-white/62 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-45"
@@ -870,7 +893,7 @@ export default function Map3DExperimentPage() {
               <div className={`mb-4 rounded-2xl p-4 text-sm text-[#456765] ${liquidGlassInteractiveClass}`} tabIndex={0}>
                 <div className="flex items-start gap-3">
                   <Navigation className="mt-0.5 h-4 w-4 shrink-0 text-[#17413f]" />
-                  <p>Drag to pan, scroll to zoom, and right-drag or use the pitch control to rotate the city view.</p>
+                  <p>Drag to pan, scroll to zoom, and right-drag or use the compass control to rotate and tilt the 3D city view.</p>
                 </div>
               </div>
 
@@ -922,7 +945,21 @@ export default function Map3DExperimentPage() {
               ) : null}
 
               <div className="mb-4 space-y-3">
-                <PointRow label="Start" point={startPoint} badgeClassName="bg-[#0f766e]" onDelete={handleDeleteStart} />
+                <PointRow
+                  label="Start"
+                  point={startPoint}
+                  badgeClassName="bg-[#0f766e]"
+                  onDelete={handleDeleteStart}
+                  onPrimaryAction={() => setIsMapPointSelectionEnabled((current) => !current)}
+                  primaryActionAriaLabel={
+                    isMapPointSelectionEnabled
+                      ? "Disable map point selection from Start card"
+                      : "Enable map point selection from Start card"
+                  }
+                  statusLabel={isMapPointSelectionEnabled ? "Map picking ON" : "Map picking LOCKED"}
+                  helperText="Tap Start to lock or re-arm map picking"
+                  emphasized
+                />
                 <PointRow label="End" point={endPoint} badgeClassName="bg-[#ea580c]" onDelete={handleDeleteEnd} />
               </div>
 
@@ -996,7 +1033,7 @@ export default function Map3DExperimentPage() {
                 </div>
               </div>
 
-              <div className="space-y-3">
+              <div className="grid gap-3">
                 <LayerToggle
                   label="Natural Places"
                   description="Parks and waterbodies for green-blue context."
@@ -1110,14 +1147,24 @@ function PointRow({
   point,
   badgeClassName,
   onDelete,
+  onPrimaryAction,
+  primaryActionAriaLabel,
+  statusLabel,
+  helperText,
+  emphasized = false,
 }: {
   label: string;
   point: RoutePoint | null;
   badgeClassName: string;
   onDelete: () => void;
+  onPrimaryAction?: () => void;
+  primaryActionAriaLabel?: string;
+  statusLabel?: string;
+  helperText?: string;
+  emphasized?: boolean;
 }) {
   return (
-    <div className={`flex items-center gap-3 rounded-2xl p-3 ${liquidGlassInteractiveClass}`} tabIndex={0}>
+    <div className={`flex items-center gap-3 rounded-2xl p-3 ${liquidGlassInteractiveClass} ${emphasized ? "border-[#83c5be]/55 bg-[linear-gradient(145deg,rgba(255,255,255,0.58),rgba(186,226,220,0.18))] shadow-[inset_0_1px_0_rgba(255,255,255,0.84),0_18px_38px_rgba(4,14,14,0.1)]" : ""}`} tabIndex={0}>
       <span
         data-testid={`point-badge-${label.toLowerCase()}`}
         className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-[4px] border-white text-[0.82rem] font-black leading-none text-white shadow-[0_0_0_6px_rgba(255,255,255,0.26),0_0_0_12px_rgba(255,255,255,0.1),0_14px_28px_rgba(15,23,42,0.22)] ${badgeClassName}`}
@@ -1125,13 +1172,76 @@ function PointRow({
         {label[0]}
       </span>
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-semibold text-[#17413f]">{label}</p>
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="text-sm font-semibold text-[#17413f]">{label}</p>
+          {statusLabel ? (
+            <span className="rounded-full border border-[#83c5be]/45 bg-[#e3f3ef] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#17413f]">
+              {statusLabel}
+            </span>
+          ) : null}
+        </div>
         <p className="truncate text-xs text-[#6b8582]">{point ? formatPoint(point) : "Not selected"}</p>
+        {helperText ? <p className="mt-1 text-xs font-semibold text-[#0f766e]">{helperText}</p> : null}
       </div>
+      {onPrimaryAction ? (
+        <button
+          type="button"
+          onClick={onPrimaryAction}
+          aria-label={primaryActionAriaLabel ?? `${label} primary action`}
+          aria-pressed={statusLabel?.includes("LOCKED") ? true : false}
+          className="relative inline-flex h-10 w-20 shrink-0 cursor-pointer items-center"
+        >
+          <span
+            className={`absolute inset-0 rounded-full border border-white/55 shadow-[0_10px_22px_rgba(23,65,63,0.14),inset_0_1px_0_rgba(255,255,255,0.55)] outline-none ring-0 transition-all duration-300 ${
+              statusLabel?.includes("LOCKED")
+                ? "bg-[linear-gradient(135deg,#83c5be,#5fa8a1)]"
+                : "bg-[linear-gradient(135deg,#d7e9e5,#b8d7d1)]"
+            }`}
+          />
+          <svg
+            className={`absolute top-1 h-8 w-8 stroke-[#17413f] transition-all duration-300 ${
+              statusLabel?.includes("LOCKED") ? "left-10" : "left-1.5"
+            }`}
+            viewBox="0 0 100 100"
+            xmlns="http://www.w3.org/2000/svg"
+            aria-hidden="true"
+          >
+            <path
+              fillRule="evenodd"
+              clipRule="evenodd"
+              d="M50,18A19.9,19.9,0,0,0,30,38v8a8,8,0,0,0-8,8V74a8,8,0,0,0,8,8H70a8,8,0,0,0,8-8V54a8,8,0,0,0-8-8H38V38a12,12,0,0,1,23.6-3,4,4,0,1,0,7.8-2A20.1,20.1,0,0,0,50,18Z"
+              className="fill-[#17413f]"
+            />
+          </svg>
+          <svg
+            className={`absolute top-1 h-8 w-8 stroke-[#456765] transition-all duration-300 ${
+              statusLabel?.includes("LOCKED") ? "left-1.5" : "left-10"
+            }`}
+            viewBox="0 0 100 100"
+            xmlns="http://www.w3.org/2000/svg"
+            aria-hidden="true"
+          >
+            <path
+              fillRule="evenodd"
+              clipRule="evenodd"
+              d="M30,46V38a20,20,0,0,1,40,0v8a8,8,0,0,1,8,8V74a8,8,0,0,1-8,8H30a8,8,0,0,1-8-8V54A8,8,0,0,1,30,46Zm32-8v8H38V38a12,12,0,0,1,24,0Z"
+              className="fill-[#456765]"
+            />
+          </svg>
+          <span
+            className={`absolute top-1 flex h-8 w-8 items-center justify-center rounded-full bg-[linear-gradient(145deg,#f8fbfa,#ffffff)] shadow-[0_8px_18px_rgba(15,23,42,0.14),inset_0_1px_0_rgba(255,255,255,0.88)] outline-none transition-all duration-300 ${
+              statusLabel?.includes("LOCKED")
+                ? "left-1"
+                : "left-1 translate-x-10"
+            }`}
+          />
+        </button>
+      ) : null}
       {point ? (
         <button
           type="button"
           onClick={onDelete}
+          aria-label={`Delete ${label} point`}
           className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[#6b8582] transition hover:bg-white/48 hover:text-red-600 active:scale-[0.98]"
           title={`Delete ${label.toLowerCase()} point`}
         >
@@ -1164,7 +1274,7 @@ function LayerToggle({
       type="button"
       onClick={onToggle}
       disabled={disabled}
-      className={`flex w-full items-center justify-between gap-3 rounded-2xl p-3 text-left ${liquidGlassInteractiveClass} ${disabled ? "cursor-not-allowed opacity-65" : ""} max-sm:items-start`}
+      className={`flex min-h-[106px] w-full items-center justify-between gap-3 rounded-2xl p-3 text-left ${liquidGlassInteractiveClass} ${disabled ? "cursor-not-allowed opacity-65" : ""} max-sm:items-start`}
       aria-pressed={checked}
     >
       <div className="min-w-0">

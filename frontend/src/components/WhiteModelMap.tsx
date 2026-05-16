@@ -895,6 +895,7 @@ export default function WhiteModelMap({
 
     mapRef.current = map;
     map.dragPan.enable();
+    map.dragRotate.enable();
     map.touchZoomRotate.enable();
     map.touchZoomRotate.enableRotation();
     if ("touchPitch" in map && map.touchPitch) {
@@ -1221,5 +1222,5 @@ export default function WhiteModelMap({
     focusStep(focusedStep);
   }, [focusedStep]);
 
-  return <div ref={containerRef} style={{ minHeight: "100dvh", width: "100%", touchAction: "none" }} />;
+  return <div ref={containerRef} className="route-3d-map" style={{ minHeight: "100dvh", width: "100%", touchAction: "none" }} />;
 }
