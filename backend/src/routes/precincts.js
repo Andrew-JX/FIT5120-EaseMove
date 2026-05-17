@@ -38,6 +38,43 @@ const FALLBACK_SENSOR_DATA = {
   southbank: { temperature: 25.7, humidity: 61, wind_speed: 3.2, pm25: 14, activity_count: 155 }
 };
 
+function toFiniteNumber(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const parsed = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function clampNumber(value, min, max) {
+  if (value === null) return null;
+  return Math.min(max, Math.max(min, value));
+}
+
+function roundToOneDecimal(value) {
+  if (value === null) return null;
+  return Math.round(value * 10) / 10;
+}
+
+function normalizeTimestamp(value) {
+  if (!value) return new Date().toISOString();
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? new Date().toISOString() : parsed.toISOString();
+}
+
+function normalizeOpenMeteoCurrent(current) {
+  if (!current) return null;
+
+  const temperature = roundToOneDecimal(clampNumber(toFiniteNumber(current.temperature_2m), -80, 80));
+  const humidity = clampNumber(toFiniteNumber(current.relative_humidity_2m), 0, 100);
+  const windSpeed = roundToOneDecimal(clampNumber(toFiniteNumber(current.wind_speed_10m), 0, 250));
+
+  return {
+    temperature,
+    humidity,
+    wind_speed: windSpeed,
+    last_updated: normalizeTimestamp(current.time),
+  };
+}
+
 function parseWeights(queryParams) {
   const hasWeights = ['weight_temperature', 'weight_humidity', 'weight_activity']
     .some(key => queryParams[key] !== undefined);
@@ -137,12 +174,7 @@ async function fetchCurrentWeather(precinct) {
     .then(response => {
       const current = response.data?.current;
       if (!current) return null;
-      const data = {
-        temperature: current.temperature_2m ?? null,
-        humidity: current.relative_humidity_2m ?? null,
-        wind_speed: current.wind_speed_10m ?? null,
-        last_updated: current.time ? new Date(current.time).toISOString() : new Date().toISOString(),
-      };
+      const data = normalizeOpenMeteoCurrent(current);
       weatherCache.set(cacheKey, { data, fetchedAt: Date.now() });
       return data;
     })
@@ -581,5 +613,9 @@ router.get('/furniture', async (req, res) => {
     res.json(require('../../config/furniture.json'));
   }
 });
+
+router.__test__ = {
+  normalizeOpenMeteoCurrent,
+};
 
 module.exports = router;
