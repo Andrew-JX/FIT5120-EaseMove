@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { motion, MotionValue, useMotionValue, useSpring, useTransform } from "framer-motion";
+import { LANDING_SETTLE_SPRING } from "./landingMotion";
 
 const TEXT_ENTER_END = 0.18;
 const IMAGE_SEQUENCE_START = 0.32;
 const SPREAD_START = 0.8;
 const SPREAD_END = 0.92;
+const SETTLE_END = 0.975;
 
 const galleryImages = [
   {
@@ -63,11 +65,6 @@ const MISSION_SAFE_RADIUS_X = 250;
 const MISSION_SAFE_RADIUS_Y = 145;
 const MISSION_SAFE_RADIUS_X_MOBILE = 82;
 const MISSION_SAFE_RADIUS_Y_MOBILE = 130;
-const SPRING_CONFIG = {
-  stiffness: 118,
-  damping: 27,
-  mass: 0.9,
-};
 type MissionSceneState = "before" | "active" | "after";
 
 function clampProgress(value: number) {
@@ -183,6 +180,33 @@ function MissionText({ progress }: { progress: MotionValue<number> }) {
   );
 }
 
+function MissionAperture({ progress }: { progress: MotionValue<number> }) {
+  const opacity = useTransform(progress, [0, 0.05, 0.28, SPREAD_START, SPREAD_END, 1], [0, 0.8, 0.95, 0.54, 0.16, 0.1]);
+  const scale = useTransform(progress, [0, 0.16, SPREAD_END, 1], [0.82, 1, 1.14, 1.18]);
+  const rotate = useTransform(progress, [0, SPREAD_END, 1], ["-8deg", "0deg", "0deg"]);
+
+  return (
+    <div className="landing-mission-aperture" aria-hidden="true">
+      <motion.div className="landing-mission-aperture-orb" style={{ opacity, scale, rotate }}>
+        <span className="landing-mission-aperture-core" />
+        <span className="landing-mission-aperture-ring" />
+        <span className="landing-mission-aperture-ring landing-mission-aperture-ring-secondary" />
+      </motion.div>
+    </div>
+  );
+}
+
+function MissionStageGlow({ progress }: { progress: MotionValue<number> }) {
+  const opacity = useTransform(progress, [0, 0.24, 0.56, SPREAD_START, SPREAD_END, 1], [0.16, 0.3, 0.42, 0.5, 0.22, 0.16]);
+  const scale = useTransform(progress, [0, SPREAD_START, 1], [0.92, 1.02, 1.06]);
+
+  return (
+    <div className="landing-mission-stage-glow" aria-hidden="true">
+      <motion.div className="landing-mission-stage-glow-surface" style={{ opacity, scale }} />
+    </div>
+  );
+}
+
 function GalleryImage({
   image,
   index,
@@ -194,35 +218,52 @@ function GalleryImage({
   progress: MotionValue<number>;
   layout: ReturnType<typeof getLayoutMetrics>;
 }) {
-  const x = useTransform(progress, [0, image.end, SPREAD_START, SPREAD_END, 1], [
+  const x = useTransform(progress, [0, image.end, SPREAD_START, SPREAD_END, SETTLE_END, 1], [
     "0px",
     "0px",
     "0px",
+    `${image.finalXDirection * layout.spreadX * 1.06}px`,
     `${image.finalXDirection * layout.spreadX}px`,
     `${image.finalXDirection * layout.spreadX}px`,
   ]);
-  const y = useTransform(progress, [0, image.start, image.end, SPREAD_START, SPREAD_END, 1], [
+  const y = useTransform(progress, [0, image.start, image.end, SPREAD_START, SPREAD_END, SETTLE_END, 1], [
     `${layout.entryStartY}px`,
     `${layout.entryStartY}px`,
     image.stackY,
     image.stackY,
+    `${image.finalYDirection * layout.spreadY * 1.04}px`,
     `${image.finalYDirection * layout.spreadY}px`,
     `${image.finalYDirection * layout.spreadY}px`,
   ]);
-  const rotate = useTransform(progress, [0, image.end, SPREAD_START, SPREAD_END, 1], [
+  const rotate = useTransform(progress, [0, image.end, SPREAD_START, SPREAD_END, SETTLE_END, 1], [
     image.stackRotate,
     image.stackRotate,
     image.stackRotate,
+    image.finalRotate + image.finalXDirection * 0.55,
     image.finalRotate,
     image.finalRotate,
   ]);
   const opacity = useTransform(progress, [0, image.start, image.start + 0.025, 1], [0, 0, 1, 1]);
-  const scale = useTransform(progress, [0, image.start, image.end, 1], [0.96, 0.96, 1, 1]);
+  const scale = useTransform(progress, [0, image.start, image.end, SPREAD_END, SETTLE_END, 1], [
+    0.94,
+    0.94,
+    1,
+    1.03,
+    1,
+    1,
+  ]);
+  const filter = useTransform(progress, [0, image.start, image.end, SPREAD_END, 1], [
+    "blur(16px)",
+    "blur(16px)",
+    "blur(0px)",
+    "blur(0px)",
+    "blur(0px)",
+  ]);
 
   return (
     <motion.figure
       className="landing-mission-gallery-card"
-      style={{ x, y, rotate, opacity, scale, zIndex: 10 + index }}
+      style={{ x, y, rotate, opacity, scale, filter, zIndex: 10 + index }}
     >
       <img src={image.src} alt={image.alt} draggable="false" />
     </motion.figure>
@@ -254,7 +295,9 @@ function MissionComposition({
 }) {
   return (
     <div className="landing-mission-composition">
+      <MissionStageGlow progress={progress} />
       <div className="landing-mission-flow-anchor">
+        <MissionAperture progress={progress} />
         <MissionText progress={progress} />
       </div>
       <GalleryStack progress={progress} layout={layout} />
@@ -268,7 +311,7 @@ export default function MissionGalleryScene() {
   const sceneRef = useRef<HTMLElement | null>(null);
   const sceneStateRef = useRef<MissionSceneState>("before");
   const targetProgress = useMotionValue(0);
-  const smoothedProgress = useSpring(targetProgress, SPRING_CONFIG);
+  const smoothedProgress = useSpring(targetProgress, LANDING_SETTLE_SPRING);
 
   const setSceneStateIfChanged = (nextState: MissionSceneState) => {
     if (sceneStateRef.current === nextState) return;
@@ -353,6 +396,8 @@ export default function MissionGalleryScene() {
     <section
       className="landing-mission-scene"
       ref={sceneRef}
+      data-landing-motion="signature"
+      data-scene-state={sceneState}
       aria-label="EaseMove mission gallery"
     >
       {sceneState !== "before" ? (

@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import { EASE_PLACES_DATA, easePlacesMarkerColor, type EasePlacesFeature } from "../lib/easePlaces";
+import { AUSTRALIA_REGION_MAX_BOUNDS } from "../lib/melbourneRegion";
 import {
   classifySupportedFacility,
   fetchSupportedFacilitiesCatalog,
@@ -10,9 +11,6 @@ import {
 } from "../lib/streetFacilities";
 
 export const MELBOURNE_CENTER: [number, number] = [144.9631, -37.8136];
-
-const LABEL_SOURCE_LAYER_PATTERNS = /(road|street|place|poi|transit|station|natural|landmark)/i;
-const LABEL_ID_PATTERNS = /(road|street|place|poi|transit|station|label|natural|park|water|settlement)/i;
 
 const SOURCE_IDS = {
   route: "route",
@@ -25,7 +23,8 @@ const SOURCE_IDS = {
 const LAYER_IDS = {
   routeCasing: "route-line-casing",
   route: "route-line",
-  parksFill: "parks-fill-3d",
+  parksFillBase: "parks-fill-base-3d",
+  parksFillGlow: "parks-fill-glow-3d",
   parksLine: "parks-line-3d",
   waterFill: "waterbodies-fill-3d",
   waterLine: "waterbodies-line-3d",
@@ -34,7 +33,16 @@ const LAYER_IDS = {
   easePlacesHitArea: "ease-places-hit-area-3d",
   streetFacilitiesCircle: "street-facilities-circle-3d",
   streetFacilitiesHitArea: "street-facilities-hit-area-3d",
-  buildings: "white-model-buildings",
+} as const;
+
+const MAPBOX_STANDARD_STYLE = "mapbox://styles/mapbox/standard";
+const STANDARD_BASEMAP_CONFIG = {
+  lightPreset: "day",
+  show3dObjects: true,
+  show3dBuildings: true,
+  show3dLandmarks: true,
+  show3dTrees: true,
+  show3dFacades: true,
 } as const;
 
 function visibilityLayout(visible: boolean) {
@@ -67,6 +75,11 @@ export type RouteSummary = {
   geometry: GeoJSON.LineString;
 };
 
+export type MapViewportControls = {
+  zoomIn: () => void;
+  zoomOut: () => void;
+};
+
 type WhiteModelMapProps = {
   mapboxToken: string | null;
   startPoint: RoutePoint | null;
@@ -76,8 +89,10 @@ type WhiteModelMapProps = {
   showEasePlaces: boolean;
   showNaturalPlaces: boolean;
   showStreetFacilities: boolean;
+  showNavigationControl?: boolean;
   onMapClick: (point: RoutePoint) => void;
   onMapError: (message: string) => void;
+  onViewportControlsReady?: (controls: MapViewportControls | null) => void;
   onEasePlaceSelect?: (
     feature: EasePlacesFeature,
     point: { x: number; y: number },
@@ -192,8 +207,10 @@ export default function WhiteModelMap({
   showEasePlaces,
   showNaturalPlaces,
   showStreetFacilities,
+  showNavigationControl = true,
   onMapClick,
   onMapError,
+  onViewportControlsReady,
   onEasePlaceSelect,
 }: WhiteModelMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -209,6 +226,7 @@ export default function WhiteModelMap({
   const streetFacilitiesDataRef = useRef<FeatureCollection | null>(null);
   const onMapClickRef = useRef(onMapClick);
   const onMapErrorRef = useRef(onMapError);
+  const onViewportControlsReadyRef = useRef(onViewportControlsReady);
   const onEasePlaceSelectRef = useRef(onEasePlaceSelect);
   const routeRef = useRef(route);
   const hasFocusedInitialRouteRef = useRef(false);
@@ -303,63 +321,6 @@ export default function WhiteModelMap({
     ensureRouteOnTop();
   };
 
-  const tuneSymbolLayer = (map: mapboxgl.Map, layer: mapboxgl.AnyLayer) => {
-    if (layer.type !== "symbol") return;
-
-    const sourceLayer = "source-layer" in layer ? String(layer["source-layer"] ?? "") : "";
-    const shouldShow =
-      LABEL_ID_PATTERNS.test(layer.id) ||
-      LABEL_SOURCE_LAYER_PATTERNS.test(sourceLayer);
-
-    if (!shouldShow) {
-      map.setLayoutProperty(layer.id, "visibility", "none");
-      return;
-    }
-
-    map.setLayoutProperty(layer.id, "visibility", "visible");
-
-    if ((layer as { layout?: { ["text-field"]?: unknown } }).layout?.["text-field"]) {
-      map.setPaintProperty(layer.id, "text-color", "#46535a");
-      map.setPaintProperty(layer.id, "text-halo-color", "#fff8e8");
-      map.setPaintProperty(layer.id, "text-halo-width", 1.2);
-      map.setPaintProperty(layer.id, "text-halo-blur", 0.35);
-
-      if (/road|street/i.test(layer.id)) {
-        map.setPaintProperty(layer.id, "text-color", "#334155");
-        map.setLayoutProperty(layer.id, "text-size", [
-          "interpolate",
-          ["linear"],
-          ["zoom"],
-          13,
-          10,
-          16,
-          13,
-          18,
-          15,
-        ]);
-      }
-
-      if (/poi|place|station|transit|landmark/i.test(layer.id)) {
-        map.setPaintProperty(layer.id, "text-color", "#52615f");
-        map.setLayoutProperty(layer.id, "text-size", [
-          "interpolate",
-          ["linear"],
-          ["zoom"],
-          14,
-          10,
-          16,
-          12,
-          18,
-          14,
-        ]);
-      }
-    }
-
-    if ((layer as { layout?: { ["icon-image"]?: unknown } }).layout?.["icon-image"]) {
-      map.setPaintProperty(layer.id, "icon-opacity", 0.78);
-    }
-  };
-
   const fitRoute = (geometry: GeoJSON.LineString) => {
     const map = mapRef.current;
     if (!map || geometry.coordinates.length === 0) return;
@@ -449,16 +410,32 @@ export default function WhiteModelMap({
       });
     }
 
-    if (!map.getLayer(LAYER_IDS.parksFill)) {
+    if (!map.getLayer(LAYER_IDS.parksFillBase)) {
       map.addLayer(
         {
-          id: LAYER_IDS.parksFill,
+          id: LAYER_IDS.parksFillBase,
           type: "fill",
           source: SOURCE_IDS.parks,
           layout: visibilityLayout(visible),
           paint: {
-            "fill-color": "#b8d9a6",
-            "fill-opacity": 0.24,
+            "fill-color": "#bcebad",
+            "fill-opacity": 0.34,
+          },
+        },
+        beforeLayerId
+      );
+    }
+
+    if (!map.getLayer(LAYER_IDS.parksFillGlow)) {
+      map.addLayer(
+        {
+          id: LAYER_IDS.parksFillGlow,
+          type: "fill",
+          source: SOURCE_IDS.parks,
+          layout: visibilityLayout(visible),
+          paint: {
+            "fill-color": "#e2f8d6",
+            "fill-opacity": 0.18,
           },
         },
         beforeLayerId
@@ -473,14 +450,15 @@ export default function WhiteModelMap({
           source: SOURCE_IDS.parks,
           layout: visibilityLayout(visible),
           paint: {
-            "line-color": "#4b7b46",
-            "line-width": 1.1,
-            "line-opacity": 0.88,
+            "line-color": "#4f8246",
+            "line-width": 1.35,
+            "line-opacity": 0.94,
           },
         },
         beforeLayerId
       );
     }
+
   };
 
   const addEasePlacesLayers = (map: mapboxgl.Map, visible: boolean, beforeLayerId?: string) => {
@@ -763,6 +741,10 @@ export default function WhiteModelMap({
   }, [onMapError]);
 
   useEffect(() => {
+    onViewportControlsReadyRef.current = onViewportControlsReady;
+  }, [onViewportControlsReady]);
+
+  useEffect(() => {
     onEasePlaceSelectRef.current = onEasePlaceSelect;
   }, [onEasePlaceSelect]);
 
@@ -853,7 +835,11 @@ export default function WhiteModelMap({
 
     const map = new mapboxgl.Map({
       container: containerRef.current,
-      style: "mapbox://styles/mapbox/light-v11",
+      style: MAPBOX_STANDARD_STYLE,
+      config: {
+        basemap: { ...STANDARD_BASEMAP_CONFIG },
+      },
+      maxBounds: AUSTRALIA_REGION_MAX_BOUNDS as [[number, number], [number, number]],
       center: MELBOURNE_CENTER,
       zoom: 15.6,
       pitch: 62,
@@ -863,6 +849,7 @@ export default function WhiteModelMap({
 
     mapRef.current = map;
     map.dragPan.enable();
+    map.dragRotate.enable();
     map.touchZoomRotate.enable();
     map.touchZoomRotate.enableRotation();
     if ("touchPitch" in map && map.touchPitch) {
@@ -870,7 +857,24 @@ export default function WhiteModelMap({
     }
     map.getCanvas().style.touchAction = "none";
     map.getContainer().style.touchAction = "none";
-    map.addControl(new mapboxgl.NavigationControl({ visualizePitch: true }), "top-right");
+    if (showNavigationControl) {
+      map.addControl(new mapboxgl.NavigationControl({ visualizePitch: true }), "top-right");
+    }
+
+    onViewportControlsReadyRef.current?.({
+      zoomIn: () => {
+        map.easeTo({
+          zoom: Math.min(map.getZoom() + 0.9, 20),
+          duration: 280,
+        });
+      },
+      zoomOut: () => {
+        map.easeTo({
+          zoom: Math.max(map.getZoom() - 0.9, 11.5),
+          duration: 280,
+        });
+      },
+    });
 
     map.on("error", (event) => {
       const status = (event.error as { status?: number } | undefined)?.status;
@@ -880,39 +884,8 @@ export default function WhiteModelMap({
 
     map.on("style.load", () => {
       const style = map.getStyle();
-
-      for (const layer of style.layers ?? []) {
-        tuneSymbolLayer(map, layer);
-      }
-
-      if (map.getLayer("background")) {
-        map.setPaintProperty("background", "background-color", "#f1eee6");
-      }
-
-      const lineLayers = (style.layers ?? [])
-        .filter((layer) => layer.type === "line" && /(road|transport|street|path)/i.test(layer.id))
-        .map((layer) => layer.id);
-
-      for (const layerId of lineLayers) {
-        map.setPaintProperty(layerId, "line-color", "#d7c6a8");
-        map.setPaintProperty(layerId, "line-opacity", 0.72);
-      }
-
-      const fillLayers = (style.layers ?? [])
-        .filter((layer) => layer.type === "fill" && /(park|landuse|landcover|water)/i.test(layer.id))
-        .map((layer) => layer.id);
-
-      for (const layerId of fillLayers) {
-        if (/water/i.test(layerId)) {
-          map.setPaintProperty(layerId, "fill-color", "#b9dbe0");
-          map.setPaintProperty(layerId, "fill-opacity", 0.72);
-        } else if (/park|landuse|landcover/i.test(layerId)) {
-          map.setPaintProperty(layerId, "fill-color", "#cfe0b7");
-          map.setPaintProperty(layerId, "fill-opacity", 0.64);
-        } else {
-          map.setPaintProperty(layerId, "fill-color", "#eadfca");
-          map.setPaintProperty(layerId, "fill-opacity", 0.58);
-        }
+      for (const [property, value] of Object.entries(STANDARD_BASEMAP_CONFIG)) {
+        map.setConfigProperty("basemap", property, value);
       }
 
       const labelLayerId = (style.layers ?? []).find(
@@ -923,60 +896,15 @@ export default function WhiteModelMap({
 
       addNaturalLayers(map, showNaturalPlacesRef.current, labelLayerId);
 
-      if (!map.getLayer(LAYER_IDS.buildings)) {
-        map.addLayer(
-          {
-            id: LAYER_IDS.buildings,
-            type: "fill-extrusion",
-            source: "composite",
-            "source-layer": "building",
-            filter: ["==", "extrude", "true"],
-            minzoom: 14,
-            paint: {
-              "fill-extrusion-color": [
-                "interpolate",
-                ["linear"],
-                ["zoom"],
-                14,
-                "#e8d7b5",
-                17,
-                "#f0dfbd",
-              ],
-              "fill-extrusion-opacity": 0.92,
-              "fill-extrusion-height": [
-                "interpolate",
-                ["linear"],
-                ["zoom"],
-                14,
-                0,
-                15,
-                ["coalesce", ["get", "height"], 8],
-              ],
-              "fill-extrusion-base": [
-                "interpolate",
-                ["linear"],
-                ["zoom"],
-                14,
-                0,
-                15,
-                ["coalesce", ["get", "min_height"], 0],
-              ],
-              "fill-extrusion-vertical-gradient": true,
-            },
-          },
-          labelLayerId
-        );
-      }
-
       addEasePlacesLayers(map, showEasePlacesRef.current, labelLayerId);
       addStreetFacilitiesLayers(map, showStreetFacilitiesRef.current, labelLayerId);
       bindNaturalPopup(map, LAYER_IDS.waterFill, "Waterbody", ["NAME_LABEL", "NAME"]);
-      bindNaturalPopup(map, LAYER_IDS.parksFill, "Park", ["NAME_LABEL", "NAME"]);
+      bindNaturalPopup(map, LAYER_IDS.parksFillBase, "Park", ["NAME_LABEL", "NAME"]);
       bindEasePlacesPopup(map);
       bindStreetFacilitiesPopup(map);
 
       setLayerVisibility(
-        [LAYER_IDS.parksFill, LAYER_IDS.parksLine, LAYER_IDS.waterFill, LAYER_IDS.waterLine],
+        [LAYER_IDS.parksFillBase, LAYER_IDS.parksFillGlow, LAYER_IDS.parksLine, LAYER_IDS.waterFill, LAYER_IDS.waterLine],
         showNaturalPlacesRef.current
       );
       setLayerVisibility(
@@ -1007,6 +935,7 @@ export default function WhiteModelMap({
     });
 
     return () => {
+      onViewportControlsReadyRef.current?.(null);
       startMarkerRef.current?.remove();
       endMarkerRef.current?.remove();
       focusedStepMarkerRef.current?.remove();
@@ -1020,13 +949,13 @@ export default function WhiteModelMap({
       endMarkerRef.current = null;
       focusedStepMarkerRef.current = null;
     };
-  }, [mapboxToken]);
+  }, [mapboxToken, showNavigationControl]);
 
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !map.isStyleLoaded()) return;
     setLayerVisibility(
-      [LAYER_IDS.parksFill, LAYER_IDS.parksLine, LAYER_IDS.waterFill, LAYER_IDS.waterLine],
+      [LAYER_IDS.parksFillBase, LAYER_IDS.parksFillGlow, LAYER_IDS.parksLine, LAYER_IDS.waterFill, LAYER_IDS.waterLine],
       showNaturalPlaces
     );
     if (!showNaturalPlaces) {
@@ -1165,5 +1094,5 @@ export default function WhiteModelMap({
     focusStep(focusedStep);
   }, [focusedStep]);
 
-  return <div ref={containerRef} style={{ minHeight: "100dvh", width: "100%", touchAction: "none" }} />;
+  return <div ref={containerRef} className="route-3d-map" style={{ minHeight: "100dvh", width: "100%", touchAction: "none" }} />;
 }

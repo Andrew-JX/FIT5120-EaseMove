@@ -1,5 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { createScope, createTimeline, stagger } from "animejs";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router";
+import { LANDING_CHOREO_EASE, LANDING_REVEAL_DURATIONS } from "./landingMotion";
 
 const bGifUrl = new URL("../../assets/B.gif", import.meta.url).href;
 const wGifUrl = new URL("../../assets/W.gif", import.meta.url).href;
@@ -10,6 +12,15 @@ function buildMobileCurvePath(side: "left" | "right") {
   }
 
   return "M220 2 C 220 16, 228 24, 246 30 C 272 40, 300 42, 322 50 C 338 56, 348 64, 356 76";
+}
+
+function renderTitleWords(value: string) {
+  return value.split(" ").map((word, index, words) => (
+    <span className="landing-start-title-main-word" key={`${word}-${index}`} aria-hidden="true">
+      {word}
+      {index < words.length - 1 ? "\u00A0" : ""}
+    </span>
+  ));
 }
 
 function AnimatedLandingButton({
@@ -149,7 +160,10 @@ export default function StartUsingScene() {
   const navigate = useNavigate();
   const sceneRef = useRef<HTMLElement | null>(null);
   const titleShellRef = useRef<HTMLDivElement | null>(null);
+  const isSceneInViewRef = useRef(false);
   const [isTitleRevealed, setIsTitleRevealed] = useState(false);
+  const [isChoreoActive, setIsChoreoActive] = useState(false);
+  const [choreoSeq, setChoreoSeq] = useState(0);
   const openMap = () => navigate("/map");
   const open3DRoute = () => navigate("/map/3d-route");
   const actions = [
@@ -173,44 +187,204 @@ export default function StartUsingScene() {
   const marqueeItems = [...gifStrip, ...gifStrip];
 
   useEffect(() => {
-    const node = titleShellRef.current ?? sceneRef.current;
-    if (!node || isTitleRevealed) return;
+    const node = sceneRef.current;
+    if (!node) return;
     if (typeof IntersectionObserver === "undefined") {
+      isSceneInViewRef.current = true;
       setIsTitleRevealed(true);
+      setIsChoreoActive(true);
+      setChoreoSeq(1);
       return;
     }
 
     const observer = new IntersectionObserver(
       (entries) => {
         const [entry] = entries;
-        if (!entry?.isIntersecting) return;
-        setIsTitleRevealed(true);
-        observer.disconnect();
+        if (!entry) return;
+
+        if (entry.isIntersecting && !isSceneInViewRef.current) {
+          isSceneInViewRef.current = true;
+          setIsTitleRevealed(true);
+          setIsChoreoActive(true);
+          setChoreoSeq((current) => current + 1);
+          return;
+        }
+
+        if (!entry.isIntersecting && isSceneInViewRef.current) {
+          isSceneInViewRef.current = false;
+          setIsTitleRevealed(false);
+          setIsChoreoActive(false);
+        }
       },
       {
-        threshold: 0.72,
-        rootMargin: "-4% 0px -18% 0px",
+        threshold: 0.38,
+        rootMargin: "-4% 0px -8% 0px",
       }
     );
 
     observer.observe(node);
 
     return () => {
+      isSceneInViewRef.current = false;
       observer.disconnect();
     };
-  }, [isTitleRevealed]);
+  }, []);
+
+  useLayoutEffect(() => {
+    const root = sceneRef.current;
+    if (!root || !isChoreoActive || choreoSeq === 0) return;
+
+    const prefersReducedMotion =
+      typeof window !== "undefined" &&
+      typeof window.matchMedia === "function" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    if (prefersReducedMotion) {
+      return;
+    }
+
+    const scope = createScope({ root }).add(() => {
+      const titleTag = root.querySelector<HTMLElement>(".landing-start-title-tag");
+      const titleWords = Array.from(root.querySelectorAll<HTMLElement>(".landing-start-title-main-word"));
+      const titleEcho = root.querySelector<HTMLElement>(".landing-start-title-echo");
+      const buttonShells = Array.from(root.querySelectorAll<HTMLElement>(".landing-start-action-button-shell"));
+      const curveLines = Array.from(root.querySelectorAll<SVGPathElement>(".landing-start-action-curve-line"));
+      const noteCopies = Array.from(root.querySelectorAll<HTMLElement>(".landing-start-action-copy"));
+      const curveGlows = Array.from(root.querySelectorAll<SVGCircleElement>(".landing-start-action-curve-glow"));
+
+      curveLines.forEach((line) => {
+        if (typeof line.getTotalLength !== "function") return;
+        const length = line.getTotalLength();
+        line.style.strokeDasharray = `${length}`;
+        line.style.strokeDashoffset = `${length}`;
+      });
+
+      const timeline = createTimeline({
+        defaults: {
+          duration: LANDING_REVEAL_DURATIONS.base,
+          ease: LANDING_CHOREO_EASE,
+        },
+      });
+
+      if (titleTag) {
+        timeline.add(titleTag, {
+          opacity: [0, 1],
+          y: ["18px", "0px"],
+          scale: [0.96, 1],
+          filter: ["blur(10px)", "blur(0px)"],
+          duration: LANDING_REVEAL_DURATIONS.quick,
+        });
+      }
+
+      if (titleWords.length > 0) {
+        timeline.add(
+          titleWords,
+          {
+            opacity: [0, 1],
+            y: ["1.15em", "0em"],
+            rotate: ["4deg", "0deg"],
+            filter: ["blur(14px)", "blur(0px)"],
+            delay: stagger(70),
+            duration: LANDING_REVEAL_DURATIONS.base - 60,
+          },
+          "-=140"
+        );
+      }
+
+      if (titleEcho) {
+        timeline.add(
+          titleEcho,
+          {
+            opacity: [0, 1],
+            x: ["28px", "0px"],
+            y: ["12px", "0px"],
+            scale: [0.985, 1],
+            filter: ["blur(18px)", "blur(0px)"],
+            duration: LANDING_REVEAL_DURATIONS.base + 40,
+          },
+          "-=420"
+        );
+      }
+
+      if (buttonShells.length > 0) {
+        timeline.add(
+          buttonShells,
+          {
+            opacity: [0, 1],
+            x: (_target: Element, index: number) => (index === 0 ? ["-18px", "0px"] : ["18px", "0px"]),
+            y: ["16px", "0px"],
+            scale: [0.94, 1],
+            delay: stagger(140, { start: 40 }),
+            duration: LANDING_REVEAL_DURATIONS.base,
+          },
+          "-=220"
+        );
+      }
+
+      if (curveLines.length > 0) {
+        timeline.add(
+          curveLines,
+          {
+            opacity: [0.08, 0.94],
+            strokeDashoffset: 0,
+            delay: stagger(120),
+            duration: LANDING_REVEAL_DURATIONS.slow,
+            ease: "inOut(3)",
+          },
+          "-=620"
+        );
+      }
+
+      if (curveGlows.length > 0) {
+        timeline.add(
+          curveGlows,
+          {
+            opacity: [0.08, 1],
+            scale: [0.55, 1],
+            delay: stagger(120, { start: 60 }),
+            duration: LANDING_REVEAL_DURATIONS.linger,
+          },
+          "<"
+        );
+      }
+
+      if (noteCopies.length > 0) {
+        timeline.add(
+          noteCopies,
+          {
+            opacity: [0, 1],
+            y: ["18px", "0px"],
+            scale: [0.94, 1],
+            delay: stagger(110, { start: 80 }),
+            duration: LANDING_REVEAL_DURATIONS.quick + 140,
+          },
+          "-=740"
+        );
+      }
+    });
+
+    return () => {
+      scope.revert();
+    };
+  }, [choreoSeq, isChoreoActive]);
 
   return (
     <section
       ref={sceneRef}
-      className={`landing-start-scene${isTitleRevealed ? " is-title-revealed" : ""}`}
+      className={`landing-start-scene${isTitleRevealed ? " is-title-revealed" : ""}${
+        isChoreoActive ? " is-choreo-active" : ""
+      }`}
+      data-landing-motion="signature"
+      data-choreo-seq={choreoSeq}
       aria-label="Start using EaseMove"
     >
       <div className="landing-start-inner">
         <div ref={titleShellRef} className="landing-start-title-shell">
           <p className="landing-start-title-tag">Choose your next step</p>
           <h2 className="landing-start-title">
-            <span className="landing-start-title-main back-in-left">Pick your path</span>
+            <span className="landing-start-title-main back-in-left" aria-label="Pick your path">
+              {renderTitleWords("Pick your path")}
+            </span>
             <span className="landing-start-title-echo back-in-right" data-text="MoveComfortly">
               MoveComfortly
             </span>
@@ -224,61 +398,66 @@ export default function StartUsingScene() {
               }`}
               key={action.label}
             >
-              <AnimatedLandingButton
-                label={action.label}
-                nextLabel={action.nextLabel}
-                onClick={action.onClick}
-              />
-              <div className={`landing-start-action-note landing-start-action-note-${index === 0 ? "left" : "right"}`}>
-                {(() => {
-                  const side = index === 0 ? "left" : "right";
-                  const mobilePath = buildMobileCurvePath(side);
+              <div className="landing-start-action-card-stack">
+                <div className="landing-start-action-button-shell">
+                  <AnimatedLandingButton
+                    key={`${action.label}-${choreoSeq}`}
+                    label={action.label}
+                    nextLabel={action.nextLabel}
+                    onClick={action.onClick}
+                  />
+                </div>
+                <div className={`landing-start-action-note landing-start-action-note-${index === 0 ? "left" : "right"}`}>
+                  {(() => {
+                    const side = index === 0 ? "left" : "right";
+                    const mobilePath = buildMobileCurvePath(side);
 
-                  return (
-                <svg
-                  className={`landing-start-action-curve landing-start-action-curve-${
-                    index === 0 ? "left" : "right"
-                  }`}
-                  viewBox="0 0 440 168"
-                  aria-hidden="true"
-                  preserveAspectRatio="none"
-                >
-                  <path
-                    className="landing-start-action-curve-line landing-start-action-curve-line-desktop"
-                    d={
-                      index === 0
-                        ? "M220 12 C 220 42, 212 64, 190 82 C 156 110, 106 104, 72 128 C 46 146, 22 154, -12 142"
-                        : "M220 12 C 220 42, 228 64, 250 82 C 284 110, 334 104, 368 128 C 394 146, 418 154, 452 142"
-                    }
-                  />
-                  <path
-                    className="landing-start-action-curve-line landing-start-action-curve-line-mobile"
-                    d={mobilePath}
-                  />
-                  <circle className="landing-start-action-curve-glow landing-start-action-curve-glow-desktop" r="4.5">
-                    <animateMotion
-                      dur={index === 0 ? "6.4s" : "6.9s"}
-                      repeatCount="indefinite"
-                      rotate="auto"
-                      path={
+                    return (
+                  <svg
+                    className={`landing-start-action-curve landing-start-action-curve-${
+                      index === 0 ? "left" : "right"
+                    }`}
+                    viewBox="0 0 440 168"
+                    aria-hidden="true"
+                    preserveAspectRatio="none"
+                  >
+                    <path
+                      className="landing-start-action-curve-line landing-start-action-curve-line-desktop"
+                      d={
                         index === 0
                           ? "M220 12 C 220 42, 212 64, 190 82 C 156 110, 106 104, 72 128 C 46 146, 22 154, -12 142"
                           : "M220 12 C 220 42, 228 64, 250 82 C 284 110, 334 104, 368 128 C 394 146, 418 154, 452 142"
                       }
                     />
-                  </circle>
-                  <circle className="landing-start-action-curve-glow landing-start-action-curve-glow-mobile" r="4.5">
-                    <animateMotion
-                      dur={index === 0 ? "4.8s" : "5.1s"}
-                      repeatCount="indefinite"
-                      rotate="auto"
-                      path={mobilePath}
+                    <path
+                      className="landing-start-action-curve-line landing-start-action-curve-line-mobile"
+                      d={mobilePath}
                     />
-                  </circle>
-                </svg>
-                  );
-                })()}
-                <p className="landing-start-action-copy">{action.description}</p>
+                    <circle className="landing-start-action-curve-glow landing-start-action-curve-glow-desktop" r="4.5">
+                      <animateMotion
+                        dur={index === 0 ? "6.4s" : "6.9s"}
+                        repeatCount="indefinite"
+                        rotate="auto"
+                        path={
+                          index === 0
+                            ? "M220 12 C 220 42, 212 64, 190 82 C 156 110, 106 104, 72 128 C 46 146, 22 154, -12 142"
+                            : "M220 12 C 220 42, 228 64, 250 82 C 284 110, 334 104, 368 128 C 394 146, 418 154, 452 142"
+                        }
+                      />
+                    </circle>
+                    <circle className="landing-start-action-curve-glow landing-start-action-curve-glow-mobile" r="4.5">
+                      <animateMotion
+                        dur={index === 0 ? "4.8s" : "5.1s"}
+                        repeatCount="indefinite"
+                        rotate="auto"
+                        path={mobilePath}
+                      />
+                    </circle>
+                  </svg>
+                    );
+                  })()}
+                  <p className="landing-start-action-copy">{action.description}</p>
+                </div>
               </div>
             </div>
           ))}

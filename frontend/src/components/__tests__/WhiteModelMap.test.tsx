@@ -60,6 +60,7 @@ class MockPopup {
 }
 
 class MockMap {
+  options: Record<string, unknown>;
   handlers = new Map<string, Listener[]>();
   onceHandlers = new Map<string, Listener[]>();
   layers = new Map<string, any>();
@@ -90,6 +91,7 @@ class MockMap {
   });
   setPaintProperty = vi.fn();
   setLayoutProperty = vi.fn();
+  setConfigProperty = vi.fn();
   addControl = vi.fn();
   remove = vi.fn();
   queryRenderedFeatures = vi.fn(() => []);
@@ -99,10 +101,12 @@ class MockMap {
   getCanvas = vi.fn(() => ({ style: { touchAction: "", cursor: "" } }));
   getContainer = vi.fn(() => ({ style: { touchAction: "" }, clientWidth: 1200, clientHeight: 800 }));
   dragPan = { enable: vi.fn() };
+  dragRotate = { enable: vi.fn() };
   touchZoomRotate = { enable: vi.fn(), enableRotation: vi.fn() };
   touchPitch = { enable: vi.fn() };
 
-  constructor() {
+  constructor(options: Record<string, unknown> = {}) {
+    this.options = options;
     mapInstances.push(this);
   }
 
@@ -170,6 +174,43 @@ afterEach(() => {
 });
 
 describe("WhiteModelMap", () => {
+  test("can disable the default mapbox navigation control and expose viewport controls", async () => {
+    const module = await import("../WhiteModelMap");
+    const WhiteModelMap = module.default;
+    const onViewportControlsReady = vi.fn();
+
+    const view = render(
+      <WhiteModelMap
+        mapboxToken="token"
+        startPoint={null}
+        endPoint={null}
+        route={null}
+        focusedStep={null}
+        showEasePlaces={false}
+        showNaturalPlaces={false}
+        showStreetFacilities={false}
+        showNavigationControl={false}
+        onMapClick={vi.fn()}
+        onMapError={vi.fn()}
+        onViewportControlsReady={onViewportControlsReady}
+      />
+    );
+
+    const map = mapInstances[0];
+    expect(map).toBeTruthy();
+    expect(map.addControl).not.toHaveBeenCalled();
+    expect(onViewportControlsReady).toHaveBeenCalledWith(
+      expect.objectContaining({
+        zoomIn: expect.any(Function),
+        zoomOut: expect.any(Function),
+      })
+    );
+
+    view.unmount();
+
+    expect(onViewportControlsReady).toHaveBeenLastCalledWith(null);
+  });
+
   test("preloaded routes are focused from the start point and route styling stays visually prominent", async () => {
     const module = await import("../WhiteModelMap");
     const WhiteModelMap = module.default;
@@ -231,4 +272,81 @@ describe("WhiteModelMap", () => {
 
     view.unmount();
   });
+
+  test("registers upgraded park highlight layers without changing route behavior", async () => {
+    const module = await import("../WhiteModelMap");
+    const WhiteModelMap = module.default;
+
+    const view = render(
+      <WhiteModelMap
+        mapboxToken="token"
+        startPoint={null}
+        endPoint={null}
+        route={null}
+        focusedStep={null}
+        showEasePlaces={false}
+        showNaturalPlaces={true}
+        showStreetFacilities={false}
+        onMapClick={vi.fn()}
+        onMapError={vi.fn()}
+      />
+    );
+
+    const map = mapInstances[0];
+    expect(map).toBeTruthy();
+
+    act(() => {
+      map.trigger("style.load");
+    });
+
+    expect(map.layers.has("parks-fill-base-3d")).toBe(true);
+    expect(map.layers.has("parks-fill-glow-3d")).toBe(true);
+    expect(map.layers.has("parks-line-3d")).toBe(true);
+
+    view.unmount();
+  });
+
+  test("loads Mapbox Standard with 3D building details enabled and no custom white-model building layer", async () => {
+    const module = await import("../WhiteModelMap");
+    const WhiteModelMap = module.default;
+
+    const view = render(
+      <WhiteModelMap
+        mapboxToken="token"
+        startPoint={null}
+        endPoint={null}
+        route={null}
+        focusedStep={null}
+        showEasePlaces={false}
+        showNaturalPlaces={false}
+        showStreetFacilities={false}
+        onMapClick={vi.fn()}
+        onMapError={vi.fn()}
+      />
+    );
+
+    const map = mapInstances[0];
+    expect(map).toBeTruthy();
+    expect(map.options.style).toBe("mapbox://styles/mapbox/standard");
+    expect(map.options.config).toEqual({
+      basemap: expect.objectContaining({
+        lightPreset: "day",
+        show3dObjects: true,
+        show3dBuildings: true,
+        show3dLandmarks: true,
+        show3dTrees: true,
+        show3dFacades: true,
+      }),
+    });
+
+    act(() => {
+      map.trigger("style.load");
+    });
+
+    expect(map.setConfigProperty).toHaveBeenCalledWith("basemap", "show3dFacades", true);
+    expect(map.layers.has("white-model-buildings")).toBe(false);
+
+    view.unmount();
+  });
+
 });
