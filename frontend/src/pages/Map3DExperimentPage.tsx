@@ -16,7 +16,7 @@
   XCircle,
 } from "lucide-react";
 import { AnimatePresence, LayoutGroup, motion } from "motion/react";
-import { type CSSProperties, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type ComponentType, type CSSProperties, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
 import AppTopNav from "../components/AppTopNav";
 import WhiteModelMap, {
@@ -59,6 +59,15 @@ const liquidGlassCardClass =
 
 const liquidGlassInteractiveClass =
   `${liquidGlassCardClass} transition duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-0.5 hover:border-white/72 hover:bg-[linear-gradient(145deg,rgba(255,255,255,0.48),rgba(237,246,249,0.24))] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.78),0_18px_42px_rgba(4,14,14,0.12)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#83c5be]/70`;
+
+const routeGuideGlassCardClass =
+  "route-guide-glass-card border border-white/55 bg-[radial-gradient(circle_at_16%_0%,rgba(255,255,255,0.52),transparent_38%),linear-gradient(145deg,rgba(255,255,255,0.46),rgba(237,246,249,0.24)_56%,rgba(255,248,232,0.22))] shadow-[inset_0_1px_0_rgba(255,255,255,0.78),inset_0_-14px_26px_rgba(23,65,63,0.08),0_16px_34px_rgba(4,14,14,0.1)] backdrop-blur-md";
+
+const routeGuideGlassPanelClass =
+  "route-guide-glass-panel border border-[#d9d1c6]/70 bg-[radial-gradient(circle_at_14%_0%,rgba(255,255,255,0.58),transparent_36%),linear-gradient(145deg,rgba(255,250,244,0.94),rgba(245,240,232,0.88)_62%,rgba(236,245,242,0.72))] shadow-[inset_0_1px_0_rgba(255,255,255,0.82),inset_0_-12px_24px_rgba(23,65,63,0.05),0_14px_28px_rgba(10,24,23,0.08)] backdrop-blur-md";
+
+const routeGuideGlassButtonClass =
+  "route-guide-glass-button border border-white/40 bg-[radial-gradient(circle_at_18%_0%,rgba(255,255,255,0.24),transparent_42%),linear-gradient(180deg,#163634_0%,#17413f_100%)] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.24),0_12px_24px_rgba(10,24,23,0.22)] transition duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-0.5 hover:brightness-110 active:translate-y-[1px] active:scale-[0.985] active:shadow-[inset_0_2px_6px_rgba(5,14,14,0.22),0_8px_16px_rgba(10,24,23,0.18)]";
 
 const floatingChromeButtonClass =
   "inline-flex items-center justify-center gap-2 rounded-full border border-white/42 bg-white/72 text-sm font-semibold text-[#17413f] shadow-[inset_0_1px_0_rgba(255,255,255,0.82),0_10px_24px_rgba(23,65,63,0.14)] backdrop-blur-md transition hover:bg-white active:scale-[0.98]";
@@ -155,6 +164,44 @@ type LayerLegendFilters = {
   naturalPlaces: boolean;
   streetFacilities: boolean;
 };
+
+type RouteGuideStep = {
+  id: string;
+  title: string;
+  description: string;
+  icon: ComponentType<{ className?: string }>;
+};
+
+const ROUTE_GUIDE_STEPS: RouteGuideStep[] = [
+  {
+    id: "points",
+    title: "Choose your route points",
+    description:
+      "Tap or click the map once to choose a start point, then pick the destination next. On mobile, the route panel can sit lower, but the guide stays centered so it remains easy to read on small screens.",
+    icon: MapPinned,
+  },
+  {
+    id: "results",
+    title: "Read the route summary quickly",
+    description:
+      "When both points are set, the route panel expands with distance, travel time, and step-by-step directions. Switch between Walking and Cycling to compare the default route without reloading the page.",
+    icon: Navigation,
+  },
+  {
+    id: "controls",
+    title: "Use map controls without losing context",
+    description:
+      "Use the top toolbar for Route, Layers, Tips, Menu, and zoom controls. On smaller screens the toolbar now wraps into grouped rows, so controls scale down and reflow instead of overlapping each other.",
+    icon: Layers3,
+  },
+  {
+    id: "refine",
+    title: "Refine the route when needed",
+    description:
+      "Use the pin button or the Start card to lock point picking, use current location when available, and reopen Tips any time from the toolbar. Turn on Natural Places, Ease Places, or Public Facilities to add more context to the 3D map.",
+    icon: LocateFixed,
+  },
+];
 
 function buildRouteUrl(profile: RouteProfile, startPoint: RoutePoint, endPoint: RoutePoint) {
   const start = `${startPoint.lng},${startPoint.lat}`;
@@ -544,10 +591,6 @@ export default function Map3DExperimentPage() {
     }
   }, []);
 
-  const dismissGuide = useCallback(() => {
-    setShowGuide(false);
-  }, []);
-
   useEffect(() => {
     const mediaQuery = window.matchMedia(MOBILE_PANEL_MEDIA_QUERY);
     const syncViewport = (event?: MediaQueryListEvent) => {
@@ -684,10 +727,11 @@ export default function Map3DExperimentPage() {
         style={{ pointerEvents: landingMenuOpen ? "none" : "auto" }}
       >
         <div
+          data-testid="route-top-toolbar"
           style={routeToolbarStyle}
-          className="flex min-h-14 w-[min(92vw,112rem)] items-center gap-1 rounded-[28px] border border-white/55 px-2 py-2 text-[#17413f] shadow-[inset_0_1px_0_rgba(255,255,255,0.74)]"
+          className="flex min-h-14 w-[min(92vw,112rem)] items-center gap-1 rounded-[28px] border border-white/55 px-2 py-2 text-[#17413f] shadow-[inset_0_1px_0_rgba(255,255,255,0.74)] max-sm:flex-wrap max-sm:justify-between max-sm:gap-y-2 max-sm:rounded-[24px]"
         >
-          <div className="flex min-w-0 items-center gap-1">
+          <div className="flex min-w-0 items-center gap-1 max-sm:w-full max-sm:justify-between">
             <TopBarActionButton
               label="Back"
               icon={<ArrowLeft className="h-4 w-4" />}
@@ -714,8 +758,11 @@ export default function Map3DExperimentPage() {
               </div>
             </LayoutGroup>
           </div>
-          <div className="min-w-6 flex-1" />
-          <div className="flex min-w-0 items-center justify-end gap-1">
+          <div className="min-w-6 flex-1 max-sm:hidden" />
+          <div
+            data-testid="route-top-toolbar-right"
+            className="flex min-w-0 items-center justify-end gap-1 max-sm:w-full max-sm:justify-between"
+          >
             <TopBarActionButton
               label="Tips"
               active={showGuide}
@@ -763,67 +810,8 @@ export default function Map3DExperimentPage() {
       />
       <AnimatePresence>
         {showGuide ? (
-        <motion.div
-          data-testid="route-guide-overlay"
-          style={liquidGlassPanelStyle}
-          className="fixed left-1/2 top-[max(0.75rem,env(safe-area-inset-top))] z-30 max-h-[calc(100dvh-max(1.5rem,env(safe-area-inset-top)+env(safe-area-inset-bottom)))] w-[min(34rem,calc(100vw-1.5rem))] -translate-x-1/2 overflow-y-auto rounded-[30px] border border-white/60 px-5 py-5 text-[#17413f] shadow-[0_28px_70px_rgba(4,14,14,0.18)] sm:top-24 sm:max-h-[calc(100dvh-6rem)] sm:w-[min(34rem,calc(100vw-2rem))] sm:px-7 sm:py-7"
-          initial={{ opacity: 0, scale: 0.82, y: 46 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.9, y: 18 }}
-          transition={{ type: "spring", stiffness: 210, damping: 18, mass: 0.9 }}
-        >
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#5f8682]">Quick guide</p>
-                <h2 className="mt-1 text-[1.45rem] font-semibold leading-tight sm:text-[1.65rem]">3D Route Preview</h2>
-              </div>
-              <button
-                type="button"
-                onClick={dismissGuide}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/45 bg-white/40 text-[#456765] transition hover:bg-white/65 hover:text-[#17413f]"
-                aria-label="Close 3D route guide"
-                title="Close"
-              >
-                <XCircle className="h-4 w-4" />
-              </button>
-            </div>
-
-            <div className="mt-5 space-y-3.5 text-[0.96rem] leading-6 text-[#456765]">
-              <div className={`rounded-2xl px-4 py-3.5 ${liquidGlassCardClass}`}>
-                Tap or click the map once to choose your start point.
-              </div>
-              <div className={`rounded-2xl px-4 py-3.5 ${liquidGlassCardClass}`}>
-                Pick the end point next and the route panel will expand with directions.
-              </div>
-              <div className={`rounded-2xl px-4 py-3.5 ${liquidGlassCardClass}`}>
-                Use the <span className="font-semibold text-[#17413f]">pin button</span> or tap the <span className="font-semibold text-[#17413f]">Start card</span> to lock map point picking. While locked, map clicks will not replace your route points.
-              </div>
-              <div className={`rounded-2xl px-4 py-3.5 ${liquidGlassCardClass}`}>
-                To choose new points again, delete <span className="font-semibold text-[#17413f]">Start</span> or <span className="font-semibold text-[#17413f]">End</span>, then turn point picking back on.
-              </div>
-              <div className={`rounded-2xl px-4 py-3.5 ${liquidGlassCardClass}`}>
-                Switch between <span className="font-semibold text-[#17413f]">Route</span> and <span className="font-semibold text-[#17413f]">Layers</span> in the lower panel any time.
-              </div>
-              <div className={`rounded-2xl px-4 py-3.5 ${liquidGlassCardClass}`}>
-                In <span className="font-semibold text-[#17413f]">Layers</span>, you can turn on <span className="font-semibold text-[#17413f]">Natural Places</span> for parks and water, <span className="font-semibold text-[#17413f]">Ease Places</span> for supportive destinations, and <span className="font-semibold text-[#17413f]">Public Facilities</span> for bike racks, fountains, and seating.
-              </div>
-              <div className={`rounded-2xl px-4 py-3.5 ${liquidGlassCardClass}`}>
-                When a layer is active, the <span className="font-semibold text-[#17413f]">Layer legend</span> below updates so you can quickly understand what each colour and symbol means on the 3D map.
-              </div>
-            </div>
-
-            <div className="mt-6 flex items-center justify-between gap-3">
-              <p className="max-w-[15rem] text-xs leading-5 text-[#6b8582]">This guide appears once after each refresh. Use the button below to reopen it any time.</p>
-              <button
-                type="button"
-                onClick={dismissGuide}
-                className="inline-flex min-h-11 items-center justify-center rounded-full border border-[#83c5be]/55 bg-[#17413f] px-4 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(23,65,63,0.24)] transition hover:bg-[#0f3230] active:scale-[0.98]"
-              >
-                Got it
-              </button>
-            </div>
-        </motion.div>
-      ) : null}
+          <RouteGuideDialog open={showGuide} onOpenChange={setShowGuide} />
+        ) : null}
       </AnimatePresence>
       {selectedEasePlace && areaLayers.easePlaces ? (
         <EasePlacesDetailPopup
@@ -1494,6 +1482,152 @@ function TopBarActionButton({
         <span className="sr-only">{label}</span>
       )}
     </motion.button>
+  );
+}
+
+function RouteGuideDialog({
+  open,
+  onOpenChange,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const [stepIndex, setStepIndex] = useState(0);
+  const currentStep = ROUTE_GUIDE_STEPS[stepIndex];
+  const StepIcon = currentStep.icon;
+
+  useEffect(() => {
+    if (!open) return;
+    setStepIndex(0);
+  }, [open]);
+
+  return (
+    <motion.div
+      data-testid="route-guide-overlay"
+      className="fixed inset-0 z-[320] flex items-center justify-center overflow-hidden px-2 py-[max(0.75rem,env(safe-area-inset-top))] sm:px-4 sm:py-6"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+    >
+      <button
+        type="button"
+        className="absolute inset-0 bg-[#0c1716]/16 backdrop-blur-[2px]"
+        aria-label="Close 3D route guide"
+        onClick={() => onOpenChange(false)}
+      />
+
+      <motion.div
+        style={{
+          background: "linear-gradient(180deg, #122d2b 0%, #eef8f5 25%, #f7fbfa 75%, #122d2b 100%)",
+        }}
+        className="relative w-[min(640px,calc(100vw-1rem))] overflow-hidden rounded-[28px] border border-[#d9e5e2] text-[#17413f] shadow-[0_28px_80px_rgba(10,24,23,0.2)]"
+        initial={{ opacity: 0, scale: 0.9, y: 28 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.94, y: 18 }}
+        transition={{ type: "spring", stiffness: 220, damping: 20, mass: 0.9 }}
+      >
+        <div className="flex items-center justify-between border-b border-white/25 px-5 py-4 sm:px-6">
+          <div className="flex items-center gap-2 text-white">
+            <MapPinned className="h-5 w-5" />
+            <span className="text-sm font-semibold uppercase tracking-[0.14em]">Tips Guide</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => onOpenChange(false)}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/35 bg-white/12 text-white transition hover:bg-white/20"
+            aria-label="Close 3D route guide"
+          >
+            <XCircle className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="px-5 pb-5 pt-4 sm:px-6 sm:pb-6">
+          <motion.div
+            key={`route-guide-step-${currentStep.id}`}
+            data-testid="route-guide-step-card"
+            className={`mb-4 rounded-2xl p-4 ${routeGuideGlassCardClass}`}
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+          >
+            <div className="flex items-center gap-3">
+              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-[#d4e3df] bg-gradient-to-b from-[#122d2b] to-[#17413f] text-white">
+                <StepIcon className="h-6 w-6" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#5f8682]">
+                  Step {stepIndex + 1} of {ROUTE_GUIDE_STEPS.length}
+                </p>
+                <h2 className="mt-1 text-xl font-bold text-[#10201f] sm:text-2xl">{currentStep.title}</h2>
+              </div>
+            </div>
+          </motion.div>
+
+          <motion.div
+            key={`route-guide-copy-${currentStep.id}`}
+            data-testid="route-guide-body-card"
+            className={`mb-5 min-h-[156px] rounded-2xl p-4 text-sm leading-7 text-[#3f5f5b] sm:p-5 ${routeGuideGlassPanelClass}`}
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+          >
+            <p>{currentStep.description}</p>
+            {currentStep.id === "refine" ? (
+              <div className="mt-4 rounded-xl border border-[#d7e4e0] bg-white/80 px-3 py-3 text-xs leading-6 text-[#4c6d69]">
+                This guide appears once after each refresh. Use the toolbar Tips button any time you want to reopen it.
+              </div>
+            ) : null}
+          </motion.div>
+
+          <div className="flex items-center justify-between gap-3 max-sm:flex-wrap">
+            <div className="flex items-center gap-2">
+              {ROUTE_GUIDE_STEPS.map((step, index) => (
+                <span
+                  key={step.id}
+                  className={`h-2.5 w-2.5 rounded-full transition-all duration-250 ${
+                    index === stepIndex ? "bg-[#17413f]" : "bg-[#b7cbc7]"
+                  }`}
+                />
+              ))}
+            </div>
+
+            <div className="flex items-center gap-2 max-sm:w-full max-sm:justify-end">
+              <button
+                type="button"
+                onClick={() => setStepIndex((value) => Math.max(value - 1, 0))}
+                disabled={stepIndex === 0}
+                className={`rounded-md border px-4 py-2 text-sm font-semibold uppercase tracking-[0.08em] shadow-[0_10px_20px_rgba(10,24,23,0.2)] transition ${
+                  stepIndex === 0
+                    ? "cursor-not-allowed border-[#c9d8d4] bg-[#dde8e5] text-[#7a918d]"
+                    : routeGuideGlassButtonClass
+                }`}
+              >
+                Previous
+              </button>
+              {stepIndex < ROUTE_GUIDE_STEPS.length - 1 ? (
+                <button
+                  data-testid="route-guide-next-button"
+                  type="button"
+                  onClick={() => setStepIndex((value) => Math.min(value + 1, ROUTE_GUIDE_STEPS.length - 1))}
+                  className={`rounded-md px-5 py-2 text-sm font-semibold uppercase tracking-[0.08em] ${routeGuideGlassButtonClass}`}
+                >
+                  Next
+                </button>
+              ) : (
+                <button
+                  data-testid="route-guide-next-button"
+                  type="button"
+                  onClick={() => onOpenChange(false)}
+                  className={`rounded-md px-5 py-2 text-sm font-semibold uppercase tracking-[0.08em] ${routeGuideGlassButtonClass}`}
+                >
+                  Done
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </motion.div>
+    </motion.div>
   );
 }
 

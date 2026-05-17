@@ -1,7 +1,21 @@
-import { createScope, createTimeline, stagger } from "animejs";
-import { ArrowLeft, ArrowUpRight, MoveRight } from "lucide-react";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { animate, createScope, createTimeline, stagger } from "animejs";
+import gsap from "gsap";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
+import {
+  ArrowLeft,
+  ArrowRight,
+  ArrowUpRight,
+  Compass,
+  Map,
+  MoveRight,
+  ShieldCheck,
+  Sparkles,
+  Waves,
+  Wind,
+} from "lucide-react";
+import { useEffect, useLayoutEffect, useRef, type CSSProperties } from "react";
 import { useNavigate } from "react-router";
+import { APP_ROUTES } from "../lib/navigation";
 import "./aboutus.css";
 
 const PORTFOLIO_URL =
@@ -9,135 +23,145 @@ const PORTFOLIO_URL =
 
 const heroSignals = [
   {
-    title: "Comfort score",
-    copy: "Read how different precincts may feel before you step outside.",
+    label: "City-scale awareness",
+    value: "Comfort field",
+    copy: "Compare precinct patterns before a familiar trip becomes a draining one.",
   },
   {
-    title: "Route preview",
-    copy: "Use the 3D journey view to rehearse crossings, turns, and distance.",
+    label: "Street-level reassurance",
+    value: "Route rehearsal",
+    copy: "Preview crossings, incline, and route mood before you commit to leaving.",
+  },
+  {
+    label: "Heat-aware departures",
+    value: "Timing cues",
+    copy: "Turn heat, rain, and exposure into timing decisions that feel realistic.",
+  },
+] as const;
+
+const storyPanels = [
+  {
+    kicker: "Signal stream",
+    title: "Weather, route form, public context, and support places rarely change at the same speed.",
+    copy:
+      "MoveComfortly brings these signals together so users can compare how Melbourne trips may feel before they head out.",
+  },
+  {
+    kicker: "Route atmosphere",
+    title: "We treat movement as a felt experience rather than a simple line on a map.",
+    copy:
+      "That means paying attention to exposure, route confidence, nearby support, and the emotional ease of a journey, not only destination logic.",
+  },
+  {
+    kicker: "Urban rhythm",
+    title: "The project is designed for real departures, changing weather, and short urban trips.",
+    copy:
+      "That is why MoveComfortly focuses on practical route awareness, nearby support places, and easier timing decisions instead of generic travel inspiration.",
+  },
+] as const;
+
+const productModules = [
+  {
+    title: "Map intelligence",
+    copy:
+      "Read comfort score patterns, local places, and route context in one composite surface.",
+    meta: "Useful for fast comparison before departure.",
+    icon: Map,
+  },
+  {
+    title: "3D route preview",
+    copy:
+      "Step into the shape of the journey with a calmer spatial rehearsal of what comes next.",
+    meta: "Useful when route texture matters as much as the destination.",
+    icon: Compass,
   },
   {
     title: "Risk guidance",
-    copy: "Turn shifting heat, rain, and exposure into timing choices.",
-  },
-  {
-    title: "Local signals",
-    copy: "Bring together facilities, activity, and street-level conditions.",
-  },
-] as const;
-
-const storyBlocks = [
-  {
-    kicker: "What it is",
-    title: "A planning layer for how a trip feels, not only where it goes.",
     copy:
-      "MoveComfortly compares Melbourne precincts through comfort score, route context, nearby support places, and everyday conditions so users can prepare before leaving.",
+      "Translate shifting heat, rainfall, and exposure into practical movement choices.",
+    meta: "Educational and actionable without over-claiming certainty.",
+    icon: Waves,
   },
   {
-    kicker: "Who it serves",
-    title: "Built for students, short urban trips, and people moving on a real schedule.",
+    title: "Route atmosphere",
     copy:
-      "The experience is designed for walkers, cyclists, and young workers who need clearer signals than a single city-wide forecast when deciding how and when to travel.",
+      "Bring together elevation feel, exposure cues, and street confidence into a more human picture of the trip.",
+    meta: "Focused on how a route feels in motion.",
+    icon: Wind,
   },
   {
-    kicker: "Why it matters",
-    title: "Small environmental changes can completely change the comfort of a familiar route.",
+    title: "Support-place context",
     copy:
-      "Shade, heat, rain, activity, air quality, and access to support places all affect confidence outdoors. MoveComfortly helps turn those signals into practical route and timing decisions.",
+      "Surface the nearby places and facilities that can make an exposed route easier to manage.",
+    meta: "Helpful when conditions shift mid-journey.",
+    icon: ShieldCheck,
+  },
+  {
+    title: "Journey timing",
+    copy:
+      "Help users decide when to leave by framing changing conditions as part of the journey, not background noise.",
+    meta: "Built for daily schedules and short city trips.",
+    icon: Sparkles,
   },
 ] as const;
 
-const capabilityRows = [
-  "Compare comfort across nearby precincts before committing to a trip.",
-  "Preview route shape and elevation context in a calmer 3D scene.",
-  "Understand risk changes across weather events and exposed streets.",
-  "Prepare with live-adjacent signals and support-place awareness.",
-] as const;
-
-const researchPillars = [
+const evidencePillars = [
   {
-    title: "Walkability",
-    copy: "Street-level movement patterns, nearby support places, and everyday trip legibility.",
+    title: "Public data context",
+    copy:
+      "The product draws from Melbourne-related public information and environmental signals rather than one generic city-wide reading.",
   },
   {
-    title: "Microclimate",
-    copy: "Heat exposure, cooling, shade, and local environmental comfort signals.",
+    title: "Comparative guidance",
+    copy:
+      "Users see relative conditions and route context so they can make their own judgement with more confidence.",
   },
   {
-    title: "Weather safety",
-    copy: "Educational guidance for timing, exposure, and more confident movement outdoors.",
+    title: "Educational framing",
+    copy:
+      "Risk, comfort, and support information are presented as aids for awareness and preparation, not as absolute promises.",
   },
 ] as const;
 
-const portfolioMarkers = ["Research", "Process", "Documentation"] as const;
+const archiveMarkers = [
+  "Research notes",
+  "Design rationale",
+  "Process evidence",
+  "Documentation trail",
+] as const;
 
-function renderAnimatedWords(value: string, className: string, prefix: string) {
-  return value.split(" ").map((word, index, words) => (
-    <span className={className} key={`${prefix}-${word}-${index}`} aria-hidden="true">
-      {word}
-      {index < words.length - 1 ? "\u00A0" : ""}
-    </span>
-  ));
-}
+const signalMarquee = [
+  "Signal stream",
+  "Comfort field",
+  "Route atmosphere",
+  "Heat-aware departures",
+  "Street-level reassurance",
+  "Journey timing",
+] as const;
 
-function renderAnimatedLines(lines: readonly string[], className: string, prefix: string) {
-  return lines.map((line, index) => (
-    <span className={className} key={`${prefix}-${index}`}>
-      {line}
-    </span>
-  ));
-}
-
-function PortfolioEmbed() {
-  const iframeRef = useRef<HTMLIFrameElement>(null);
-  const [blocked, setBlocked] = useState(false);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      try {
-        const doc = iframeRef.current?.contentDocument;
-        if (!doc || doc.body === null) setBlocked(true);
-      } catch {
-        setBlocked(true);
-      }
-    }, 2500);
-    return () => clearTimeout(timer);
-  }, []);
-
-  if (blocked) {
-    return (
-      <div className="aboutus-portfolio-fallback">
-        <div className="aboutus-portfolio-fallback-copy">
-          <p className="aboutus-portfolio-fallback-kicker">Monash ePortfolio</p>
-          <h3>Open the full project record in a dedicated tab</h3>
-          <p>
-            View the supporting process notes, design rationale, and project documentation in
-            the original portfolio space.
-          </p>
-        </div>
-        <a href={PORTFOLIO_URL} target="_blank" rel="noopener noreferrer">
-          Open portfolio
-          <ArrowUpRight className="h-4 w-4" />
-        </a>
-      </div>
-    );
-  }
-
-  return (
-    <iframe
-      ref={iframeRef}
-      src={PORTFOLIO_URL}
-      title="MoveComfortly Portfolio"
-      className="aboutus-portfolio-frame"
-      loading="lazy"
-      onError={() => setBlocked(true)}
-    />
-  );
-}
-
-export default function AboutUsPage() {
+function AboutUsPage() {
   const navigate = useNavigate();
   const pageRef = useRef<HTMLDivElement | null>(null);
+  const routePathRef = useRef<SVGPathElement | null>(null);
+  const modulesRailRef = useRef<HTMLDivElement | null>(null);
+
+  const handleBack = () => {
+    const historyState = window.history.state as { idx?: number } | null;
+    if (typeof historyState?.idx === "number" && historyState.idx <= 0) {
+      navigate(APP_ROUTES.home);
+      return;
+    }
+
+    navigate(-1);
+  };
+
+  const scrollModulesRailBy = (direction: -1 | 1) => {
+    const rail = modulesRailRef.current;
+    if (!rail) return;
+
+    const step = Math.min(rail.clientWidth * 0.82, 320);
+    rail.scrollBy({ left: direction * step, behavior: "smooth" });
+  };
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "auto" });
@@ -156,299 +180,408 @@ export default function AboutUsPage() {
       return;
     }
 
-    const scope = createScope({ root }).add(() => {
-      const heroKicker = root.querySelector(".aboutus-hero-kicker");
-      const heroTitleWords = Array.from(root.querySelectorAll(".aboutus-hero-title-word"));
-      const heroLines = Array.from(root.querySelectorAll(".aboutus-hero-line"));
-      const heroActions = Array.from(root.querySelectorAll(".aboutus-hero-actions button"));
-      const heroActionSheens = Array.from(root.querySelectorAll(".aboutus-hero-actions .aboutus-button-sheen"));
-      const heroPanel = root.querySelector(".aboutus-hero-panel");
-      const heroSignalCards = Array.from(root.querySelectorAll(".aboutus-signal-card"));
-      const storyLead = root.querySelector(".aboutus-story-lead");
-      const storyBlocksNodes = Array.from(root.querySelectorAll(".aboutus-story-block"));
-      const capabilityRowsNodes = Array.from(root.querySelectorAll(".aboutus-capability-row"));
-      const researchLead = root.querySelector(".aboutus-research-lead");
-      const researchTrack = root.querySelector(".aboutus-research-track-fill");
-      const researchPillarsNodes = Array.from(root.querySelectorAll(".aboutus-research-pillar"));
-      const portfolioFrame = root.querySelector(".aboutus-portfolio-shell");
-      const portfolioMarkersNodes = Array.from(root.querySelectorAll(".aboutus-portfolio-marker"));
-      const ctaKicker = root.querySelector(".aboutus-cta-kicker");
-      const ctaTitle = root.querySelector(".aboutus-cta-title");
-      const ctaSub = root.querySelector(".aboutus-cta-sub");
-      const ctaButtons = Array.from(root.querySelectorAll(".aboutus-cta-actions button"));
+    const canUseScrollTrigger = typeof window.matchMedia === "function";
 
-      const timeline = createTimeline({
+    const animeScope = createScope({ root }).add(() => {
+      const introTimeline = createTimeline({
         defaults: {
           duration: 760,
           ease: "inOut(3)",
         },
       });
 
+      const heroKicker = root.querySelector(".aboutus-hero-kicker");
+      const heroTitle = root.querySelector(".aboutus-hero-title");
+      const heroCopy = root.querySelector(".aboutus-hero-copy-block");
+      const heroActions = Array.from(root.querySelectorAll(".aboutus-hero-actions > *"));
+      const heroConsole = root.querySelector(".aboutus-hero-console");
+      const heroRoute = root.querySelector(".aboutus-hero-route-panel");
+      const heroChips = Array.from(root.querySelectorAll(".aboutus-floating-chip"));
+      const heroSignalsNodes = Array.from(root.querySelectorAll(".aboutus-signal-card"));
+      const marqueeRows = Array.from(root.querySelectorAll(".aboutus-marquee-row"));
+
       if (heroKicker) {
-        timeline.add(heroKicker, {
+        introTimeline.add(heroKicker, {
           opacity: [0, 1],
-          y: ["20px", "0px"],
-          filter: ["blur(12px)", "blur(0px)"],
-          duration: 420,
+          y: ["18px", "0px"],
+          filter: ["blur(8px)", "blur(0px)"],
+          duration: 380,
         });
       }
 
-      if (heroTitleWords.length > 0) {
-        timeline.add(
-          heroTitleWords,
+      if (heroTitle) {
+        introTimeline.add(
+          heroTitle,
           {
             opacity: [0, 1],
-            y: ["1.1em", "0em"],
-            rotate: ["4deg", "0deg"],
-            filter: ["blur(14px)", "blur(0px)"],
-            delay: stagger(74),
+            y: ["36px", "0px"],
+            filter: ["blur(18px)", "blur(0px)"],
             duration: 620,
           },
-          "-=180"
+          "-=120"
         );
       }
 
-      if (heroLines.length > 0) {
-        timeline.add(
-          heroLines,
+      if (heroCopy) {
+        introTimeline.add(
+          heroCopy,
           {
             opacity: [0, 1],
-            y: ["18px", "0px"],
-            filter: ["blur(10px)", "blur(0px)"],
-            delay: stagger(86),
-            duration: 560,
-          },
-          "-=340"
-        );
-      }
-
-      if (heroActions.length > 0) {
-        timeline.add(
-          heroActions,
-          {
-            opacity: [0, 1],
-            y: ["18px", "0px"],
-            scale: [0.96, 1],
-            delay: stagger(120),
-            duration: 540,
+            y: ["24px", "0px"],
+            duration: 440,
           },
           "-=260"
         );
       }
 
-      if (heroActionSheens.length > 0) {
-        timeline.add(
-          heroActionSheens,
+      if (heroActions.length > 0) {
+        introTimeline.add(
+          heroActions,
           {
             opacity: [0, 1],
-            x: ["-26px", "0px"],
+            y: ["18px", "0px"],
+            scale: [0.96, 1],
             delay: stagger(110),
-            duration: 360,
+            duration: 440,
           },
-          "-=380"
+          "-=240"
         );
       }
 
-      if (heroPanel) {
-        timeline.add(
-          heroPanel,
+      if (heroConsole) {
+        introTimeline.add(
+          heroConsole,
           {
             opacity: [0, 1],
             x: ["42px", "0px"],
-            y: ["24px", "0px"],
+            y: ["18px", "0px"],
             rotate: ["-2deg", "0deg"],
             scale: [0.97, 1],
             filter: ["blur(18px)", "blur(0px)"],
             duration: 760,
           },
-          "-=760"
+          "-=680"
         );
       }
 
-      if (heroSignalCards.length > 0) {
-        timeline.add(
-          heroSignalCards,
-          {
-            opacity: [0, 1],
-            x: (_target: Element, index: number) => (index % 2 === 0 ? ["-18px", "0px"] : ["18px", "0px"]),
-            y: ["20px", "0px"],
-            delay: stagger(96, { grid: [2, 2], from: "center" }),
-            duration: 560,
-          },
-          "-=520"
-        );
-      }
-
-      if (storyLead) {
-        timeline.add(
-          storyLead,
-          {
-            opacity: [0, 1],
-            y: ["24px", "0px"],
-            filter: ["blur(10px)", "blur(0px)"],
-            duration: 560,
-          },
-          "-=180"
-        );
-      }
-
-      if (storyBlocksNodes.length > 0) {
-        timeline.add(
-          storyBlocksNodes,
-          {
-            opacity: [0, 1],
-            x: (_target: Element, index: number) => (index % 2 === 0 ? ["-24px", "0px"] : ["24px", "0px"]),
-            y: ["24px", "0px"],
-            delay: stagger(120),
-            duration: 620,
-          },
-          "-=220"
-        );
-      }
-
-      if (capabilityRowsNodes.length > 0) {
-        timeline.add(
-          capabilityRowsNodes,
-          {
-            opacity: [0, 1],
-            x: ["20px", "0px"],
-            delay: stagger(86),
-            duration: 520,
-          },
-          "-=520"
-        );
-      }
-
-      if (researchLead) {
-        timeline.add(
-          researchLead,
-          {
-            opacity: [0, 1],
-            y: ["18px", "0px"],
-            filter: ["blur(10px)", "blur(0px)"],
-            duration: 520,
-          },
-          "-=120"
-        );
-      }
-
-      if (researchTrack) {
-        timeline.add(
-          researchTrack,
-          {
-            width: ["0%", "100%"],
-            opacity: [0.2, 1],
-            duration: 680,
-          },
-          "-=160"
-        );
-      }
-
-      if (researchPillarsNodes.length > 0) {
-        timeline.add(
-          researchPillarsNodes,
+      if (heroRoute) {
+        introTimeline.add(
+          heroRoute,
           {
             opacity: [0, 1],
             y: ["22px", "0px"],
-            scale: [0.96, 1],
-            delay: stagger(110),
-            duration: 560,
+            scale: [0.98, 1],
+            duration: 520,
+          },
+          "-=520"
+        );
+      }
+
+      if (heroChips.length > 0) {
+        introTimeline.add(
+          heroChips,
+          {
+            opacity: [0, 1],
+            y: ["14px", "0px"],
+            delay: stagger(100),
+            duration: 360,
           },
           "-=460"
         );
       }
 
-      if (portfolioFrame) {
-        timeline.add(
-          portfolioFrame,
+      if (heroSignalsNodes.length > 0) {
+        introTimeline.add(
+          heroSignalsNodes,
           {
             opacity: [0, 1],
-            y: ["28px", "0px"],
-            scale: [0.985, 1],
-            filter: ["blur(14px)", "blur(0px)"],
-            duration: 640,
-          },
-          "-=120"
-        );
-      }
-
-      if (portfolioMarkersNodes.length > 0) {
-        timeline.add(
-          portfolioMarkersNodes,
-          {
-            opacity: [0, 1],
-            y: ["10px", "0px"],
-            delay: stagger(88),
-            duration: 420,
-          },
-          "-=420"
-        );
-      }
-
-      if (ctaKicker) {
-        timeline.add(
-          ctaKicker,
-          {
-            opacity: [0, 1],
-            y: ["16px", "0px"],
-            duration: 400,
-          },
-          "-=120"
-        );
-      }
-
-      if (ctaTitle) {
-        timeline.add(
-          ctaTitle,
-          {
-            opacity: [0, 1],
-            y: ["18px", "0px"],
-            filter: ["blur(10px)", "blur(0px)"],
-            duration: 560,
-          },
-          "-=220"
-        );
-      }
-
-      if (ctaSub) {
-        timeline.add(
-          ctaSub,
-          {
-            opacity: [0, 1],
-            y: ["18px", "0px"],
+            y: ["20px", "0px"],
+            x: (_target: Element, index: number) => (index % 2 === 0 ? ["-16px", "0px"] : ["16px", "0px"]),
+            delay: stagger(90),
             duration: 460,
           },
           "-=320"
         );
       }
 
-      if (ctaButtons.length > 0) {
-        timeline.add(
-          ctaButtons,
+      if (marqueeRows.length > 0) {
+        introTimeline.add(
+          marqueeRows,
           {
             opacity: [0, 1],
-            y: ["18px", "0px"],
-            scale: [0.96, 1],
-            delay: stagger(110),
-            duration: 460,
+            y: ["12px", "0px"],
+            delay: stagger(80),
+            duration: 320,
           },
-          "-=300"
+          "-=380"
+        );
+      }
+
+      const floatTargets = Array.from(root.querySelectorAll(".aboutus-float-node"));
+      if (floatTargets.length > 0) {
+        animate(floatTargets, {
+          translateY: [
+            { to: -8, ease: "inOutSine", duration: 1800 },
+            { to: 0, ease: "inOutSine", duration: 1800 },
+          ],
+          delay: stagger(180),
+          loop: true,
+          alternate: true,
+        });
+      }
+
+      const pulseTargets = Array.from(root.querySelectorAll(".aboutus-pulse-node"));
+      if (pulseTargets.length > 0) {
+        animate(pulseTargets, {
+          scale: [
+            { to: 1.06, ease: "inOutSine", duration: 1400 },
+            { to: 1, ease: "inOutSine", duration: 1400 },
+          ],
+          opacity: [
+            { to: 1, ease: "inOutSine", duration: 1400 },
+            { to: 0.74, ease: "inOutSine", duration: 1400 },
+          ],
+          delay: stagger(160),
+          loop: true,
+          alternate: true,
+        });
+      }
+
+      const routePanel = root.querySelector(".aboutus-hero-route-panel");
+      const routeOverlay = root.querySelector(".aboutus-route-overlay");
+      if (
+        routePanel &&
+        routeOverlay &&
+        typeof (routeOverlay as SVGPathElement).getTotalLength === "function"
+      ) {
+        const overlayPath = routeOverlay as SVGPathElement;
+        const routeLength = overlayPath.getTotalLength();
+        overlayPath.style.strokeDasharray = `${routeLength}`;
+        overlayPath.style.strokeDashoffset = `${routeLength}`;
+
+        introTimeline.add(
+          overlayPath,
+          {
+            strokeDashoffset: [routeLength, 0],
+            duration: 1200,
+            ease: "out(3)",
+          },
+          "-=420"
         );
       }
     });
 
+    let cleanupModulesRail = () => {};
+    const modulesRail = modulesRailRef.current;
+    if (modulesRail) {
+      const moduleCards = Array.from(modulesRail.querySelectorAll<HTMLElement>(".aboutus-module-card"));
+      let isDragging = false;
+      let startX = 0;
+      let startScrollLeft = 0;
+      let lastScrollLeft = modulesRail.scrollLeft;
+
+      const settleCards = () => {
+        moduleCards.forEach((card) => {
+          gsap.to(card, {
+            duration: 1.05,
+            ease: "elastic.out(1, 0.42)",
+            "--swing-rotate": 0,
+            "--swing-shift": 0,
+            overwrite: true,
+          });
+        });
+      };
+
+      const applySwing = (delta: number) => {
+        moduleCards.forEach((card, index) => {
+          const direction = index % 2 === 0 ? 1 : -1;
+          const rotate = gsap.utils.clamp(-9, 9, delta * 0.16 * direction);
+          const shift = gsap.utils.clamp(0, 16, Math.abs(delta) * (0.28 + (index % 3) * 0.05));
+
+          gsap.set(card, {
+            "--swing-rotate": rotate,
+            "--swing-shift": shift,
+          });
+        });
+
+        settleCards();
+      };
+
+      const handleScroll = () => {
+        const delta = modulesRail.scrollLeft - lastScrollLeft;
+        lastScrollLeft = modulesRail.scrollLeft;
+        if (Math.abs(delta) > 0.2) {
+          applySwing(delta);
+        }
+      };
+
+      const handlePointerDown = (event: PointerEvent) => {
+        if (event.button !== 0) return;
+        isDragging = true;
+        startX = event.clientX;
+        startScrollLeft = modulesRail.scrollLeft;
+        modulesRail.classList.add("is-dragging");
+        modulesRail.setPointerCapture?.(event.pointerId);
+        event.preventDefault();
+      };
+
+      const handlePointerMove = (event: PointerEvent) => {
+        if (!isDragging) return;
+        const deltaX = event.clientX - startX;
+        modulesRail.scrollLeft = startScrollLeft - deltaX * 1.08;
+        event.preventDefault();
+      };
+
+      const stopDragging = (event?: PointerEvent) => {
+        isDragging = false;
+        modulesRail.classList.remove("is-dragging");
+        if (event) {
+          modulesRail.releasePointerCapture?.(event.pointerId);
+        }
+      };
+
+      modulesRail.addEventListener("scroll", handleScroll, { passive: true });
+      modulesRail.addEventListener("pointerdown", handlePointerDown);
+      window.addEventListener("pointermove", handlePointerMove);
+      window.addEventListener("pointerup", stopDragging);
+      modulesRail.addEventListener("pointerleave", stopDragging);
+
+      settleCards();
+
+      cleanupModulesRail = () => {
+        modulesRail.removeEventListener("scroll", handleScroll);
+        modulesRail.removeEventListener("pointerdown", handlePointerDown);
+        window.removeEventListener("pointermove", handlePointerMove);
+        window.removeEventListener("pointerup", stopDragging);
+        modulesRail.removeEventListener("pointerleave", stopDragging);
+      };
+    }
+
+    const gsapContext = canUseScrollTrigger
+      ? gsap.context(() => {
+          gsap.registerPlugin(ScrollTrigger);
+
+          gsap.utils.toArray<HTMLElement>(".aboutus-parallax-layer").forEach((layer, index) => {
+            gsap.to(layer, {
+              yPercent: index % 2 === 0 ? -10 : 10,
+              ease: "none",
+              scrollTrigger: {
+                trigger: root,
+                start: "top bottom",
+                end: "bottom top",
+                scrub: 1,
+              },
+            });
+          });
+
+          gsap.utils.toArray<HTMLElement>(".aboutus-marquee-track").forEach((track, index) => {
+            gsap.fromTo(
+              track,
+              { xPercent: index % 2 === 0 ? 0 : -10 },
+              {
+                xPercent: index % 2 === 0 ? -24 : 14,
+                ease: "none",
+                scrollTrigger: {
+                  trigger: ".aboutus-marquee",
+                  start: "top bottom",
+                  end: "bottom top",
+                  scrub: 1.2,
+                },
+              }
+            );
+          });
+
+          gsap.utils.toArray<HTMLElement>(".aboutus-reveal-panel").forEach((panel, index) => {
+            gsap.fromTo(
+              panel,
+              {
+                opacity: 0,
+                y: 80,
+                rotateX: 8,
+              },
+              {
+                opacity: 1,
+                y: 0,
+                rotateX: 0,
+                duration: 1.1,
+                ease: "power3.out",
+                delay: index * 0.05,
+                scrollTrigger: {
+                  trigger: panel,
+                  start: "top 84%",
+                  toggleActions: "play none none reverse",
+                },
+              }
+            );
+          });
+
+          const storyRail = root.querySelector(".aboutus-story-rail");
+          const storyStage = root.querySelector(".aboutus-story-stage");
+          if (storyRail && storyStage && window.innerWidth > 1080) {
+            ScrollTrigger.create({
+              trigger: storyStage,
+              start: "top top+=88",
+              end: "bottom bottom-=120",
+              pin: storyRail,
+              pinSpacing: false,
+            });
+          }
+
+          const routePath = routePathRef.current;
+          const routePanel = root.querySelector(".aboutus-hero-route-panel");
+          if (routePath && routePanel) {
+            gsap.to(routePanel, {
+              yPercent: -8,
+              ease: "none",
+              scrollTrigger: {
+                trigger: routePanel,
+                start: "top 85%",
+                end: "bottom top",
+                scrub: 1,
+              },
+            });
+          }
+
+          gsap.fromTo(
+            ".aboutus-cta-panel",
+            { opacity: 0, y: 64, scale: 0.98 },
+            {
+              opacity: 1,
+              y: 0,
+              scale: 1,
+              duration: 1,
+              ease: "power3.out",
+              scrollTrigger: {
+                trigger: ".aboutus-cta-panel",
+                start: "top 82%",
+                toggleActions: "play none none reverse",
+              },
+            }
+          );
+        }, root)
+      : null;
+
     return () => {
-      scope.revert();
+      animeScope.revert();
+      cleanupModulesRail();
+      gsapContext?.revert();
+      if (canUseScrollTrigger) {
+        ScrollTrigger.getAll().forEach((trigger) => trigger.kill());
+      }
     };
   }, []);
 
   return (
     <div ref={pageRef} className="aboutus-page">
       <section className="aboutus-hero">
+        <div className="aboutus-hero-noise" aria-hidden="true" />
+        <div className="aboutus-hero-glow aboutus-parallax-layer aboutus-float-node" aria-hidden="true" />
+        <div className="aboutus-hero-glow aboutus-hero-glow--secondary aboutus-parallax-layer aboutus-pulse-node" aria-hidden="true" />
+
         <button
           type="button"
           className="aboutus-back-button"
-          onClick={() => navigate(-1)}
+          onClick={handleBack}
           aria-label="Go back"
         >
           <ArrowLeft className="h-4 w-4" />
@@ -459,126 +592,229 @@ export default function AboutUsPage() {
           <div className="aboutus-hero-copy">
             <p className="aboutus-hero-kicker">MoveComfortly Melbourne</p>
             <h1 className="aboutus-hero-title">
-              {renderAnimatedWords(
-                "Urban comfort, seen before the trip starts.",
-                "aboutus-hero-title-word",
-                "hero-title"
-              )}
+              See urban comfort before the street asks you to react.
             </h1>
-            <div className="aboutus-hero-sub">
-              {renderAnimatedLines(
-                [
-                  "MoveComfortly helps people understand how a route may feel before they travel.",
-                  "It combines comfort score, route preview, support places, and weather-aware guidance for inner Melbourne.",
-                ],
-                "aboutus-hero-line",
-                "hero-line"
-              )}
+            <div className="aboutus-hero-copy-block">
+              <p>
+                MoveComfortly helps walkers, cyclists, students, and young workers compare how
+                Melbourne routes may feel before they travel.
+              </p>
+              <p>
+                The project combines comfort score, route preview, local support places, and
+                weather-aware guidance so users can make calmer departure decisions.
+              </p>
             </div>
             <div className="aboutus-hero-actions">
-              <button className="aboutus-btn-primary" onClick={() => navigate("/map")}>
-                <span className="aboutus-button-sheen" aria-hidden="true"></span>
+              <button className="aboutus-btn-primary" onClick={() => navigate(APP_ROUTES.map)}>
                 Explore the map
               </button>
               <button
-                className="aboutus-btn-secondary aboutus-btn-secondary--hero"
-                onClick={() => navigate("/map/3d-route")}
+                className="aboutus-btn-secondary"
+                onClick={() => navigate(APP_ROUTES.map3dRoute)}
               >
-                <span className="aboutus-button-sheen" aria-hidden="true"></span>
                 Open 3D route
                 <MoveRight className="h-4 w-4" />
               </button>
             </div>
           </div>
 
-          <aside className="aboutus-hero-panel" aria-label="MoveComfortly concept panel">
-            <div className="aboutus-hero-panel-orbit" aria-hidden="true">
-              <span className="aboutus-hero-panel-orbit-ring aboutus-hero-panel-orbit-ring--outer"></span>
-              <span className="aboutus-hero-panel-orbit-ring aboutus-hero-panel-orbit-ring--inner"></span>
+          <aside className="aboutus-hero-console">
+            <div className="aboutus-console-header">
+              <div className="aboutus-console-topline">
+                <span className="aboutus-console-dot aboutus-pulse-node" aria-hidden="true" />
+                About MoveComfortly
+              </div>
+              <p className="aboutus-console-kicker">Signal stream</p>
             </div>
-            <div className="aboutus-hero-panel-header">
-              <p className="aboutus-panel-kicker">Live concept panel</p>
-              <h2>MoveComfortly Melbourne</h2>
+
+            <div className="aboutus-console-heading">
+              <h2>Route comfort, local support, and weather context in one planning layer.</h2>
               <p>
-                A compact planning layer that turns street-level conditions into clearer movement
-                choices.
+                MoveComfortly is built to help users understand how a trip may feel, not only
+                where it goes.
               </p>
             </div>
+
+            <div className="aboutus-console-chips">
+              <span className="aboutus-floating-chip aboutus-float-node">Comfort field active</span>
+              <span className="aboutus-floating-chip aboutus-floating-chip--warm aboutus-float-node">
+                Heat-aware departures
+              </span>
+              <span className="aboutus-floating-chip aboutus-float-node">Street-level reassurance</span>
+            </div>
+
             <div className="aboutus-signal-grid">
               {heroSignals.map((signal) => (
-                <article key={signal.title} className="aboutus-signal-card">
-                  <p className="aboutus-signal-title">{signal.title}</p>
-                  <p className="aboutus-signal-copy">{signal.copy}</p>
+                <article key={signal.label} className="aboutus-signal-card">
+                  <p className="aboutus-signal-label">{signal.label}</p>
+                  <h3>{signal.value}</h3>
+                  <p>{signal.copy}</p>
                 </article>
               ))}
             </div>
+
+            <div className="aboutus-hero-route-panel">
+              <div className="aboutus-route-head">
+                <p className="aboutus-route-kicker">Route atmosphere</p>
+                <span className="aboutus-route-badge aboutus-pulse-node">Live concept</span>
+              </div>
+              <svg
+                className="aboutus-route-svg"
+                viewBox="0 0 320 124"
+                aria-hidden="true"
+                preserveAspectRatio="none"
+              >
+                <path
+                  className="aboutus-route-base"
+                  d="M10 95 C40 62 74 26 112 34 C142 40 160 102 196 102 C238 102 250 36 310 18"
+                />
+                <path
+                  ref={routePathRef}
+                  className="aboutus-route-overlay"
+                  d="M10 95 C40 62 74 26 112 34 C142 40 160 102 196 102 C238 102 250 36 310 18"
+                />
+                <path
+                  className="aboutus-route-dash"
+                  d="M10 95 C40 62 74 26 112 34 C142 40 160 102 196 102 C238 102 250 36 310 18"
+                />
+                <circle className="aboutus-route-node aboutus-pulse-node" cx="10" cy="95" r="6" />
+                <circle className="aboutus-route-node aboutus-pulse-node" cx="112" cy="34" r="6" />
+                <circle className="aboutus-route-node aboutus-pulse-node" cx="196" cy="102" r="6" />
+                <circle className="aboutus-route-node aboutus-pulse-node" cx="310" cy="18" r="7" />
+              </svg>
+            </div>
           </aside>
+        </div>
+      </section>
+
+      <section className="aboutus-marquee" aria-label="Signal stream ribbon">
+        <div className="aboutus-marquee-row">
+          <div className="aboutus-marquee-track">
+            {signalMarquee.concat(signalMarquee).map((label, index) => (
+              <span key={`row-a-${label}-${index}`}>{label}</span>
+            ))}
+          </div>
+        </div>
+        <div className="aboutus-marquee-row aboutus-marquee-row--alt">
+          <div className="aboutus-marquee-track">
+            {signalMarquee.concat(signalMarquee).map((label, index) => (
+              <span key={`row-b-${label}-${index}`}>{label}</span>
+            ))}
+          </div>
         </div>
       </section>
 
       <section className="aboutus-story">
-        <div className="aboutus-shell aboutus-story-grid">
-          <div className="aboutus-story-column">
-            <div className="aboutus-story-lead">
-              <p className="aboutus-section-kicker">Why it matters</p>
-              <h2>A clearer picture before you leave.</h2>
-              <p>
-                MoveComfortly turns route comfort, local conditions, and support-place context into
-                a quick pre-trip read for people moving through Melbourne on a real schedule.
-              </p>
-            </div>
-
-            <div className="aboutus-story-stack">
-              {storyBlocks.map((block, index) => (
-                <article
-                  key={block.kicker}
-                  className={`aboutus-story-block aboutus-story-block--${index % 2 === 0 ? "left" : "right"}`}
-                >
-                  <p className="aboutus-story-block-kicker">{block.kicker}</p>
-                  <h3>{block.title}</h3>
-                  <p>{block.copy}</p>
-                </article>
-              ))}
-            </div>
-          </div>
-
-          <aside className="aboutus-capability-card">
-            <div className="aboutus-capability-header">
-              <p className="aboutus-section-kicker">Product capability</p>
-              <h3>Four ways the interface supports a better departure decision.</h3>
-            </div>
-
-            <div className="aboutus-capability-list">
-              {capabilityRows.map((item) => (
-                <div key={item} className="aboutus-capability-row">
-                  <span className="aboutus-capability-bullet" aria-hidden="true"></span>
-                  <p>{item}</p>
-                </div>
-              ))}
-            </div>
+        <div className="aboutus-shell aboutus-story-stage">
+          <aside className="aboutus-story-rail">
+            <p className="aboutus-section-kicker">Why it exists</p>
+            <h2>A trip is a moving atmosphere, not only a destination.</h2>
+            <p>
+              MoveComfortly helps people read route comfort with more nuance by bringing together
+              route shape, weather exposure, comfort score, and nearby support places.
+            </p>
           </aside>
+
+          <div className="aboutus-story-stack">
+            {storyPanels.map((panel, index) => (
+              <article
+                key={panel.kicker}
+                className={`aboutus-story-panel aboutus-reveal-panel aboutus-story-panel--${index + 1}`}
+              >
+                <p className="aboutus-panel-kicker">{panel.kicker}</p>
+                <h3>{panel.title}</h3>
+                <p>{panel.copy}</p>
+              </article>
+            ))}
+          </div>
         </div>
       </section>
 
-      <section className="aboutus-research">
+      <section className="aboutus-modules">
         <div className="aboutus-shell">
-          <div className="aboutus-research-lead">
-            <p className="aboutus-section-kicker">Grounded in public research</p>
-            <h2>Evidence runs underneath the interface, even when the experience feels lightweight.</h2>
+          <div className="aboutus-section-lead aboutus-reveal-panel">
+            <p className="aboutus-section-kicker">What the product does</p>
+            <h2>Six movement layers turn scattered urban signals into a richer departure check.</h2>
             <p>
-              The concept brings together Melbourne-related public data and design research so the
-              guidance stays educational, comparative, and practical rather than over-claiming.
+              These parts of the project help users compare places, preview routes, understand
+              weather risk, and prepare for the journey ahead.
             </p>
           </div>
 
-          <div className="aboutus-research-track" aria-hidden="true">
-            <span className="aboutus-research-track-fill"></span>
+          <div className="aboutus-modules-rail-shell aboutus-reveal-panel">
+            <div className="aboutus-modules-rope" aria-hidden="true" />
+            <p className="aboutus-modules-hint">Drag sideways to explore all six layers</p>
+            <div
+              ref={modulesRailRef}
+              className="aboutus-modules-rail"
+              aria-label="MoveComfortly capability layers carousel"
+            >
+            {productModules.map((module, index) => {
+              const Icon = module.icon;
+              const cardStyle = {
+                "--card-tilt": index % 2 === 0 ? -1.6 : 1.6,
+                "--hang-length": 38 + (index % 3) * 8,
+              } as CSSProperties;
+
+              return (
+                <article
+                  key={module.title}
+                  className={`aboutus-module-card aboutus-reveal-panel aboutus-module-card--${index + 1}`}
+                  style={cardStyle}
+                >
+                  <span className="aboutus-module-peg" aria-hidden="true" />
+                  <span className="aboutus-module-string" aria-hidden="true" />
+                  <div className="aboutus-module-icon">
+                    <Icon className="h-5 w-5" />
+                  </div>
+                  <div className="aboutus-module-copy">
+                    <h3>{module.title}</h3>
+                    <p>{module.copy}</p>
+                  </div>
+                  <p className="aboutus-module-meta">{module.meta}</p>
+                </article>
+              );
+            })}
+            </div>
+            <div className="aboutus-modules-controls">
+              <button
+                type="button"
+                className="aboutus-modules-control"
+                onClick={() => scrollModulesRailBy(-1)}
+                aria-label="Scroll capability cards left"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                <span>Left</span>
+              </button>
+              <button
+                type="button"
+                className="aboutus-modules-control"
+                onClick={() => scrollModulesRailBy(1)}
+                aria-label="Scroll capability cards right"
+              >
+                <span>Right</span>
+                <ArrowRight className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="aboutus-evidence">
+        <div className="aboutus-shell">
+          <div className="aboutus-section-lead aboutus-reveal-panel">
+            <p className="aboutus-section-kicker">Trust and evidence</p>
+            <h2>MoveComfortly uses public data and research to support clearer route awareness.</h2>
+            <p>
+              The project is designed to stay comparative and educational, so users can make better
+              travel decisions without the system over-promising certainty.
+            </p>
           </div>
 
-          <div className="aboutus-research-grid">
-            {researchPillars.map((pillar) => (
-              <article key={pillar.title} className="aboutus-research-pillar">
-                <span className="aboutus-research-dot" aria-hidden="true"></span>
+          <div className="aboutus-evidence-grid">
+            {evidencePillars.map((pillar) => (
+              <article key={pillar.title} className="aboutus-evidence-card aboutus-reveal-panel">
+                <Sparkles className="h-4 w-4" />
                 <h3>{pillar.title}</h3>
                 <p>{pillar.copy}</p>
               </article>
@@ -587,54 +823,74 @@ export default function AboutUsPage() {
         </div>
       </section>
 
-      <section className="aboutus-portfolio">
-        <div className="aboutus-shell aboutus-portfolio-shell">
-          <div className="aboutus-portfolio-heading">
-            <div>
-              <p className="aboutus-section-kicker">Project portfolio</p>
-              <h2>Research / Process / Documentation</h2>
-              <p>
-                The portfolio captures the supporting project story behind MoveComfortly, from
-                rationale and interface decisions to the broader documentation trail.
-              </p>
-            </div>
+      <section className="aboutus-archive">
+        <div className="aboutus-shell aboutus-archive-shell aboutus-reveal-panel">
+          <div className="aboutus-archive-copy">
+            <p className="aboutus-section-kicker">Project archive</p>
+            <h2>Explore the research and design record behind MoveComfortly.</h2>
+            <p>
+              The Monash ePortfolio collects the supporting research, design process, and
+              documentation developed for the project.
+            </p>
+          </div>
 
-            <div className="aboutus-portfolio-marker-row" aria-label="Portfolio content markers">
-              {portfolioMarkers.map((marker) => (
-                <span key={marker} className="aboutus-portfolio-marker">
+          <div className="aboutus-archive-panel">
+            <div className="aboutus-archive-marker-row" aria-label="Archive markers">
+              {archiveMarkers.map((marker) => (
+                <span key={marker} className="aboutus-archive-marker">
                   {marker}
                 </span>
               ))}
             </div>
-          </div>
 
-          <div className="aboutus-portfolio-frame-shell">
-            <PortfolioEmbed />
+            <div className="aboutus-archive-meta">
+              <p className="aboutus-archive-label">Monash ePortfolio</p>
+              <h3>Research, process notes, design rationale, and supporting documentation.</h3>
+              <p>
+                Open the original project record in a dedicated tab when you want the full academic
+                and design trail behind MoveComfortly.
+              </p>
+            </div>
+
+            <a
+              href={PORTFOLIO_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="aboutus-archive-link"
+            >
+              Open Monash ePortfolio
+              <ArrowUpRight className="h-4 w-4" />
+            </a>
           </div>
         </div>
       </section>
 
       <section className="aboutus-cta">
-        <div className="aboutus-shell aboutus-cta-shell">
-          <p className="aboutus-cta-kicker">Next step</p>
-          <h2 className="aboutus-cta-title">See how a route feels before you leave.</h2>
-          <p className="aboutus-cta-sub">
-            Start with the map for place decisions, or move into the 3D route view when you want a
-            calmer preview of the journey itself.
-          </p>
-          <div className="aboutus-cta-actions">
-            <button className="aboutus-btn-primary" onClick={() => navigate("/map")}>
-              <span className="aboutus-button-sheen" aria-hidden="true"></span>
-              Open the map
-            </button>
-            <button className="aboutus-btn-secondary" onClick={() => navigate("/map/3d-route")}>
-              <span className="aboutus-button-sheen" aria-hidden="true"></span>
-              Open 3D route
-              <MoveRight className="h-4 w-4" />
-            </button>
+        <div className="aboutus-shell">
+          <div className="aboutus-cta-panel">
+            <p className="aboutus-cta-kicker">Next step</p>
+            <h2>See how a route feels before you leave.</h2>
+            <p>
+              Start with the map when you want place-aware comparison, or move into the 3D route
+              view when the route itself deserves a calmer rehearsal.
+            </p>
+            <div className="aboutus-cta-actions">
+              <button className="aboutus-btn-primary" onClick={() => navigate(APP_ROUTES.map)}>
+                Open the map
+              </button>
+              <button
+                className="aboutus-btn-secondary"
+                onClick={() => navigate(APP_ROUTES.map3dRoute)}
+              >
+                Open 3D route
+                <MoveRight className="h-4 w-4" />
+              </button>
+            </div>
           </div>
         </div>
       </section>
     </div>
   );
 }
+
+export default AboutUsPage;
