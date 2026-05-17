@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode, type WheelEvent } from "react";
 import { AnimatePresence, motion } from "motion/react";
+import { animate, utils } from "animejs";
 import { Flame, CloudRain, Snowflake, ArrowLeft } from "lucide-react";
 import { useNavigate } from "react-router";
 import AppTopNav from "../components/AppTopNav";
@@ -530,8 +531,13 @@ export default function ExtremeWeatherRisksPage() {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const topSectionRef = useRef<HTMLElement | null>(null);
   const quizSectionRef = useRef<HTMLElement | null>(null);
+  const quizIntroRef = useRef<HTMLDivElement | null>(null);
   const wheelLockedRef = useRef(false);
   const [activePanel, setActivePanel] = useState<"ring" | "quiz">("ring");
+  const [introAnimated, setIntroAnimated] = useState(false);
+  const ringIntroRef = useRef<HTMLDivElement | null>(null);
+  const ringTitleRef = useRef<HTMLHeadingElement | null>(null);
+  const ringDiskRef = useRef<HTMLDivElement | null>(null);
 
   const segmentAngle = 360 / weatherTypes.length;
   const viewSize = isSmallScreen ? 500 : 780;
@@ -549,6 +555,53 @@ export default function ExtremeWeatherRisksPage() {
     window.addEventListener("resize", check);
     return () => window.removeEventListener("resize", check);
   }, []);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setIntroAnimated(true), 360);
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    const host = ringIntroRef.current;
+    const title = ringTitleRef.current;
+    const disk = ringDiskRef.current;
+    if (!host || !title || !disk) return;
+    utils.remove([title, disk]);
+    if (activePanel !== "ring") return;
+
+    animate(title, {
+      opacity: [0, 1],
+      translateY: [-14, 0],
+      duration: 620,
+      ease: "out(3)",
+    });
+
+    animate(disk, {
+      opacity: [0, 1],
+      translateY: [22, 0],
+      delay: 260,
+      duration: 760,
+      ease: "out(3)",
+    });
+  }, [activePanel]);
+
+  useEffect(() => {
+    const node = quizIntroRef.current;
+    if (!node) return;
+    const items = Array.from(node.querySelectorAll<HTMLElement>("[data-quiz-intro-item]"));
+    utils.remove(node);
+    utils.remove(items);
+    if (activePanel !== "quiz") return;
+
+    animate(node, { opacity: [0, 1], duration: 220, ease: "out(2)" });
+    animate(items, {
+      opacity: [0, 1],
+      translateY: [-16, 0],
+      delay: utils.stagger(130, { start: 120 }),
+      duration: 560,
+      ease: "out(3)",
+    });
+  }, [activePanel]);
 
   const detailOffsetX = isSmallScreen
     ? 0
@@ -759,7 +812,10 @@ export default function ExtremeWeatherRisksPage() {
       onWheel={handlePageWheel}
       onScroll={handleContainerScroll}
       className="h-screen overflow-y-auto overflow-x-hidden snap-y snap-mandatory"
-      style={{ backgroundColor: "#081515" }}
+      style={{
+        background:
+          "linear-gradient(180deg, #122d2b 0%, #eef8f5 16%, #f7fbfa 76%, #dfeee9 100%)",
+      }}
     >
       <div className="fixed top-0 left-0 right-0 z-40 px-3 sm:px-4 pt-2 sm:pt-3 pointer-events-none">
         <div className="pointer-events-auto">
@@ -791,8 +847,8 @@ export default function ExtremeWeatherRisksPage() {
               }}
               className={`px-2.5 py-1 rounded-md text-xs font-semibold border text-left ${
                 activePanel === item.id
-                  ? "bg-white text-[#081515] border-white"
-                  : "text-white border-white/40 hover:bg-white/10"
+                  ? "bg-[#17413f] text-white border-[#17413f]"
+                  : "text-[#10201f] border-[#17413f]/35 hover:bg-[#17413f]/10"
               }`}
             >
               {item.label}
@@ -802,27 +858,24 @@ export default function ExtremeWeatherRisksPage() {
       </nav>
 
       <section ref={topSectionRef} className="snap-start h-screen pt-12 sm:pt-14">
-        <div className="relative h-full flex flex-col items-center justify-center px-2 sm:px-4 overflow-hidden">
-          <motion.h2
-            className="absolute top-0 sm:top-2 left-1/2 -translate-x-1/2 z-20 text-white text-3xl sm:text-5xl lg:text-6xl font-bold tracking-wide text-center pointer-events-none"
-            initial={false}
-            animate={{ opacity: showPanelDetail ? 0 : 1 }}
-            transition={{ duration: 0.32, ease: "easeOut" }}
+        <div ref={ringIntroRef} className="relative h-full flex flex-col items-center justify-center px-2 sm:px-4 overflow-hidden">
+          <h2
+            ref={ringTitleRef}
+            className="absolute top-0 sm:top-2 left-1/2 -translate-x-1/2 z-20 text-[#10201f] text-3xl sm:text-5xl lg:text-6xl font-bold tracking-wide text-center pointer-events-none"
+            style={{ opacity: showPanelDetail ? 0 : 1 }}
           >
             Extreme Weather Panel
-          </motion.h2>
-          <motion.div
+          </h2>
+          <div
+            ref={ringDiskRef}
             className="relative z-10"
-            animate={showPanelDetail ? {
-              scale: isSmallScreen ? 0.42 : 0.48,
-              x: isSmallScreen ? -175 : -560,
-              y: isSmallScreen ? 110 : 165,
-            } : {
-              scale: 1,
-              x: 0,
-              y: 8,
+            style={{
+              opacity: introAnimated ? 1 : 0,
+              transform: showPanelDetail
+                ? `translate(${isSmallScreen ? -175 : -560}px, ${isSmallScreen ? 110 : 165}px) scale(${isSmallScreen ? 0.42 : 0.48})`
+                : "translate(0px, 8px) scale(1)",
+              transition: "transform 520ms cubic-bezier(0.22, 1, 0.36, 1), opacity 360ms ease-out",
             }}
-            transition={{ type: "spring", stiffness: 55, damping: 18, mass: 1.08 }}
           >
             <motion.svg
             width={viewSize}
@@ -1028,7 +1081,7 @@ export default function ExtremeWeatherRisksPage() {
               </AnimatePresence>
             </motion.div>
           </div>
-          </motion.div>
+          </div>
 
           <AnimatePresence>
             {showPanelDetail && selectedWeatherType !== null && (
@@ -1177,15 +1230,20 @@ export default function ExtremeWeatherRisksPage() {
         ref={quizSectionRef}
         className="snap-start h-screen pt-12 sm:pt-14 border-t border-white/20"
       >
-        <div className="h-full px-4 sm:px-6 py-6 sm:py-8">
+        <div
+          ref={quizIntroRef}
+          className="h-full px-4 sm:px-6 py-6 sm:py-8"
+          style={{ opacity: activePanel === "quiz" ? 1 : 0.72 }}
+        >
           <div className="h-full w-full max-w-6xl mx-auto flex flex-col items-center justify-center text-center">
-            <h2 className="text-5xl sm:text-7xl lg:text-8xl font-extrabold text-white tracking-wide leading-tight">
+            <h2 data-quiz-intro-item className="text-5xl sm:text-7xl lg:text-8xl font-extrabold text-[#10201f] tracking-wide leading-tight">
               Start Quiz
             </h2>
-            <p className="text-lg sm:text-2xl lg:text-3xl text-gray-200 mt-6 max-w-4xl leading-relaxed">
+            <p data-quiz-intro-item className="text-lg sm:text-2xl lg:text-3xl text-[#2d4947] mt-6 max-w-4xl leading-relaxed">
               Want to check how well you understand these risks? Give it a try and see your result.
             </p>
             <button
+              data-quiz-intro-item
               type="button"
               onClick={() => navigate("/extreme-weather-risks-quiz")}
               className="mt-10 px-10 py-4 rounded-xl bg-teal-600 text-white text-xl sm:text-2xl font-semibold hover:bg-teal-700 transition-colors shadow-lg shadow-teal-900/40"

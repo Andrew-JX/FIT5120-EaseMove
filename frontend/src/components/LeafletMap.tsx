@@ -188,6 +188,7 @@ export default function LeafletMap({
   onMapReady,
   onEasePlacesClick,
 }: LeafletMapProps) {
+  const markerScaleRef = useRef(1);
   const mapRef = useRef<L.Map | null>(null);
   const markersRef = useRef<L.Marker[]>([]);
   const poiRef = useRef<L.Layer[]>([]);
@@ -206,6 +207,15 @@ export default function LeafletMap({
   const showEasePlacesRef = useRef(showEasePlaces);
   const showStreetFacilitiesRef = useRef(showStreetFacilities);
   const showNaturalPlacesRef = useRef(showNaturalPlaces);
+  useEffect(() => {
+    const updateScale = () => {
+      const width = typeof window !== 'undefined' ? window.innerWidth : 1024;
+      markerScaleRef.current = width <= 360 ? 0.74 : width <= 420 ? 0.82 : width <= 768 ? 0.9 : 1;
+    };
+    updateScale();
+    window.addEventListener('resize', updateScale);
+    return () => window.removeEventListener('resize', updateScale);
+  }, []);
   useEffect(() => { onMapReadyRef.current = onMapReady; }, [onMapReady]);
   useEffect(() => { onEasePlacesClickRef.current = onEasePlacesClick; }, [onEasePlacesClick]);
   useEffect(() => { onAreaClickRef.current = onAreaClick; }, [onAreaClick]);
@@ -508,11 +518,23 @@ export default function LeafletMap({
     }
 
     validPrecincts.forEach(precinct => {
+      const markerScale = markerScaleRef.current;
+      const scoreFont = Math.max(8, Math.round(10 * markerScale));
+      const scorePaddingY = Math.max(1, Math.round(2 * markerScale));
+      const scorePaddingX = Math.max(3, Math.round(6 * markerScale));
+      const pinW = Math.max(20, Math.round(28 * markerScale));
+      const pinH = Math.max(24, Math.round(32 * markerScale));
+      const pinInner = Math.max(3, Math.round(5 * markerScale));
+      const iconW = Math.max(28, Math.round(40 * markerScale));
+      const iconH = Math.max(36, Math.round(50 * markerScale));
+      const staleSize = Math.max(10, Math.round(14 * markerScale));
+      const staleFont = Math.max(7, Math.round(8 * markerScale));
+      const outline = Math.max(2, Math.round(3 * markerScale));
       const isStalePrecinct = precinct.stale_data || precinct.id === 'flemington';
       const color = comfortColor(precinct.comfort_label, isStalePrecinct);
       const isCompared = precinct.id === compareSelection1 || precinct.id === compareSelection2;
       const staleBadge = isStalePrecinct
-        ? `<div style="position:absolute;top:-4px;right:-4px;width:14px;height:14px;background:#ef4444;border-radius:50%;border:2px solid white;display:flex;align-items:center;justify-content:center;font-size:8px;color:white;font-weight:bold;">!</div>`
+        ? `<div style="position:absolute;top:-4px;right:-4px;width:${staleSize}px;height:${staleSize}px;background:#ef4444;border-radius:50%;border:2px solid white;display:flex;align-items:center;justify-content:center;font-size:${staleFont}px;color:white;font-weight:bold;">!</div>`
         : '';
       const staleMessage = isStalePrecinct ? '<br/><span style="color:#ef4444">Data outdated</span>' : '';
 
@@ -521,21 +543,21 @@ export default function LeafletMap({
         html: `
           <div style="position:relative;display:flex;flex-direction:column;align-items:center;cursor:pointer;">
             <div style="
-              background:white;color:#111;font-size:10px;font-weight:700;
-              padding:2px 6px;border-radius:4px;border:2px solid ${color};
+              background:white;color:#111;font-size:${scoreFont}px;font-weight:700;
+              padding:${scorePaddingY}px ${scorePaddingX}px;border-radius:4px;border:2px solid ${color};
               margin-bottom:2px;white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,0.18);
-              ${isCompared ? 'outline:3px solid #0ea5e9;' : ''}
+              ${isCompared ? `outline:${outline}px solid #0ea5e9;` : ''}
             ">${precinct.comfort_score}</div>
-            <svg width="28" height="32" viewBox="0 0 28 32" xmlns="http://www.w3.org/2000/svg">
+            <svg width="${pinW}" height="${pinH}" viewBox="0 0 28 32" xmlns="http://www.w3.org/2000/svg">
               <path d="M14 0C6.268 0 0 6.268 0 14c0 9.6 14 18 14 18s14-8.4 14-18C28 6.268 21.732 0 14 0z"
                 fill="${color}" stroke="white" stroke-width="2"/>
-              <circle cx="14" cy="13" r="5" fill="white" opacity="0.5"/>
+              <circle cx="14" cy="13" r="${pinInner}" fill="white" opacity="0.5"/>
             </svg>
             ${staleBadge}
           </div>`,
-        iconSize: [40, 50],
-        iconAnchor: [20, 50],
-        popupAnchor: [0, -50],
+        iconSize: [iconW, iconH],
+        iconAnchor: [Math.round(iconW / 2), iconH],
+        popupAnchor: [0, -iconH],
       });
 
       const marker = L.marker([precinct.lat, precinct.lng], { icon, pane: 'precinctPane' })
@@ -553,7 +575,7 @@ export default function LeafletMap({
   return (
     <div
       ref={containerRef}
-      style={{ height: 'clamp(420px, calc(100vh - 230px), 680px)', width: '100%', zIndex: 0 }}
+      style={{ height: '100%', width: '100%', zIndex: 0 }}
     />
   );
 }
