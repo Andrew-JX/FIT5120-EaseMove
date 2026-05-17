@@ -1,17 +1,18 @@
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useRef, useLayoutEffect } from "react";
 import { useLocation, useNavigate } from "react-router";
+import { animate, utils } from "animejs";
 import {
   Thermometer, Droplets, Users, X, Wind, Map, ArrowLeft,
-  Layers, List, Plus, Minus, ZoomIn, Snowflake, Tag,
+  Layers, Plus, Minus, ZoomIn, Snowflake, Tag,
   ChevronDown, ChevronUp, ThermometerSun, Sun, Moon, Clock, Lightbulb,
   Eye, TrendingUp, Star, MapPin,
 } from "lucide-react";
 import { LineChart, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import L from "leaflet";
-import logo from "../assets/logo-transparent.png";
 import ideaIcon from "../assets/idea.png";
 import questionMarkIcon from "../assets/question-mark.png";
 import warningIcon from "../assets/warning.png";
+import logoTransparent from "../assets/logo-transparent.png";
 import AppTopNav from "../components/AppTopNav";
 import LeafletMap from "../components/LeafletMap";
 import EasePlacesDetailPopup from "../components/map/EasePlacesDetailPopup";
@@ -37,6 +38,14 @@ import { APP_ROUTES } from "../lib/navigation";
 import AreaDetailPage from "../pages/AreaDetailPage";
 import RecommendationFacilitiesPage from "../pages/RecommendationFacilitiesPage";
 let hasAutoShownMapGuideThisRuntime = false;
+
+const MAP_LAYOUT_NAV_ITEMS = [
+  { label: "Landing Page", to: APP_ROUTES.home },
+  { label: "Map", to: APP_ROUTES.map },
+  { label: "3D Route", to: APP_ROUTES.map3dRoute },
+  { label: "Risks", to: APP_ROUTES.risks },
+  { label: "About Us", to: APP_ROUTES.about },
+] as const;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -194,8 +203,8 @@ function SensorStatusRow({
   error: string | null;
   }) {
     return (
-      <div className="flex shrink-0 items-center justify-end gap-2 whitespace-nowrap">
-        <div className="w-[126px] shrink-0 sm:w-[174px]">
+      <div className="flex shrink-0 items-end justify-end gap-1 whitespace-nowrap sm:items-center sm:gap-2">
+        <div className="w-[98px] shrink-0 sm:w-[174px]">
           {loading ? (
             <SensorStatusBadge tone="neutral" pulse>
               Loading sensors...
@@ -309,38 +318,19 @@ function EasePlacesPopup({
 function MapSidebarControls({
   onZoomIn,
   onZoomOut,
-  openPanel,
-  onToggleLayers,
-  onToggleLegend,
+  hidden = false,
 }: {
   onZoomIn: () => void;
   onZoomOut: () => void;
-  openPanel: 'layers' | 'legend' | null;
-  onToggleLayers: () => void;
-  onToggleLegend: () => void;
+  hidden?: boolean;
 }) {
   return (
-    <div className="map-sidebar-controls">
+    <div className={`map-sidebar-controls ${hidden ? "opacity-0 pointer-events-none translate-y-2" : "opacity-100 translate-y-0"}`}>
       <button className="map-ctrl-btn" title="Zoom in" onClick={onZoomIn}>
         <Plus size={18} />
       </button>
       <button className="map-ctrl-btn" title="Zoom out" onClick={onZoomOut}>
         <Minus size={18} />
-      </button>
-      <div className="map-ctrl-sep" />
-      <button
-        className={`map-ctrl-btn${openPanel === 'layers' ? ' active' : ''}`}
-        title="Map filters"
-        onClick={onToggleLayers}
-      >
-        <Layers size={17} />
-      </button>
-      <button
-        className={`map-ctrl-btn${openPanel === 'legend' ? ' active' : ''}`}
-        title="Legend"
-        onClick={onToggleLegend}
-      >
-        <List size={17} />
       </button>
     </div>
   );
@@ -467,12 +457,11 @@ function LegendPanel() {
 
 // ─── App ──────────────────────────────────────────────────────────────────────
 
-export default function App({ mode }: { mode: "view" | "compare" }) {
+export default function App() {
   const navigate = useNavigate();
   const location = useLocation();
   const [weights, setWeights] = useState<ComfortWeights>(() => loadWeights());
   const [debouncedWeights, setDebouncedWeights] = useState<ComfortWeights>(weights);
-  const activeTab = mode;
   const [selectedAreaId, setSelectedAreaId] = useState<string | null>(() =>
     getAreaIdFromSearch(location.search)
   );
@@ -486,7 +475,7 @@ export default function App({ mode }: { mode: "view" | "compare" }) {
     naturalPlaces: false,
   });
   const [showMapGuide, setShowMapGuide] = useState(false);
-  const shouldFetchPrecincts = activeTab === 'compare' || mapFilters.comfortArea;
+  const shouldFetchPrecincts = true;
 
   const { precincts: precinctList, loading, error } = usePrecincts(
     shouldFetchPrecincts ? debouncedWeights : undefined
@@ -498,13 +487,30 @@ export default function App({ mode }: { mode: "view" | "compare" }) {
 
   const [showCard, setShowCard] = useState<string | null>(null);
   // Left sidebar starts collapsed — only relevant when Comfort Area filter is enabled
-  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(true);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [compareSelection1, setCompareSelection1] = useState<string | null>(null);
   const [compareSelection2, setCompareSelection2] = useState<string | null>(null);
+  const [panelOpen, setPanelOpen] = useState(false);
+  const [activeView, setActiveView] = useState<"view" | "compare">("view");
+  const [currentPageLabel, setCurrentPageLabel] = useState("Map");
+  const [exploreOpen, setExploreOpen] = useState(false);
+  const [legendDropdownOpen, setLegendDropdownOpen] = useState(false);
+  const menuPanelRef = useRef<HTMLElement | null>(null);
+  const leftPanelRef = useRef<HTMLDivElement | null>(null);
+  const menuItemRefs = useRef<HTMLButtonElement[]>([]);
+  const floatingUiRefs = useRef<HTMLElement[]>([]);
+  const explorePanelRef = useRef<HTMLDivElement | null>(null);
+  const legendPanelRef = useRef<HTMLDivElement | null>(null);
+  const exploreItemRefs = useRef<HTMLButtonElement[]>([]);
+  const legendItemRefs = useRef<HTMLElement[]>([]);
+  const floatingUiFadeClass = panelOpen ? "pointer-events-none" : "pointer-events-auto";
 
   // Right panel: 'layers' | 'legend' | null — mutually exclusive
-  const [openPanel, setOpenPanel] = useState<'layers' | 'legend' | null>('legend');
+  const [openPanel, setOpenPanel] = useState<'layers' | 'legend' | null>(null);
+  const [leftPanelLayout, setLeftPanelLayout] = useState<{ width: number }>({
+    width: 154,
+  });
 
   // Ease Places popup
   const [easePlacesPopup, setEasePlacesPopup] = useState<{
@@ -519,6 +525,10 @@ export default function App({ mode }: { mode: "view" | "compare" }) {
   const [showTimeRecommendation, setShowTimeRecommendation] = useState(false);
   const [loadingToday, setLoadingToday] = useState(false);
   const nextCompareReplaceSlotRef = useRef<1 | 2>(1);
+  const sectionContainerRef = useRef<HTMLDivElement | null>(null);
+  const viewSectionRef = useRef<HTMLElement | null>(null);
+  const compareSectionRef = useRef<HTMLElement | null>(null);
+  const wheelLockRef = useRef(false);
 
   // Leaflet map instance for programmatic zoom / flyTo
   const mapInstanceRef = useRef<L.Map | null>(null);
@@ -526,10 +536,6 @@ export default function App({ mode }: { mode: "view" | "compare" }) {
   const handleMapReady = useCallback((map: L.Map) => {
     mapInstanceRef.current = map;
   }, []);
-
-  const handleBrandClick = useCallback(() => {
-    navigate(APP_ROUTES.home);
-  }, [navigate]);
 
   const handleAreaNavigation = useCallback((
     areaId: string | null,
@@ -558,16 +564,189 @@ export default function App({ mode }: { mode: "view" | "compare" }) {
     { name: "High Risk",   level: "high",    color: "#ef4444", bgColor: "bg-red-100",    textColor: "text-red-800" },
   ];
 
+  const exploreFilters = [
+    { label: "Ease Places", key: "easePlaces" as const },
+    { label: "Comfort Area", key: "comfortArea" as const },
+    { label: "Street Facilities", key: "streetFacilities" as const },
+    { label: "Natural Places", key: "naturalPlaces" as const },
+  ];
+
   useEffect(() => { saveWeights(weights); }, [weights]);
+  useEffect(() => {
+    const found = MAP_LAYOUT_NAV_ITEMS.find((item) => item.to === location.pathname);
+    if (found) setCurrentPageLabel(found.label);
+  }, [location.pathname]);
+
+  useEffect(() => {
+    const panel = menuPanelRef.current;
+    const items = menuItemRefs.current.filter(Boolean);
+    const floating = floatingUiRefs.current.filter(Boolean);
+    if (!panel) return;
+
+    if (panelOpen) {
+      utils.remove(panel);
+      utils.remove(items);
+      utils.remove(floating);
+
+      animate(panel, {
+        translateX: ["100%", "0%"],
+        duration: 620,
+        ease: "out(3)",
+      });
+
+      animate(items, {
+        opacity: [0, 1],
+        translateY: [12, 0],
+        delay: utils.stagger(90, { start: 180 }),
+        duration: 420,
+        ease: "out(3)",
+      });
+
+      animate(floating, {
+        opacity: [1, 0],
+        translateY: [0, 8],
+        duration: 360,
+        ease: "out(2)",
+      });
+      return;
+    }
+
+    utils.remove(panel);
+    utils.remove(items);
+    utils.remove(floating);
+
+    animate(panel, {
+      translateX: ["0%", "100%"],
+      duration: 520,
+      ease: "in(3)",
+    });
+
+    animate(floating, {
+      opacity: [0, 1],
+      translateY: [8, 0],
+      duration: 380,
+      ease: "out(2)",
+    });
+  }, [panelOpen]);
+
+  useEffect(() => {
+    const panel = explorePanelRef.current;
+    const items = exploreItemRefs.current.filter(Boolean);
+    if (!panel) return;
+    utils.remove(panel);
+    utils.remove(items);
+    if (!exploreOpen) return;
+    animate(panel, {
+      opacity: [0, 1],
+      translateY: [14, 0],
+      duration: 480,
+      ease: "out(3)",
+    });
+    animate(items, {
+      opacity: [0, 1],
+      translateY: [10, 0],
+      delay: utils.stagger(80, { start: 120 }),
+      duration: 360,
+      ease: "out(3)",
+    });
+  }, [exploreOpen]);
+
+  useEffect(() => {
+    const panel = legendPanelRef.current;
+    const items = legendItemRefs.current.filter(Boolean);
+    if (!panel) return;
+    utils.remove(panel);
+    utils.remove(items);
+    if (!legendDropdownOpen) return;
+    animate(panel, {
+      opacity: [0, 1],
+      translateY: [14, 0],
+      duration: 480,
+      ease: "out(3)",
+    });
+    animate(items, {
+      opacity: [0, 1],
+      translateY: [10, 0],
+      delay: utils.stagger(70, { start: 110 }),
+      duration: 340,
+      ease: "out(3)",
+    });
+  }, [legendDropdownOpen]);
+
+  useEffect(() => {
+    const panel = leftPanelRef.current;
+    if (!panel) return;
+    const shouldShow = mapFilters.comfortArea && !sidebarCollapsed;
+    utils.remove(panel);
+    const contentItems = Array.from(panel.querySelectorAll<HTMLElement>("[data-left-item]"));
+    utils.remove(contentItems);
+
+    if (shouldShow) {
+      panel.style.display = "block";
+      panel.style.width = "0px";
+      contentItems.forEach((item) => {
+        item.style.opacity = "0";
+        item.style.transform = "translateY(8px)";
+      });
+      animate(panel, {
+        opacity: [0.92, 1],
+        width: [0, leftPanelLayout.width],
+        duration: 720,
+        ease: "out(3)",
+      });
+      animate(contentItems, {
+        opacity: [0, 1],
+        translateY: [8, 0],
+        delay: utils.stagger(95, { start: 220 }),
+        duration: 360,
+        ease: "out(3)",
+      });
+      return;
+    }
+
+    animate(contentItems, {
+      opacity: [1, 0],
+      translateY: [0, 6],
+      duration: 220,
+      ease: "in(2)",
+    });
+    animate(panel, {
+      opacity: [1, 0],
+      width: [panel.offsetWidth || leftPanelLayout.width, 0],
+      duration: 620,
+      ease: "in(3)",
+      onComplete: () => {
+        if (leftPanelRef.current && (!mapFilters.comfortArea || sidebarCollapsed)) {
+          leftPanelRef.current.style.width = "0px";
+          leftPanelRef.current.style.display = "none";
+        }
+      },
+    });
+  }, [mapFilters.comfortArea, sidebarCollapsed, leftPanelLayout.width]);
+
+  useEffect(() => {
+    const updateLeftPanelLayout = () => {
+      const width = window.innerWidth < 640 ? 154 : 186;
+      setLeftPanelLayout({ width });
+    };
+
+    updateLeftPanelLayout();
+    window.addEventListener("resize", updateLeftPanelLayout);
+    return () => window.removeEventListener("resize", updateLeftPanelLayout);
+  }, []);
 
   useEffect(() => {
     setSelectedAreaId(getAreaIdFromSearch(location.search));
     setSelectedRecommendationId(getRecommendationIdFromSearch(location.search));
   }, [location.search]);
 
+  useLayoutEffect(() => {
+    if (!sectionContainerRef.current) return;
+    sectionContainerRef.current.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }, [location.pathname, location.search]);
+
   useEffect(() => {
     if (
-      activeTab === "view" &&
       !selectedAreaId &&
       !selectedRecommendationId &&
       !showTimeRecommendation &&
@@ -577,7 +756,6 @@ export default function App({ mode }: { mode: "view" | "compare" }) {
       setShowMapGuide(true);
     }
   }, [
-    activeTab,
     selectedAreaId,
     selectedRecommendationId,
     showTimeRecommendation,
@@ -640,12 +818,8 @@ export default function App({ mode }: { mode: "view" | "compare" }) {
   }, [compareSelection1, compareSelection2]);
 
   const handleMapClickCombined = useCallback((id: string) => {
-    if (activeTab === 'compare') {
-      handleCompareClick(id);
-    } else {
-      setShowCard(id);
-    }
-  }, [activeTab, handleCompareClick]);
+    setShowCard(id);
+  }, []);
 
   const handleEasePlacesClick = useCallback((
     feature: EasePlacesFeature,
@@ -672,6 +846,35 @@ export default function App({ mode }: { mode: "view" | "compare" }) {
       setLoadingToday(false);
     }
   };
+
+  const handleSectionWheel = useCallback((event: React.WheelEvent<HTMLDivElement>) => {
+    const target = event.target as HTMLElement | null;
+    if (target?.closest(".leaflet-container")) {
+      return;
+    }
+
+    if (wheelLockRef.current) return;
+    if (Math.abs(event.deltaY) < 28) return;
+    const host = sectionContainerRef.current;
+    const viewTop = viewSectionRef.current?.offsetTop ?? 0;
+    const compareTop = compareSectionRef.current?.offsetTop ?? 0;
+    if (!host) return;
+
+    const midpoint = (viewTop + compareTop) / 2;
+    const inViewSection = host.scrollTop < midpoint;
+    const targetTop = event.deltaY > 0
+      ? (inViewSection ? compareTop : compareTop)
+      : (inViewSection ? viewTop : viewTop);
+
+    if (Math.abs(host.scrollTop - targetTop) < 4) return;
+
+    wheelLockRef.current = true;
+    event.preventDefault();
+    host.scrollTo({ top: targetTop, left: 0, behavior: "smooth" });
+    window.setTimeout(() => {
+      wheelLockRef.current = false;
+    }, 420);
+  }, []);
 
   function isStale(p: Precinct): boolean {
     return p.id === 'flemington';
@@ -1144,7 +1347,387 @@ export default function App({ mode }: { mode: "view" | "compare" }) {
   }
 
   return (
-    <div className="relative min-h-[100dvh] overflow-hidden bg-[#f7fbfa] text-[#10201f]">
+    <div className="fixed inset-0 overflow-y-auto overflow-x-hidden text-[#10201f]">
+      {panelOpen && (
+        <button
+          type="button"
+          aria-label="Close menu overlay"
+          onClick={() => setPanelOpen(false)}
+          className="fixed inset-0 z-[250] bg-black/30"
+        />
+      )}
+
+      <aside
+        ref={menuPanelRef}
+        className={`fixed right-0 top-0 bottom-0 z-[300] max-w-[86vw] bg-[#f5f0e8] text-[#2a2a2a] ${
+          panelOpen ? "pointer-events-auto" : "pointer-events-none"
+        }`}
+        style={{
+          width: "clamp(260px, 34vw, 340px)",
+          transform: panelOpen ? "translateX(0%)" : "translateX(100%)",
+        }}
+      >
+        <div className="flex h-16 items-center justify-between bg-gradient-to-b from-[#122d2b] to-[#17413f] px-7 text-white">
+          <span className="text-[11px] font-medium tracking-[0.3em] uppercase">Menu</span>
+          <button type="button" onClick={() => setPanelOpen(false)} className="h-8 w-8 text-xl">
+            ✕
+          </button>
+        </div>
+        <nav className="flex flex-col py-10">
+          {MAP_LAYOUT_NAV_ITEMS.map((item, index) => (
+            <button
+              ref={(el) => {
+                if (!el) return;
+                menuItemRefs.current[index] = el;
+              }}
+              key={item.label}
+              type="button"
+              onClick={() => {
+                setCurrentPageLabel(item.label);
+                setPanelOpen(false);
+                navigate(item.to);
+              }}
+              className={`flex items-center justify-between border-b border-black/10 px-8 py-[18px] text-left font-['Cormorant_Garamond',serif] text-[26px] ${
+                currentPageLabel === item.label ? "text-[#4a5c3a]" : "text-[#2a2a2a]"
+              }`}
+              style={{ fontSize: "clamp(20px, 2.6vw, 26px)", opacity: 0, transform: "translateY(8px)" }}
+            >
+              <span>{item.label}</span>
+              <span className="text-base opacity-40">→</span>
+            </button>
+          ))}
+        </nav>
+      </aside>
+
+      <header className="fixed left-0 right-0 top-0 z-[200] flex h-14 items-center justify-between px-3 sm:h-16 sm:px-8">
+        <div
+          ref={(el) => {
+            if (!el) return;
+            floatingUiRefs.current[0] = el;
+          }}
+          className={`flex flex-col gap-1 ${floatingUiFadeClass}`}
+          style={{ width: "clamp(64px, 11vw, 92px)" }}
+        >
+          {(["view", "compare"] as const).map((mode) => (
+            <button
+              key={mode}
+              type="button"
+              onClick={() => setActiveView(mode)}
+              className={`rounded-sm border-l-2 px-2 py-1 text-left text-[9px] font-medium tracking-[0.14em] uppercase transition-all duration-300 ease-out sm:px-3 sm:text-[10px] sm:tracking-[0.24em] ${
+                activeView === mode
+                  ? "scale-[1.04] border-white bg-gradient-to-b from-[#122d2b] to-[#17413f] text-white shadow-[0_8px_18px_rgba(0,0,0,0.2)]"
+                  : "scale-100 border-transparent bg-gradient-to-b from-[#122d2b]/85 to-[#17413f]/85 text-white/45 brightness-90"
+              }`}
+            >
+              {mode}
+            </button>
+          ))}
+        </div>
+
+        <div className="absolute left-1/2 -translate-x-1/2 text-center leading-tight text-white">
+          <img src={logoTransparent} alt="Move Comfortly" className="mx-auto mt-6 h-45 w-auto object-contain sm:mt-14" />
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setPanelOpen((open) => !open)}
+          className="flex items-center gap-1.5 rounded-sm border border-white/25 bg-gradient-to-b from-[#122d2b] to-[#17413f] px-2.5 py-1.5 text-[9px] font-medium tracking-[0.14em] uppercase text-white/90 backdrop-blur sm:gap-2 sm:px-4 sm:py-2 sm:text-[11px] sm:tracking-[0.24em]"
+        >
+          Menu
+        </button>
+      </header>
+
+      <MapGuideDialog
+        open={showMapGuide}
+        onOpenChange={setShowMapGuide}
+        topPrecincts={guideTopPrecincts}
+        loading={loading}
+        onPrecinctSelect={handleGuidePrecinctSelect}
+      />
+
+      <div className="fixed inset-0 z-0">
+        <LeafletMap
+          precincts={mapFilters.comfortArea ? precinctList : []}
+          selectedCategory={mapFilters.comfortArea ? selectedCategory : null}
+          activeMode="view"
+          compareSelection1={null}
+          compareSelection2={null}
+          onPrecinctClick={handleMapClickCombined}
+          onAreaClick={handleAreaNavigation}
+          showInteractiveAreas={mapFilters.comfortArea}
+          showEasePlaces={mapFilters.easePlaces}
+          showStreetFacilities={mapFilters.streetFacilities}
+          showNaturalPlaces={mapFilters.naturalPlaces}
+          onMapReady={handleMapReady}
+          onEasePlacesClick={handleEasePlacesClick}
+        />
+      </div>
+
+      <div className="relative z-10 h-screen pt-14 pointer-events-none sm:pt-16">
+        <div className="h-[calc(100vh-56px)] w-full sm:h-[calc(100vh-64px)]">
+            <div className="relative h-full w-full pointer-events-none">
+              <div
+                className={`pointer-events-auto absolute left-3 top-16 z-40 flex items-start sm:left-8 sm:top-20 ${floatingUiFadeClass}`}
+              >
+                <div
+                  ref={leftPanelRef}
+                  className="left-panel-scroll hidden overflow-y-auto rounded-lg border border-[#4a5c3a]/25 bg-[#f5f0e8] shadow-[0_-8px_40px_rgba(0,0,0,0.2)]"
+                  style={{
+                    width: 0,
+                    opacity: 0,
+                    maxHeight: "min(172px, calc(100vh - 300px))",
+                  }}
+                >
+                  <div data-left-item className="mb-2 px-2.5 pt-2 sm:px-3 sm:pt-2.5">
+                    <h3 className="mb-2 text-[10px] font-semibold text-[#4a5c3a] sm:text-[11px] whitespace-normal break-words">Filter by Comfort</h3>
+                    <div className="space-y-1.5 map-legend-items">
+                      {categories.map(cat => (
+                        <button
+                          type="button"
+                          key={cat.name}
+                          onClick={() => setSelectedCategory(selectedCategory === cat.level ? null : cat.level)}
+                          className={`flex w-full min-w-0 items-center gap-2 rounded-lg border px-2 py-1.5 text-left ${
+                            selectedCategory === cat.level
+                              ? `${cat.bgColor} ${cat.textColor} shadow-sm font-semibold`
+                              : 'bg-white/70 hover:bg-white text-[#294745] border-[#17413f]/10'
+                          }`}
+                          style={{ borderColor: selectedCategory === cat.level ? cat.color : undefined }}
+                        >
+                          <div className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
+                          <span className="min-w-0 text-[10px] leading-tight whitespace-normal break-words">{cat.name}</span>
+                          <span className="ml-auto text-[9px] font-semibold">
+                            {precinctList.filter((p: Precinct) => riskLevel(p.comfort_label) === cat.level).length}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div data-left-item className="mt-3 border-t border-[#4a5c3a]/15 px-2.5 pb-2 pt-3 sm:px-3 sm:pb-2.5">
+                    <div className="mb-2 flex items-center justify-between">
+                      <h3 className="text-[10px] font-semibold text-[#4a5c3a] sm:text-[11px] whitespace-normal break-words">Comfort Preferences</h3>
+                      <button
+                        type="button"
+                        onClick={() => setWeights(DEFAULT_WEIGHTS)}
+                        className="text-[9px] font-semibold text-[#006d77] hover:text-[#17413f]"
+                      >
+                        Reset
+                      </button>
+                    </div>
+                    {([
+                      ['temperature', 'Temperature'],
+                      ['humidity', 'Humidity'],
+                      ['activity', 'Crowd Density'],
+                    ] as const).map(([key, label]) => (
+                      <label key={key} className="mb-2 block">
+                        <div className="mb-1 flex items-center justify-between text-[9px] text-[#5f8682]">
+                          <span className="min-w-0 whitespace-normal break-words">{label}</span>
+                          <span className="font-bold text-[#17413f]">{weights[key]}%</span>
+                        </div>
+                        <input
+                          type="range"
+                          min="0"
+                          max="100"
+                          value={weights[key]}
+                          onChange={(event) => setWeights((current: ComfortWeights) => adjustWeights(current, key, Number(event.target.value)))}
+                          className="w-full accent-teal-600"
+                          aria-label={`${label} comfort weight`}
+                        />
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+              </div>
+
+              <MapSidebarControls
+                onZoomIn={handleZoomIn}
+                onZoomOut={handleZoomOut}
+                hidden={panelOpen}
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  if (!mapFilters.comfortArea) {
+                    handleToggleMapFilter("comfortArea");
+                    setSidebarCollapsed(false);
+                    return;
+                  }
+                  setSidebarCollapsed(!sidebarCollapsed);
+                }}
+                ref={(el) => {
+                  if (!el) return;
+                  floatingUiRefs.current[2] = el;
+                }}
+                className={`pointer-events-auto absolute left-3 z-40 rounded-xl border border-[#83c5be]/30 bg-gradient-to-b from-[#122d2b] to-[#17413f] p-1.5 text-white shadow-[0_16px_36px_rgba(4,14,14,0.18)] sm:left-8 sm:rounded-2xl sm:p-2 ${floatingUiFadeClass}`}
+                style={{
+                  top: "34px",
+                }}
+                aria-label={sidebarCollapsed ? "Show sidebar" : "Hide sidebar"}
+                title={sidebarCollapsed ? "Show sidebar" : "Hide sidebar"}
+              >
+                {sidebarCollapsed ? (
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                ) : (
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
+                )}
+              </button>
+              <div
+                ref={(el) => {
+                  if (!el) return;
+                  floatingUiRefs.current[1] = el;
+                }}
+                className={`pointer-events-none absolute left-3 z-40 rounded-md border px-1.5 py-1 text-[9px] font-semibold leading-tight backdrop-blur-sm whitespace-normal break-words sm:left-8 sm:px-2 sm:text-[10px] ${floatingUiFadeClass} ${
+                  loading
+                    ? "border-amber-300/60 bg-amber-200/55 text-amber-950"
+                    : error
+                      ? "border-red-300/60 bg-red-200/55 text-red-950"
+                      : "border-emerald-300/60 bg-emerald-200/55 text-emerald-950"
+                }`}
+                style={{
+                  top: "6px",
+                  width: "clamp(64px, 11vw, 92px)",
+                }}
+              >
+                {loading ? "Loading sensors..." : error ? "Sensor load issue" : "Live sensors loaded"}
+              </div>
+              {openPanel === 'layers' && <MapFilterPanel filters={mapFilters} onToggle={handleToggleMapFilter} />}
+              {openPanel === 'legend' && <DynamicLegendPanel filters={mapFilters} />}
+
+              {easePlacesPopup && mapFilters.easePlaces && (
+                <EasePlacesDetailPopup
+                  feature={easePlacesPopup.feature}
+                  anchorPoint={easePlacesPopup.point}
+                  viewport={easePlacesPopup.viewport}
+                  onClose={() => setEasePlacesPopup(null)}
+                  onZoomTo={handleZoomTo}
+                />
+              )}
+            </div>
+        </div>
+      </div>
+
+      <div
+        ref={(el) => {
+          if (!el) return;
+          floatingUiRefs.current[3] = el;
+        }}
+        className={`map-bottom-actions fixed bottom-4 left-1/2 z-[460] w-[96vw] max-w-[980px] -translate-x-1/2 sm:bottom-7 sm:w-[92vw] ${floatingUiFadeClass}`}
+      >
+        <div className="map-bottom-actions-row flex items-stretch justify-center gap-2 sm:gap-3">
+          <div className="relative map-explore-wrap flex-1">
+            {exploreOpen && (
+              <div
+                ref={explorePanelRef}
+                className="absolute bottom-full left-0 z-[420] mb-2 w-full overflow-hidden rounded-lg border border-[#4a5c3a]/25 bg-[#f5f0e8] shadow-[0_-8px_40px_rgba(0,0,0,0.2)] sm:mb-3"
+                style={{ opacity: 0, transform: "translateY(14px)" }}
+              >
+                <div className="border-b border-black/10 px-3 pb-1.5 pt-2.5 text-center sm:px-6 sm:pb-2 sm:pt-3">
+                  <div className="font-['Montserrat',sans-serif] text-[9px] font-semibold tracking-[0.24em] uppercase text-[#4a5c3a] sm:text-[10px] sm:tracking-[0.3em]">
+                    Explore Map
+                  </div>
+                  <div className="mt-0.5 text-[9px] text-[#4a5c3a]/80 sm:text-[10px]">Multiple selection enabled</div>
+                </div>
+                <div className="explore-dropdown-scroll max-h-[34vh] overflow-y-auto py-1 sm:max-h-[40vh]">
+                  {exploreFilters.map((filter, index) => (
+                    <button
+                      ref={(el) => {
+                        if (!el) return;
+                        exploreItemRefs.current[index] = el;
+                      }}
+                      key={filter.label}
+                      type="button"
+                      onClick={() => handleToggleMapFilter(filter.key)}
+                      className={`relative flex w-full items-start justify-between border-b border-black/10 px-3 py-1.5 text-left font-['Cormorant_Garamond',serif] text-[12px] font-normal sm:px-4 sm:py-2 sm:text-[14px] ${
+                        mapFilters[filter.key]
+                          ? "bg-[rgba(74,92,58,0.2)] text-[#2f4430]"
+                          : "text-[#2a2a2a]"
+                      }`}
+                      style={{ opacity: 0, transform: "translateY(10px)" }}
+                    >
+                      <span className="pr-2 leading-tight break-words whitespace-normal">{filter.label}</span>
+                      <span className={`text-xs sm:text-sm ${mapFilters[filter.key] ? "text-[#4a5c3a]" : "text-black/30"}`}>
+                        {mapFilters[filter.key] ? "✓" : ""}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={() => setExploreOpen((open) => !open)}
+              className="map-bottom-action-btn flex h-full w-full items-center justify-center gap-2 rounded-sm bg-gradient-to-b from-[#122d2b] to-[#17413f] px-4 py-2 text-[10px] font-medium tracking-[0.18em] uppercase text-white backdrop-blur sm:gap-3 sm:px-6 sm:py-3 sm:text-[11px] sm:tracking-[0.24em]"
+            >
+              Explore Map
+              <span className="text-[10px] opacity-60">{exploreOpen ? "▴" : "▾"}</span>
+            </button>
+          </div>
+          <div className="flex-1">
+            <button
+              type="button"
+              onClick={() => setShowMapGuide(true)}
+              className="map-bottom-action-btn map-bottom-tips-btn flex h-full w-full items-center justify-center gap-2 rounded-sm bg-gradient-to-b from-[#122d2b] to-[#17413f] px-3 py-2 text-[10px] font-medium tracking-[0.14em] uppercase text-white backdrop-blur sm:gap-3 sm:px-6 sm:py-3 sm:text-[11px] sm:tracking-[0.24em]"
+              aria-label="Open map tips"
+              title="Open tips"
+            >
+              Tips
+              <span className="text-[10px] opacity-60">▾</span>
+            </button>
+          </div>
+          <div className="relative map-legend-wrap flex-1">
+              {legendDropdownOpen && (
+                <div
+                  ref={legendPanelRef}
+                  className="absolute bottom-full left-0 z-[420] mb-2 w-full overflow-hidden rounded-lg border border-[#4a5c3a]/25 bg-[#f5f0e8] shadow-[0_-8px_40px_rgba(0,0,0,0.2)] sm:mb-3"
+                  style={{ opacity: 0, transform: "translateY(14px)" }}
+                >
+                  <div className="border-b border-black/10 px-3 pb-2 pt-3 text-center sm:px-4">
+                    <div className="font-['Montserrat',sans-serif] text-[9px] font-semibold tracking-[0.2em] uppercase text-[#4a5c3a] sm:text-[10px]">
+                      Legend
+                    </div>
+                  </div>
+                  <div className="legend-dropdown-scroll max-h-[40vh] overflow-y-auto px-3 py-2 text-[11px] text-[#2a2a2a] sm:max-h-[46vh] sm:px-4 sm:text-xs">
+                    <div ref={(el)=>{ if(el) legendItemRefs.current[0]=el; }} className="mb-1 font-semibold text-[#4a5c3a]" style={{ opacity: 0, transform: "translateY(10px)" }}>Comfort</div>
+                    <div ref={(el)=>{ if(el) legendItemRefs.current[1]=el; }} className="mb-1 flex items-start gap-2" style={{ opacity: 0, transform: "translateY(10px)" }}><div className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-[#22c55e]" /><span className="min-w-0 whitespace-normal break-words leading-tight">Comfortable</span></div>
+                    <div ref={(el)=>{ if(el) legendItemRefs.current[2]=el; }} className="mb-1 flex items-start gap-2" style={{ opacity: 0, transform: "translateY(10px)" }}><div className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-[#eab308]" /><span className="min-w-0 whitespace-normal break-words leading-tight">Caution</span></div>
+                    <div ref={(el)=>{ if(el) legendItemRefs.current[3]=el; }} className="mb-2 flex items-start gap-2" style={{ opacity: 0, transform: "translateY(10px)" }}><div className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-[#ef4444]" /><span className="min-w-0 whitespace-normal break-words leading-tight">High Risk</span></div>
+                    <div ref={(el)=>{ if(el) legendItemRefs.current[4]=el; }} className="mb-1 font-semibold text-[#4a5c3a]" style={{ opacity: 0, transform: "translateY(10px)" }}>Places</div>
+                    <div ref={(el)=>{ if(el) legendItemRefs.current[5]=el; }} className="mb-1 flex items-start gap-2" style={{ opacity: 0, transform: "translateY(10px)" }}><div className="cp-dot cp-dot-arts !mt-1 !h-2.5 !w-2.5 shrink-0 !shadow-none" /><span className="min-w-0 whitespace-normal break-words leading-tight">Arts</span></div>
+                    <div ref={(el)=>{ if(el) legendItemRefs.current[6]=el; }} className="mb-1 flex items-start gap-2" style={{ opacity: 0, transform: "translateY(10px)" }}><div className="cp-dot cp-dot-recreation !mt-1 !h-2.5 !w-2.5 shrink-0 !shadow-none" /><span className="min-w-0 whitespace-normal break-words leading-tight">Recreation</span></div>
+                    <div ref={(el)=>{ if(el) legendItemRefs.current[7]=el; }} className="flex items-start gap-2" style={{ opacity: 0, transform: "translateY(10px)" }}><div className="cp-dot cp-dot-shopping !mt-1 !h-2.5 !w-2.5 shrink-0 !shadow-none" /><span className="min-w-0 whitespace-normal break-words leading-tight">Shopping</span></div>
+                  </div>
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={() => setLegendDropdownOpen((open) => !open)}
+                className={`map-bottom-action-btn flex h-full w-full items-center justify-center gap-2 rounded-sm bg-gradient-to-b from-[#122d2b] to-[#17413f] px-3 py-2 text-[10px] font-medium tracking-[0.14em] uppercase text-white backdrop-blur sm:gap-3 sm:px-6 sm:py-3 sm:text-[11px] sm:tracking-[0.24em] ${
+                  legendDropdownOpen ? "ring-1 ring-white/80" : ""
+                }`}
+                aria-label="Toggle map legend"
+                title="Legend"
+              >
+                Legend
+                <span className="text-[10px] opacity-60">{legendDropdownOpen ? "▴" : "▾"}</span>
+              </button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  );
+
+  return (
+    <div
+      ref={sectionContainerRef}
+      onWheel={handleSectionWheel}
+      className="fixed inset-0 overflow-y-auto overflow-x-hidden snap-y snap-mandatory bg-[#f7fbfa] text-[#10201f]"
+    >
       <MapGuideDialog
         open={showMapGuide}
         onOpenChange={setShowMapGuide}
@@ -1161,80 +1744,35 @@ export default function App({ mode }: { mode: "view" | "compare" }) {
         <div className="absolute -bottom-44 -left-24 h-96 w-96 rounded-full bg-[#83c5be]/12 blur-3xl" />
       </div>
 
-      {/* Nav */}
-        <nav className="relative z-[130] mb-0 px-4 pt-4 sm:px-6">
-          <div className="w-full rounded-t-[26px] rounded-b-none border border-white/36 border-b-0 bg-[radial-gradient(circle_at_18%_0%,rgba(255,255,255,0.42),transparent_36%),linear-gradient(135deg,rgba(247,250,251,0.84),rgba(232,238,241,0.66))] px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.6),0_18px_40px_rgba(56,71,77,0.08)] backdrop-blur-md sm:px-6 sm:py-4">
-            <div className="flex flex-nowrap items-center justify-between gap-3 max-[720px]:gap-2">
-              <button
-                type="button"
-                className="relative h-16 w-60 shrink-0 max-w-full overflow-hidden cursor-pointer border-0 bg-transparent p-0 max-[980px]:h-14 max-[980px]:w-52 max-[720px]:h-12 max-[720px]:w-40"
-                onClick={handleBrandClick}
-                aria-label="Return to EaseMove landing"
-              >
-                <img
-                  src={logo}
-                  alt="EaseMove logo"
-                  className="pointer-events-none absolute left-0 top-1/2 h-60 w-60 -translate-y-1/2 object-contain max-[980px]:h-56 max-[980px]:w-56 max-[720px]:h-44 max-[720px]:w-44"
-                />
-              </button>
-              <div className="map-nav-status-shell ml-auto flex min-w-0 shrink-0 items-center justify-end gap-2 sm:gap-3">
-                <AppTopNav variant="app" className="app-map-top-nav" />
-                <SensorStatusRow loading={loading} error={error} />
-                {loading && <span className="text-sm text-gray-400 animate-pulse">Loading sensors…</span>}
-                {error && <span className="text-sm text-red-500">⚠ {error}</span>}
-                <div className="hidden shrink-0 items-center gap-2 text-xs text-gray-500">
-                <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                Live sensors
-              </div>
-            </div>
-          </div>
+      {/* Nav (match risk style) */}
+      <div className="fixed top-0 left-0 right-0 z-40 px-3 sm:px-4 pt-2 sm:pt-3 pointer-events-none">
+        <div className="pointer-events-auto">
+          <AppTopNav
+            variant="app"
+            className="app-top-nav--lift-right"
+            brand={<img src={logoTransparent} alt="Move Comfortly" className="-mt-4 h-40 w-auto object-contain" />}
+            onBackToTop={() =>
+              sectionContainerRef.current?.scrollTo({ top: 0, left: 0, behavior: "smooth" })
+            }
+          />
         </div>
-      </nav>
+      </div>
+      <div className="fixed top-16 right-4 z-40 pointer-events-none sm:top-18 sm:right-6">
+        <SensorStatusRow loading={loading} error={error} />
+      </div>
 
       {/* Main */}
-      <div className="relative z-10 px-4 pb-4 sm:px-6">
-        <div className="grid grid-cols-1 gap-6">
-          <div className="-mt-px overflow-hidden rounded-b-[28px] rounded-t-none border border-white/36 border-t-0 bg-[radial-gradient(circle_at_18%_0%,rgba(255,255,255,0.42),transparent_36%),linear-gradient(135deg,rgba(247,250,251,0.84),rgba(232,238,241,0.66))] shadow-[0_24px_60px_rgba(16,32,31,0.14)] backdrop-blur-md" id="map-container">
-
-            {/* Tabs */}
-            <div className="border-b border-[#17413f]/10 bg-[radial-gradient(circle_at_18%_0%,rgba(255,255,255,0.36),transparent_38%),linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0.02))]">
-              <div className="flex items-center justify-between px-6 pt-4">
-                <div className="flex items-center">
-                  {(['view', 'compare'] as const).map(tab => (
-                    <button
-                      type="button"
-                      key={tab}
-                      onClick={() => {
-                        setShowCard(null);
-                        navigate(tab === "view" ? APP_ROUTES.map : APP_ROUTES.compare);
-                      }}
-                      className={`px-6 py-3 font-medium text-sm transition-all relative ${activeTab === tab ? 'text-[#006d77]' : 'text-[#5f8682] hover:text-[#17413f]'}`}
-                    >
-                      {tab.charAt(0).toUpperCase() + tab.slice(1)}
-                      {activeTab === tab && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#006d77]" />}
-                    </button>
-                  ))}
-                </div>
-                {activeTab === "view" && (
-                  <button
-                    type="button"
-                    onClick={() => setShowMapGuide(true)}
-                    className="mb-2 inline-flex items-center gap-2 rounded-xl border border-[#83c5be]/28 bg-[rgba(247,255,253,0.94)] px-4 py-2 text-sm font-semibold text-[#17413f] shadow-[0_12px_28px_rgba(16,32,31,0.08)] transition-all hover:border-[#83c5be]/52 hover:bg-white hover:shadow-[0_16px_34px_rgba(16,32,31,0.12)]"
-                    aria-label="Open map tips"
-                    title="Open tips"
-                  >
-                    <img src={ideaIcon} alt="" className="h-4 w-4 object-contain" aria-hidden="true" />
-                    <span>Tips</span>
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* ── View Tab ── */}
-            {activeTab === "view" && (
-              <>
+      <div className="relative z-10 px-4 pb-12 pt-16 sm:px-6 sm:pt-20">
+        <div className="grid grid-cols-1 gap-10 sm:gap-14">
+          {/* ── View Section (webpage style, no card) ── */}
+            <section
+              id="map-container-view"
+              ref={viewSectionRef}
+              className="snap-start min-h-[100dvh] py-6 sm:py-8"
+            >
+              <div className="mx-auto w-full max-w-[1180px]">
                 <div className="p-6 pb-4">
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center justify-between gap-3">
                     <div className="p-3 bg-gradient-to-br from-[#006d77] to-[#17413f] rounded-2xl shadow-lg">
                       <Map className="w-6 h-6 text-white" />
                     </div>
@@ -1246,6 +1784,16 @@ export default function App({ mode }: { mode: "view" | "compare" }) {
                         Choose what appears on the map using Filters.
                       </p>
                     </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowMapGuide(true)}
+                      className="inline-flex items-center gap-2 rounded-xl border border-[#83c5be]/28 bg-[rgba(247,255,253,0.94)] px-4 py-2 text-sm font-semibold text-[#17413f] shadow-[0_12px_28px_rgba(16,32,31,0.08)] transition-all hover:border-[#83c5be]/52 hover:bg-white hover:shadow-[0_16px_34px_rgba(16,32,31,0.12)]"
+                      aria-label="Open map tips"
+                      title="Open tips"
+                    >
+                      <img src={ideaIcon} alt="" className="h-4 w-4 object-contain" aria-hidden="true" />
+                      <span>Tips</span>
+                    </button>
                   </div>
                 </div>
 
@@ -1482,12 +2030,12 @@ export default function App({ mode }: { mode: "view" | "compare" }) {
                     )}
                   </div>
                 </div>
-              </>
-            )}
+              </div>
+          </section>
 
-            {/* ── Compare Tab (unchanged) ── */}
-            {activeTab === "compare" && (
-              <>
+          <div className="mx-auto w-full max-w-[1320px] overflow-hidden rounded-[28px] border border-white/28 bg-transparent shadow-[0_24px_60px_rgba(16,32,31,0.14)] backdrop-blur-md" id="map-container-compare">
+            {/* ── Compare Tab ── */}
+            <section ref={compareSectionRef} className="snap-start min-h-[100dvh] border-t border-[#17413f]/10 py-6 sm:py-8">
                 <div className="p-6 pb-4">
                   <div className="flex items-center gap-3">
                     <div className="p-3 bg-gradient-to-br from-[#17413f] to-[#0f2524] rounded-2xl shadow-lg">
@@ -1668,9 +2216,7 @@ export default function App({ mode }: { mode: "view" | "compare" }) {
                     )}
                   </div>
                 </div>
-              </>
-            )}
-
+            </section>
           </div>
         </div>
       </div>

@@ -66,20 +66,20 @@ export default function RecommendationFacilitiesPage({
     };
   }, [recommendation.id, recommendation.lat, recommendation.lng]);
 
-  const heroImage = "https://images.unsplash.com/photo-1542159919831-40fb0656b45a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080";
+  const pageBackground = "linear-gradient(180deg, #122d2b 0%, #eef8f5 25%, #f7fbfa 75%, #122d2b 100%)";
 
   return (
-    <div className="min-h-screen" style={{ backgroundColor: "#081515" }}>
+    <div className="min-h-screen" style={{ background: pageBackground }}>
       <div className="relative h-48 overflow-hidden">
-        <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url('${heroImage}')` }}>
-          <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/50 to-transparent" />
+        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(18,45,43,0.9)_0%,rgba(23,65,63,0.7)_48%,rgba(238,248,245,0.95)_100%)]">
+          <div className="absolute inset-x-0 top-0 h-[46%] bg-[radial-gradient(circle_at_50%_0%,rgba(131,197,190,0.22),transparent_64%)]" />
         </div>
 
         <div className="relative z-10 px-4 py-6">
           <button
             type="button"
             onClick={onBack}
-            className="flex items-center gap-2 text-white/90 hover:text-white mb-4 transition-colors"
+            className="mb-4 flex items-center gap-2 rounded-md border border-white/30 bg-gradient-to-b from-[#122d2b] to-[#17413f] px-3 py-1.5 text-white/95 shadow-[0_8px_18px_rgba(0,0,0,0.18)] transition-colors hover:text-white"
           >
             <ArrowLeft className="w-5 h-5" />
             <span>Back to {area.name}</span>
@@ -88,21 +88,21 @@ export default function RecommendationFacilitiesPage({
       </div>
 
       <div className="max-w-4xl mx-auto px-4 -mt-16 relative z-20 pb-8 space-y-6">
-        <div className="bg-gradient-to-br from-slate-800/95 to-slate-900/95 backdrop-blur-lg rounded-2xl border border-slate-700/50 overflow-hidden">
+        <div className="overflow-hidden rounded-2xl border border-[#d9d1c6] bg-[#fbf8f1]/95 shadow-[0_10px_28px_rgba(0,0,0,0.06)] backdrop-blur-lg">
           <div className="p-6">
             <div className="flex items-center gap-2 mb-3">
-              <MapPin className="w-5 h-5 text-emerald-400" />
-              <span className="text-emerald-400 text-sm font-medium">Recommendation Detail</span>
+              <MapPin className="h-5 w-5 text-[#4a5c3a]" />
+              <span className="text-sm font-medium text-[#4a5c3a]">Recommendation Detail</span>
             </div>
 
-            <h1 className="text-3xl font-bold text-white mb-3">{recommendation.name}</h1>
-            <p className="text-slate-300 leading-relaxed mb-4">{recommendation.description}</p>
+            <h1 className="mb-3 text-3xl font-bold text-[#2a2a2a]">{recommendation.name}</h1>
+            <p className="mb-4 leading-relaxed text-[#4a4a4a]">{recommendation.description}</p>
 
             <div className="flex flex-wrap gap-2">
-              <span className="px-3 py-1.5 bg-slate-700/50 text-slate-300 text-sm rounded-full border border-slate-600/50">
+              <span className="rounded-full border border-[#d0c8bb] bg-[#f1ecdf] px-3 py-1.5 text-sm text-[#3d3d3d]">
                 {area.name}
               </span>
-              <span className="px-3 py-1.5 bg-emerald-500/20 text-emerald-400 text-sm rounded-full border border-emerald-500/30">
+              <span className="rounded-full border border-[#9aa884] bg-[#eef3e6] px-3 py-1.5 text-sm text-[#4a5c3a]">
                 500m search radius
               </span>
             </div>
@@ -111,14 +111,14 @@ export default function RecommendationFacilitiesPage({
 
         <div>
           <div className="mb-5">
-            <h2 className="text-2xl font-bold text-white mb-2">Nearby Public Facilities</h2>
-            <p className="text-slate-400 text-sm">Useful comfort support around this place</p>
+            <h2 className="mb-2 text-2xl font-bold text-[#2a2a2a]">Nearby Public Facilities</h2>
+            <p className="text-sm text-[#5a5a5a]">Useful comfort support around this place</p>
           </div>
 
           {loading && (
             <div className="space-y-4">
               {[1, 2, 3].map((i) => (
-                <div key={i} className="bg-slate-800/50 rounded-xl h-32 animate-pulse border border-slate-700/30" />
+                <div key={i} className="h-32 animate-pulse rounded-xl border border-[#d9d1c6] bg-[#f1ecdf]/70" />
               ))}
             </div>
           )}
@@ -143,31 +143,31 @@ export default function RecommendationFacilitiesPage({
                 return (
                   <div
                     key={slot.kind}
-                    className="bg-slate-800/90 backdrop-blur-sm rounded-xl border border-slate-700/50 p-5 hover:border-emerald-500/50 transition-all cursor-pointer group"
+                    className="group cursor-pointer rounded-xl border border-[#d9d1c6] bg-[#fbf8f1]/95 p-5 shadow-[0_8px_22px_rgba(0,0,0,0.05)] transition-all hover:border-[#9aa884]"
                   >
                     <div className="flex items-center gap-3 mb-4">
                       <div className={`p-3 ${tone.bg} rounded-xl ${tone.color} group-hover:scale-110 transition-transform`}>
                         <Icon className="w-6 h-6" />
                       </div>
                       <div className="flex-1">
-                        <h3 className="font-semibold text-white text-sm">{facilityTypeLabel(slot.kind)}</h3>
+                        <h3 className="text-sm font-semibold text-[#2a2a2a]">{facilityTypeLabel(slot.kind)}</h3>
                       </div>
                     </div>
 
                     {facility ? (
                       <div className="space-y-2">
-                        <div className="text-slate-300 font-medium">{facility.name}</div>
+                        <div className="font-medium text-[#3d3d3d]">{facility.name}</div>
                         <div className="flex items-center justify-between">
-                          <span className="text-xs px-2.5 py-1 bg-slate-700/50 text-slate-400 rounded-full">
+                          <span className="rounded-full bg-[#f1ecdf] px-2.5 py-1 text-xs text-[#5a5a5a]">
                             {facilityTypeLabel(slot.kind)}
                           </span>
-                          <span className="text-emerald-400 text-sm font-semibold">{facility.distanceMeters}m away</span>
+                          <span className="text-sm font-semibold text-[#4a5c3a]">{facility.distanceMeters}m away</span>
                         </div>
                       </div>
                     ) : (
                       <div className="space-y-2">
-                        <div className="text-slate-500 italic">No nearby facility</div>
-                        <div className="text-xs text-slate-600">No match within 500m</div>
+                        <div className="italic text-[#666666]">No nearby facility</div>
+                        <div className="text-xs text-[#777777]">No match within 500m</div>
                       </div>
                     )}
                   </div>
@@ -177,11 +177,11 @@ export default function RecommendationFacilitiesPage({
           )}
         </div>
 
-        <div className="bg-slate-800/60 backdrop-blur-sm rounded-xl border border-slate-700/40 p-5">
+        <div className="rounded-xl border border-[#d9d1c6] bg-[#fbf8f1]/95 p-5 shadow-[0_8px_22px_rgba(0,0,0,0.05)] backdrop-blur-sm">
           <div className="flex items-start gap-3">
-            <Info className="w-5 h-5 text-blue-400 shrink-0 mt-0.5" />
-            <div className="text-sm text-slate-300 leading-relaxed">
-              <span className="font-semibold text-blue-400">Tip: </span>
+            <Info className="mt-0.5 h-5 w-5 shrink-0 text-[#4a5c3a]" />
+            <div className="text-sm leading-relaxed text-[#4a4a4a]">
+              <span className="font-semibold text-[#4a5c3a]">Tip: </span>
               Facility data is sourced from the same mapped facility dataset and limited to a 500m radius. If this location is near an area boundary, some nearby facilities may not appear in the results.
             </div>
           </div>
