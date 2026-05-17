@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import { useNavigate } from "react-router";
+import { motion } from "motion/react";
 import { type QuizQuestion, extremeWeatherQuizQuestions } from "../data/extremeWeather";
 
 type AnswerMap = Record<string, number | null>;
@@ -44,7 +45,13 @@ export default function ExtremeWeatherQuizPage() {
   const allCompleted = completedCount === activeQuestions.length;
 
   return (
-    <div className="min-h-screen" style={{ backgroundColor: "#081515" }}>
+    <motion.div
+      className="min-h-screen"
+      style={{ backgroundColor: "#081515" }}
+      initial={{ opacity: 0, rotate: -8, scale: 0.92 }}
+      animate={{ opacity: 1, rotate: 0, scale: 1 }}
+      transition={{ duration: 0.58, ease: "easeOut" }}
+    >
       <nav className="bg-[#081515]/80 backdrop-blur-md shadow-sm border-b border-white/20">
         <div className="px-6 py-3 flex items-center justify-between">
           <button
@@ -143,6 +150,6 @@ export default function ExtremeWeatherQuizPage() {
           </div>
         </div>
       </main>
-    </div>
+    </motion.div>
   );
 }

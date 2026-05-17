@@ -15,8 +15,8 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/" element={<HomePage key={location.key} />} />
-      <Route path="/map" element={<App mode="view" />} />
-      <Route path="/map/compare" element={<App mode="compare" />} />
+      <Route path="/map" element={<App />} />
+      <Route path="/map/compare" element={<App />} />
       <Route path="/map/3d-route" element={<Map3DExperimentPage />} />
       <Route path="/map/3d-experiment" element={<Map3DExperimentPage />} />
       <Route path="/aboutus" element={<AboutUsPage />} />
