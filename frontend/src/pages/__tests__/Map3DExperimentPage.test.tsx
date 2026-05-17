@@ -120,6 +120,12 @@ vi.mock("../../components/WhiteModelMap", async () => {
         <button type="button" onClick={() => props.onMapClick({ lng: 144.9502, lat: -37.8204 })}>
           Map click reset
         </button>
+        <button type="button" onClick={() => props.onMapClick({ lng: 151.2093, lat: -33.8688 })}>
+          Map click australia
+        </button>
+        <button type="button" onClick={() => props.onMapClick({ lng: 103.8198, lat: 1.3521 })}>
+          Map click outside
+        </button>
         <button type="button" onClick={() => props.onMapError("Simulated map failure")}>
           Raise map error
         </button>
@@ -363,6 +369,64 @@ describe("Map3DExperimentPage - Epic 5", () => {
     expect(view.container.querySelector('[data-testid="point-badge-end"]')?.className).toContain("border-[4px]");
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(String(fetchMock.mock.calls[0]?.[0])).toContain("/walking/");
+
+    view.unmount();
+  });
+
+  test("accepts map clicks anywhere inside Australia, even outside Melbourne", async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => createRouteResponse("walking"),
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const Map3DExperimentPage = await loadPageWithToken();
+    const view = render(
+      <MemoryRouter initialEntries={["/map/3d-route"]}>
+        <Routes>
+          <Route path="/map/3d-route" element={<Map3DExperimentPage />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    clickByText(view.container, "Map click start");
+    clickByText(view.container, "Map click australia");
+    await view.flush();
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(view.container.textContent).toContain("-33.86880, 151.20930");
+    expect(view.container.textContent).not.toContain("Outside supported area");
+
+    view.unmount();
+  });
+
+  test("rejects map clicks outside Australia and keeps the current route state unchanged", async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => createRouteResponse("walking"),
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const Map3DExperimentPage = await loadPageWithToken();
+    const view = render(
+      <MemoryRouter initialEntries={["/map/3d-route"]}>
+        <Routes>
+          <Route path="/map/3d-route" element={<Map3DExperimentPage />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    clickByText(view.container, "Map click start");
+    expect(view.container.textContent).toContain("-37.81360, 144.96310");
+
+    clickByText(view.container, "Map click outside");
+    await view.flush();
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(view.container.textContent).toContain("Outside supported area");
+    expect(view.container.textContent).toContain("Only locations inside Australia");
+    expect(view.container.textContent).toContain("-37.81360, 144.96310");
+    expect(view.container.textContent).toContain("Not selected");
 
     view.unmount();
   });
@@ -791,6 +855,37 @@ describe("Map3DExperimentPage - Epic 5", () => {
     expect(view.container.textContent).toContain("-37.81360, 144.96310");
     expect(view.container.textContent).toContain("-37.82230, 144.95220");
     expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    view.unmount();
+  });
+
+  test("ignores out-of-bound search parameters and does not request a route for points outside Australia", async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => createRouteResponse("walking"),
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const Map3DExperimentPage = await loadPageWithToken();
+    const view = render(
+      <MemoryRouter
+        initialEntries={[
+          "/map/3d-route?startLat=-37.81140&startLng=144.95420&endLat=1.35210&endLng=103.81980",
+        ]}
+      >
+        <Routes>
+          <Route path="/map/3d-route" element={<Map3DExperimentPage />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    await view.flush();
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(view.container.textContent).toContain("Outside supported area");
+    expect(view.container.textContent).toContain("Only locations inside Australia");
+    expect(view.container.textContent).toContain("-37.81140, 144.95420");
+    expect(view.container.textContent).toContain("Not selected");
 
     view.unmount();
   });
