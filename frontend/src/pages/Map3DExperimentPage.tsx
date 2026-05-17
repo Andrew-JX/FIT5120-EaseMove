@@ -9,13 +9,18 @@
   Loader2,
   LocateFixed,
   MapPinned,
+  Minus,
   Navigation,
+  Plus,
   Trash2,
   XCircle,
 } from "lucide-react";
+import { AnimatePresence, LayoutGroup, motion } from "motion/react";
 import { type CSSProperties, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
+import AppTopNav from "../components/AppTopNav";
 import WhiteModelMap, {
+  type MapViewportControls,
   type RoutePoint,
   type RouteProfile,
   type RouteStepItem,
@@ -23,6 +28,7 @@ import WhiteModelMap, {
 } from "../components/WhiteModelMap";
 import EasePlacesDetailPopup from "../components/map/EasePlacesDetailPopup";
 import { type EasePlacesFeature } from "../lib/easePlaces";
+import { isPointInSupportedRegion, AUSTRALIA_REGION_ERROR } from "../lib/melbourneRegion";
 import { APP_ROUTES } from "../lib/navigation";
 
 const MAPBOX_PUBLIC_TOKEN = (import.meta.env.VITE_MAPBOX_PUBLIC_TOKEN as string | undefined)?.trim() || null;
@@ -37,6 +43,15 @@ const liquidGlassPanelStyle: CSSProperties = {
   WebkitBackdropFilter: "blur(16px) saturate(1.42) brightness(1.06)",
   boxShadow:
     "0 26px 64px rgba(4,14,14,0.16), inset 0 1px 0 rgba(255,255,255,0.68), inset 0 -18px 42px rgba(23,65,63,0.08), inset 1px 0 0 rgba(255,255,255,0.24)",
+};
+
+const routeToolbarStyle: CSSProperties = {
+  background:
+    "radial-gradient(circle at 14% 0%, rgba(255,255,255,0.54), transparent 34%), linear-gradient(135deg, rgba(248,255,253,0.56), rgba(236,245,248,0.36) 56%, rgba(255,247,234,0.24))",
+  backdropFilter: "url(#route-liquid-glass-filter) blur(18px) saturate(1.2) brightness(1.03)",
+  WebkitBackdropFilter: "blur(18px) saturate(1.2) brightness(1.03)",
+  boxShadow:
+    "0 18px 42px rgba(4,14,14,0.14), inset 0 1px 0 rgba(255,255,255,0.7), inset 0 -12px 24px rgba(23,65,63,0.06)",
 };
 
 const liquidGlassCardClass =
@@ -220,6 +235,11 @@ export default function Map3DExperimentPage() {
   const [activePanel, setActivePanel] = useState<PanelView>(initialIsMobileViewport ? null : "route");
   const [isMobileViewport, setIsMobileViewport] = useState(initialIsMobileViewport);
   const [showGuide, setShowGuide] = useState(false);
+  const [landingMenuOpen, setLandingMenuOpen] = useState(false);
+  const [mapViewportControls, setMapViewportControls] = useState<MapViewportControls | null>(null);
+  const [isMapPointSelectionEnabled, setIsMapPointSelectionEnabled] = useState(true);
+  const [mobileSheetMode, setMobileSheetMode] = useState<"expanded" | "peek">("expanded");
+  const [mobileSheetHeight, setMobileSheetHeight] = useState(0);
   const [focusedStepIndex, setFocusedStepIndex] = useState<number | null>(null);
   const [areaLayers, setAreaLayers] = useState<AreaLayerState>({
     easePlaces: false,
@@ -238,9 +258,19 @@ export default function Map3DExperimentPage() {
   });
   const requestIdRef = useRef(0);
   const hasAppliedSearchRef = useRef(false);
+  const sheetRef = useRef<HTMLElement | null>(null);
 
   const routeReady = Boolean(route && startPoint && endPoint);
   const canUseRouteApi = Boolean(MAPBOX_PUBLIC_TOKEN);
+
+  const showOutsideRegionError = useCallback(() => {
+    setRouteError({
+      title: AUSTRALIA_REGION_ERROR.title,
+      message: AUSTRALIA_REGION_ERROR.message,
+    });
+  }, []);
+
+  const isSupportedPoint = useCallback((point: RoutePoint) => isPointInSupportedRegion(point), []);
 
   const clearRouteOnly = useCallback(() => {
     requestIdRef.current += 1;
@@ -250,6 +280,13 @@ export default function Map3DExperimentPage() {
 
   const requestRoute = useCallback(
     async (nextProfile: RouteProfile, nextStart: RoutePoint, nextEnd: RoutePoint) => {
+      if (!isSupportedPoint(nextStart) || !isSupportedPoint(nextEnd)) {
+        setRoute(null);
+        setIsRouteLoading(false);
+        showOutsideRegionError();
+        return;
+      }
+
       if (!MAPBOX_PUBLIC_TOKEN) {
         setRoute(null);
         setIsRouteLoading(false);
@@ -302,11 +339,16 @@ export default function Map3DExperimentPage() {
         }
       }
     },
-    []
+    [isSupportedPoint, showOutsideRegionError]
   );
 
   const handleMapClick = useCallback(
     (point: RoutePoint) => {
+      if (!isMapPointSelectionEnabled) return;
+      if (!isSupportedPoint(point)) {
+        showOutsideRegionError();
+        return;
+      }
       setFocusedStepIndex(null);
       setGeolocation((current) => (current.status === "loading" ? current : { status: "idle", message: null }));
       setRouteError(null);
@@ -325,7 +367,7 @@ export default function Map3DExperimentPage() {
       setEndPoint(point);
       void requestRoute(profile, startPoint, point);
     },
-    [endPoint, isMobileViewport, profile, requestRoute, startPoint]
+    [endPoint, isMapPointSelectionEnabled, isMobileViewport, isSupportedPoint, profile, requestRoute, showOutsideRegionError, startPoint]
   );
 
   const handleProfileChange = useCallback(
@@ -372,6 +414,18 @@ export default function Map3DExperimentPage() {
           lng: position.coords.longitude,
           lat: position.coords.latitude,
         };
+        if (!isSupportedPoint(point)) {
+          clearRouteOnly();
+          setRouteError({
+            title: AUSTRALIA_REGION_ERROR.title,
+            message: AUSTRALIA_REGION_ERROR.message,
+          });
+          setGeolocation({
+            status: "error",
+            message: "Your current location is outside the supported Australia area for this 3D route preview.",
+          });
+          return;
+        }
         clearRouteOnly();
         setStartPoint(point);
         setRouteError(null);
@@ -407,7 +461,7 @@ export default function Map3DExperimentPage() {
         maximumAge: 30000,
       }
     );
-  }, [clearRouteOnly, endPoint, isMobileViewport, profile, requestRoute]);
+  }, [clearRouteOnly, endPoint, isMobileViewport, isSupportedPoint, profile, requestRoute]);
 
   const handleMapError = useCallback((message: string) => {
     setRouteError({
@@ -426,12 +480,13 @@ export default function Map3DExperimentPage() {
 
   const currentInstruction = useMemo(() => {
     if (!canUseRouteApi) return "Configure the Mapbox public token before using the 3D route preview.";
+    if (!isMapPointSelectionEnabled) return "Point picking is locked. Turn the map point toggle back on before selecting a new start or end point.";
     if (!startPoint) return "Click the map once to set a start point.";
     if (!endPoint) return "Click the map again to set the destination.";
     if (isRouteLoading) return `Loading the default ${profile} route...`;
     if (routeReady) return "Route preview is ready.";
     return "Reselect points or switch travel mode to try again.";
-  }, [canUseRouteApi, endPoint, isRouteLoading, profile, routeReady, startPoint]);
+  }, [canUseRouteApi, endPoint, isMapPointSelectionEnabled, isRouteLoading, profile, routeReady, startPoint]);
 
   const panelHasDenseContent = Boolean(route || routeError || isRouteLoading);
   const activeLayerCount =
@@ -521,22 +576,39 @@ export default function Map3DExperimentPage() {
     setRouteError(null);
     clearRouteOnly();
 
-    if (endFromSearch) {
-      setEndPoint(endFromSearch);
+    const safeStartPoint = startFromSearch && isSupportedPoint(startFromSearch) ? startFromSearch : null;
+    const safeEndPoint = endFromSearch && isSupportedPoint(endFromSearch) ? endFromSearch : null;
+    const hadOutOfBoundsPoint = Boolean((startFromSearch && !safeStartPoint) || (endFromSearch && !safeEndPoint));
+
+    if (safeEndPoint) {
+      setEndPoint(safeEndPoint);
+    } else if (endFromSearch) {
+      setEndPoint(null);
     }
 
-    if (startFromSearch) {
-      setStartPoint(startFromSearch);
-      if (endFromSearch) {
-        void requestRoute(profile, startFromSearch, endFromSearch);
+    if (hadOutOfBoundsPoint) {
+      showOutsideRegionError();
+    }
+
+    if (safeStartPoint) {
+      setStartPoint(safeStartPoint);
+      if (safeEndPoint) {
+        void requestRoute(profile, safeStartPoint, safeEndPoint);
       }
       return;
     }
 
     if (autoLocate) {
-      handleUseCurrentLocation(endFromSearch);
+      setStartPoint(null);
+      handleUseCurrentLocation(safeEndPoint);
+      return;
     }
-  }, [clearRouteOnly, handleUseCurrentLocation, isMobileViewport, location.search, profile, requestRoute]);
+
+    if (startFromSearch) {
+      setStartPoint(null);
+      return;
+    }
+  }, [clearRouteOnly, handleUseCurrentLocation, isMobileViewport, isSupportedPoint, location.search, profile, requestRoute, showOutsideRegionError]);
 
   useEffect(() => {
     if (!areaLayers.easePlaces) {
@@ -550,6 +622,26 @@ export default function Map3DExperimentPage() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!isMobileViewport || activePanel === null) return;
+    setMobileSheetMode("expanded");
+  }, [activePanel, isMobileViewport]);
+
+  useEffect(() => {
+    if (!isMobileViewport || activePanel === null) return;
+    const updateHeight = () => {
+      const nextHeight = sheetRef.current?.getBoundingClientRect().height ?? 0;
+      setMobileSheetHeight(nextHeight);
+    };
+    updateHeight();
+    window.addEventListener("resize", updateHeight);
+    return () => {
+      window.removeEventListener("resize", updateHeight);
+    };
+  }, [activePanel, isMobileViewport]);
+
+  const mobileSheetPeekOffset = Math.max(0, mobileSheetHeight - 88);
+
   return (
     <div className="relative min-h-[100dvh] w-full overflow-hidden bg-[#edf0f2]">
       <svg aria-hidden="true" className="pointer-events-none fixed h-0 w-0">
@@ -558,6 +650,102 @@ export default function Map3DExperimentPage() {
           <feDisplacementMap in="SourceGraphic" in2="noise" scale="10" xChannelSelector="R" yChannelSelector="G" />
         </filter>
       </svg>
+      <AppTopNav
+        variant="landing"
+        landingMode="compact"
+        landingTone="dark"
+        landingTransitionProgress={1}
+        landingOverlayOpen={landingMenuOpen}
+        onLandingOverlayOpenChange={setLandingMenuOpen}
+        hideCompactTrigger
+        className="app-top-nav--route-page app-top-nav--route-overlay"
+      />
+      <AnimatePresence initial={false}>
+        {landingMenuOpen ? (
+          <motion.div
+            className="fixed right-3 top-[max(0.75rem,env(safe-area-inset-top))] z-[300] sm:right-4 sm:top-4"
+            initial={{ opacity: 0, scale: 0.9, y: -10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.92, y: -10 }}
+            transition={{ type: "spring", stiffness: 240, damping: 18, mass: 0.84 }}
+          >
+            <RoutePageMenuTrigger open onToggle={() => setLandingMenuOpen(false)} />
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
+      <motion.div
+        className="fixed inset-x-0 top-[max(0.75rem,env(safe-area-inset-top))] z-[300] flex justify-center px-2 sm:top-4 sm:px-4"
+        animate={{
+          opacity: landingMenuOpen ? 0 : 1,
+          y: landingMenuOpen ? -18 : 0,
+          scale: landingMenuOpen ? 0.98 : 1,
+        }}
+        transition={{ type: "spring", stiffness: 220, damping: 20, mass: 0.9 }}
+        style={{ pointerEvents: landingMenuOpen ? "none" : "auto" }}
+      >
+        <div
+          style={routeToolbarStyle}
+          className="flex min-h-14 w-[min(92vw,112rem)] items-center gap-1 rounded-[28px] border border-white/55 px-2 py-2 text-[#17413f] shadow-[inset_0_1px_0_rgba(255,255,255,0.74)]"
+        >
+          <div className="flex min-w-0 items-center gap-1">
+            <TopBarActionButton
+              label="Back"
+              icon={<ArrowLeft className="h-4 w-4" />}
+              onClick={handleBack}
+              title="Back to previous page"
+              ariaLabel="Back to previous page"
+              compactOnMobile
+            />
+            <div className="route-page-toolbar-divider" aria-hidden="true" />
+            <LayoutGroup id="route-page-bar-panels">
+              <div className="flex items-center gap-1">
+                <TopBarActionButton
+                  label="Route"
+                  icon={<Navigation className="h-4 w-4" />}
+                  active={activePanel === "route"}
+                  onClick={() => openPanel("route")}
+                />
+                <TopBarActionButton
+                  label="Layers"
+                  icon={<Layers3 className="h-4 w-4" />}
+                  active={activePanel === "layers"}
+                  onClick={() => openPanel("layers")}
+                />
+              </div>
+            </LayoutGroup>
+          </div>
+          <div className="min-w-6 flex-1" />
+          <div className="flex min-w-0 items-center justify-end gap-1">
+            <TopBarActionButton
+              label="Tips"
+              active={showGuide}
+              onClick={() => setShowGuide(true)}
+              title="Open quick guide"
+              ariaLabel="Open quick guide"
+            />
+            <RoutePageMenuTrigger open={landingMenuOpen} onToggle={() => setLandingMenuOpen((current) => !current)} />
+            <div className="route-page-toolbar-divider" aria-hidden="true" />
+            <TopBarActionButton
+              label="Zoom out"
+              icon={<Minus className="h-4 w-4" />}
+              onClick={() => mapViewportControls?.zoomOut()}
+              title="Zoom out"
+              ariaLabel="Zoom out"
+              iconOnly
+              disabled={!mapViewportControls}
+            />
+            <TopBarActionButton
+              label="Zoom in"
+              icon={<Plus className="h-4 w-4" />}
+              onClick={() => mapViewportControls?.zoomIn()}
+              title="Zoom in"
+              ariaLabel="Zoom in"
+              iconOnly
+              disabled={!mapViewportControls}
+            />
+          </div>
+        </div>
+      </motion.div>
       <WhiteModelMap
         mapboxToken={MAPBOX_PUBLIC_TOKEN}
         startPoint={startPoint}
@@ -567,15 +755,22 @@ export default function Map3DExperimentPage() {
         showEasePlaces={areaLayers.easePlaces}
         showNaturalPlaces={areaLayers.naturalPlaces}
         showStreetFacilities={areaLayers.streetFacilities}
+        showNavigationControl
         onMapClick={handleMapClick}
         onMapError={handleMapError}
+        onViewportControlsReady={setMapViewportControls}
         onEasePlaceSelect={handleEasePlaceSelect}
       />
-      {showGuide ? (
-        <div
+      <AnimatePresence>
+        {showGuide ? (
+        <motion.div
           data-testid="route-guide-overlay"
           style={liquidGlassPanelStyle}
-          className="map-guide-dialog-scroll fixed left-1/2 top-[max(0.75rem,env(safe-area-inset-top))] z-30 max-h-[calc(100dvh-max(1.5rem,env(safe-area-inset-top)+env(safe-area-inset-bottom)))] w-[min(34rem,calc(100vw-1.5rem))] -translate-x-1/2 overflow-y-auto rounded-[30px] border border-white/60 px-5 py-5 text-[#17413f] shadow-[0_28px_70px_rgba(4,14,14,0.18)] sm:top-24 sm:max-h-[calc(100dvh-6rem)] sm:w-[min(34rem,calc(100vw-2rem))] sm:px-7 sm:py-7"
+          className="fixed left-1/2 top-[max(0.75rem,env(safe-area-inset-top))] z-30 max-h-[calc(100dvh-max(1.5rem,env(safe-area-inset-top)+env(safe-area-inset-bottom)))] w-[min(34rem,calc(100vw-1.5rem))] -translate-x-1/2 overflow-y-auto rounded-[30px] border border-white/60 px-5 py-5 text-[#17413f] shadow-[0_28px_70px_rgba(4,14,14,0.18)] sm:top-24 sm:max-h-[calc(100dvh-6rem)] sm:w-[min(34rem,calc(100vw-2rem))] sm:px-7 sm:py-7"
+          initial={{ opacity: 0, scale: 0.82, y: 46 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.9, y: 18 }}
+          transition={{ type: "spring", stiffness: 210, damping: 18, mass: 0.9 }}
         >
             <div className="flex items-start justify-between gap-4">
               <div>
@@ -601,6 +796,12 @@ export default function Map3DExperimentPage() {
                 Pick the end point next and the route panel will expand with directions.
               </div>
               <div className={`rounded-2xl px-4 py-3.5 ${liquidGlassCardClass}`}>
+                Use the <span className="font-semibold text-[#17413f]">pin button</span> or tap the <span className="font-semibold text-[#17413f]">Start card</span> to lock map point picking. While locked, map clicks will not replace your route points.
+              </div>
+              <div className={`rounded-2xl px-4 py-3.5 ${liquidGlassCardClass}`}>
+                To choose new points again, delete <span className="font-semibold text-[#17413f]">Start</span> or <span className="font-semibold text-[#17413f]">End</span>, then turn point picking back on.
+              </div>
+              <div className={`rounded-2xl px-4 py-3.5 ${liquidGlassCardClass}`}>
                 Switch between <span className="font-semibold text-[#17413f]">Route</span> and <span className="font-semibold text-[#17413f]">Layers</span> in the lower panel any time.
               </div>
               <div className={`rounded-2xl px-4 py-3.5 ${liquidGlassCardClass}`}>
@@ -621,8 +822,9 @@ export default function Map3DExperimentPage() {
                 Got it
               </button>
             </div>
-        </div>
+        </motion.div>
       ) : null}
+      </AnimatePresence>
       {selectedEasePlace && areaLayers.easePlaces ? (
         <EasePlacesDetailPopup
           feature={selectedEasePlace.feature}
@@ -632,56 +834,56 @@ export default function Map3DExperimentPage() {
         />
       ) : null}
 
-      <div className="absolute left-3 top-3 z-20 sm:left-4 sm:top-4">
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={handleBack}
-            className={`${floatingChromeButtonClass} h-11 px-4 max-sm:w-11 max-sm:px-0`}
-            title="Back to previous page"
-            aria-label="Back to previous page"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            <span className="max-sm:hidden">Back</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setShowGuide(true)}
-            className={`${floatingChromeButtonClass} h-11 px-4 text-xs uppercase tracking-[0.16em] text-[#5f8682] max-sm:px-3`}
-            title="Open quick guide"
-            aria-label="Open quick guide"
-          >
-            Tips
-          </button>
-        </div>
-      </div>
-
-      <aside
+      <AnimatePresence initial={false}>
+      {!panelCollapsed ? (
+      <motion.aside
+        ref={(node) => {
+          sheetRef.current = node;
+        }}
         style={liquidGlassPanelStyle}
-        className={`absolute left-4 top-20 z-10 flex max-w-[calc(100vw-2rem)] flex-col overflow-hidden border border-white/55 max-md:bottom-3 max-md:left-3 max-md:right-3 max-md:top-auto max-md:max-w-none max-md:pb-[max(env(safe-area-inset-bottom),0px)] ${
-          panelCollapsed
-            ? "w-[184px] rounded-[18px] max-md:w-auto"
-            : panelHasDenseContent
-              ? "bottom-4 w-[386px] rounded-[24px] max-md:max-h-[58dvh] max-md:w-auto"
-              : "w-[386px] rounded-[24px] max-md:max-h-[58dvh] max-md:w-auto"
+        className={`absolute left-4 top-20 z-10 flex max-w-[calc(100vw-2rem)] flex-col overflow-hidden border border-white/55 max-md:fixed max-md:bottom-0 max-md:left-3 max-md:right-3 max-md:top-auto max-md:max-w-none max-md:rounded-t-[26px] max-md:rounded-b-[18px] max-md:pb-[max(env(safe-area-inset-bottom),0px)] ${
+          panelHasDenseContent
+            ? "bottom-4 w-[386px] rounded-[24px] max-md:max-h-[58dvh] max-md:w-auto"
+            : "w-[386px] rounded-[24px] max-md:max-h-[58dvh] max-md:w-auto"
         }`}
+        initial={isMobileViewport ? { opacity: 0, scale: 0.96, y: 120 } : { opacity: 0, scale: 0.88, x: -26, y: 18 }}
+        animate={
+          isMobileViewport
+            ? { opacity: 1, scale: 1, x: 0, y: mobileSheetMode === "peek" ? mobileSheetPeekOffset : 0 }
+            : { opacity: 1, scale: 1, x: 0, y: 0 }
+        }
+        exit={isMobileViewport ? { opacity: 0, scale: 0.97, y: 140 } : { opacity: 0, scale: 0.94, x: -14, y: 10 }}
+        drag={isMobileViewport ? "y" : false}
+        dragConstraints={isMobileViewport ? { top: 0, bottom: mobileSheetPeekOffset } : undefined}
+        dragElastic={0.08}
+        onDragEnd={(_, info) => {
+          if (!isMobileViewport) return;
+          if (info.offset.y > 80 || info.velocity.y > 520) {
+            setMobileSheetMode("peek");
+            return;
+          }
+          if (info.offset.y < -80 || info.velocity.y < -520) {
+            setMobileSheetMode("expanded");
+            return;
+          }
+          setMobileSheetMode(info.offset.y > mobileSheetPeekOffset / 2 ? "peek" : "expanded");
+        }}
+        transition={{ type: "spring", stiffness: 210, damping: 20, mass: 0.92 }}
       >
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_0%,rgba(255,255,255,0.48),transparent_34%),linear-gradient(120deg,rgba(255,255,255,0.12),transparent_42%,rgba(255,255,255,0.1)_68%,transparent)]" />
-        {panelCollapsed ? (
-          <div data-testid="collapsed-panel-actions" className="grid grid-cols-2 gap-2 p-2">
-            <CollapsedPanelButton
-              label="Route"
-              icon={<Navigation className="h-4 w-4" />}
-              onClick={() => openPanel("route")}
-            />
-            <CollapsedPanelButton
-              label="Layers"
-              icon={<Layers3 className="h-4 w-4" />}
-              onClick={() => openPanel("layers")}
-            />
-          </div>
-        ) : (
           <>
+        {isMobileViewport ? (
+          <div className="flex justify-center px-4 pt-3">
+            <button
+              type="button"
+              onClick={() => setMobileSheetMode((current) => (current === "expanded" ? "peek" : "expanded"))}
+              className="route-page-sheet-handle"
+              aria-label={mobileSheetMode === "expanded" ? "Collapse panel preview" : "Expand panel preview"}
+            >
+              <span className="route-page-sheet-handle-bar" />
+            </button>
+          </div>
+        ) : null}
         <div className="relative border-b border-white/38 px-4 py-4 shadow-[inset_0_-1px_0_rgba(23,65,63,0.06)] sm:px-5">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0 flex-1">
@@ -689,6 +891,20 @@ export default function Map3DExperimentPage() {
               <h1 className="mt-1 text-xl font-semibold text-[#17413f]">3D Route Preview</h1>
             </div>
             <div className="flex shrink-0 items-center gap-2 self-start">
+              <button
+                type="button"
+                onClick={() => setIsMapPointSelectionEnabled((current) => !current)}
+                disabled={!canUseRouteApi}
+                aria-label={isMapPointSelectionEnabled ? "Disable map point selection" : "Enable map point selection"}
+                title={isMapPointSelectionEnabled ? "Disable point picking" : "Enable point picking"}
+                className={`inline-flex h-10 w-10 items-center justify-center rounded-full border shadow-[inset_0_1px_0_rgba(255,255,255,0.7),0_8px_18px_rgba(23,65,63,0.08)] transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-45 ${
+                  isMapPointSelectionEnabled
+                    ? "border-[#83c5be]/55 bg-[#17413f] text-white hover:bg-[#0f3230]"
+                    : "border-white/42 bg-white/42 text-[#6b8582] hover:bg-white/62 hover:text-[#17413f]"
+                }`}
+              >
+                <MapPinned className="h-4 w-4" />
+              </button>
               <button
                 type="button"
                 onClick={handleUseCurrentLocation}
@@ -712,21 +928,6 @@ export default function Map3DExperimentPage() {
               </button>
             </div>
           </div>
-
-          <div className="mt-3 grid grid-cols-2 rounded-full border border-white/32 bg-white/28 p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.55)]">
-            <PanelTabButton
-              active={activePanel === "route"}
-              icon={<Navigation className="h-4 w-4" />}
-              label="Route"
-              onClick={() => openPanel("route")}
-            />
-            <PanelTabButton
-              active={activePanel === "layers"}
-              icon={<Layers3 className="h-4 w-4" />}
-              label="Layers"
-              onClick={() => openPanel("layers")}
-            />
-          </div>
         </div>
 
         <div className={`relative ${panelHasDenseContent ? "flex-1 overflow-y-auto" : ""} px-4 py-4 sm:px-5`}>
@@ -742,7 +943,7 @@ export default function Map3DExperimentPage() {
               <div className={`mb-4 rounded-2xl p-4 text-sm text-[#456765] ${liquidGlassInteractiveClass}`} tabIndex={0}>
                 <div className="flex items-start gap-3">
                   <Navigation className="mt-0.5 h-4 w-4 shrink-0 text-[#17413f]" />
-                  <p>Drag to pan, scroll to zoom, and right-drag or use the pitch control to rotate the city view.</p>
+                  <p>Drag to pan, scroll to zoom, and right-drag or use the compass control to rotate and tilt the 3D city view.</p>
                 </div>
               </div>
 
@@ -794,7 +995,21 @@ export default function Map3DExperimentPage() {
               ) : null}
 
               <div className="mb-4 space-y-3">
-                <PointRow label="Start" point={startPoint} badgeClassName="bg-[#0f766e]" onDelete={handleDeleteStart} />
+                <PointRow
+                  label="Start"
+                  point={startPoint}
+                  badgeClassName="bg-[#0f766e]"
+                  onDelete={handleDeleteStart}
+                  onPrimaryAction={() => setIsMapPointSelectionEnabled((current) => !current)}
+                  primaryActionAriaLabel={
+                    isMapPointSelectionEnabled
+                      ? "Disable map point selection from Start card"
+                      : "Enable map point selection from Start card"
+                  }
+                  statusLabel={isMapPointSelectionEnabled ? "Map picking ON" : "Map picking LOCKED"}
+                  helperText="Tap Start to lock or re-arm map picking"
+                  emphasized
+                />
                 <PointRow label="End" point={endPoint} badgeClassName="bg-[#ea580c]" onDelete={handleDeleteEnd} />
               </div>
 
@@ -868,7 +1083,7 @@ export default function Map3DExperimentPage() {
                 </div>
               </div>
 
-              <div className="space-y-3">
+              <div className="grid gap-3">
                 <LayerToggle
                   label="Natural Places"
                   description="Parks and waterbodies for green-blue context."
@@ -961,8 +1176,9 @@ export default function Map3DExperimentPage() {
           ) : null}
         </div>
           </>
-        )}
-      </aside>
+      </motion.aside>
+      ) : null}
+      </AnimatePresence>
     </div>
   );
 }
@@ -981,14 +1197,24 @@ function PointRow({
   point,
   badgeClassName,
   onDelete,
+  onPrimaryAction,
+  primaryActionAriaLabel,
+  statusLabel,
+  helperText,
+  emphasized = false,
 }: {
   label: string;
   point: RoutePoint | null;
   badgeClassName: string;
   onDelete: () => void;
+  onPrimaryAction?: () => void;
+  primaryActionAriaLabel?: string;
+  statusLabel?: string;
+  helperText?: string;
+  emphasized?: boolean;
 }) {
   return (
-    <div className={`flex items-center gap-3 rounded-2xl p-3 ${liquidGlassInteractiveClass}`} tabIndex={0}>
+    <div className={`flex items-center gap-3 rounded-2xl p-3 ${liquidGlassInteractiveClass} ${emphasized ? "border-[#83c5be]/55 bg-[linear-gradient(145deg,rgba(255,255,255,0.58),rgba(186,226,220,0.18))] shadow-[inset_0_1px_0_rgba(255,255,255,0.84),0_18px_38px_rgba(4,14,14,0.1)]" : ""}`} tabIndex={0}>
       <span
         data-testid={`point-badge-${label.toLowerCase()}`}
         className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-[4px] border-white text-[0.82rem] font-black leading-none text-white shadow-[0_0_0_6px_rgba(255,255,255,0.26),0_0_0_12px_rgba(255,255,255,0.1),0_14px_28px_rgba(15,23,42,0.22)] ${badgeClassName}`}
@@ -996,13 +1222,76 @@ function PointRow({
         {label[0]}
       </span>
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-semibold text-[#17413f]">{label}</p>
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="text-sm font-semibold text-[#17413f]">{label}</p>
+          {statusLabel ? (
+            <span className="rounded-full border border-[#83c5be]/45 bg-[#e3f3ef] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#17413f]">
+              {statusLabel}
+            </span>
+          ) : null}
+        </div>
         <p className="truncate text-xs text-[#6b8582]">{point ? formatPoint(point) : "Not selected"}</p>
+        {helperText ? <p className="mt-1 text-xs font-semibold text-[#0f766e]">{helperText}</p> : null}
       </div>
+      {onPrimaryAction ? (
+        <button
+          type="button"
+          onClick={onPrimaryAction}
+          aria-label={primaryActionAriaLabel ?? `${label} primary action`}
+          aria-pressed={statusLabel?.includes("LOCKED") ? true : false}
+          className="relative inline-flex h-10 w-20 shrink-0 cursor-pointer items-center"
+        >
+          <span
+            className={`absolute inset-0 rounded-full border border-white/55 shadow-[0_10px_22px_rgba(23,65,63,0.14),inset_0_1px_0_rgba(255,255,255,0.55)] outline-none ring-0 transition-all duration-300 ${
+              statusLabel?.includes("LOCKED")
+                ? "bg-[linear-gradient(135deg,#83c5be,#5fa8a1)]"
+                : "bg-[linear-gradient(135deg,#d7e9e5,#b8d7d1)]"
+            }`}
+          />
+          <svg
+            className={`absolute top-1 h-8 w-8 stroke-[#17413f] transition-all duration-300 ${
+              statusLabel?.includes("LOCKED") ? "left-10" : "left-1.5"
+            }`}
+            viewBox="0 0 100 100"
+            xmlns="http://www.w3.org/2000/svg"
+            aria-hidden="true"
+          >
+            <path
+              fillRule="evenodd"
+              clipRule="evenodd"
+              d="M50,18A19.9,19.9,0,0,0,30,38v8a8,8,0,0,0-8,8V74a8,8,0,0,0,8,8H70a8,8,0,0,0,8-8V54a8,8,0,0,0-8-8H38V38a12,12,0,0,1,23.6-3,4,4,0,1,0,7.8-2A20.1,20.1,0,0,0,50,18Z"
+              className="fill-[#17413f]"
+            />
+          </svg>
+          <svg
+            className={`absolute top-1 h-8 w-8 stroke-[#456765] transition-all duration-300 ${
+              statusLabel?.includes("LOCKED") ? "left-1.5" : "left-10"
+            }`}
+            viewBox="0 0 100 100"
+            xmlns="http://www.w3.org/2000/svg"
+            aria-hidden="true"
+          >
+            <path
+              fillRule="evenodd"
+              clipRule="evenodd"
+              d="M30,46V38a20,20,0,0,1,40,0v8a8,8,0,0,1,8,8V74a8,8,0,0,1-8,8H30a8,8,0,0,1-8-8V54A8,8,0,0,1,30,46Zm32-8v8H38V38a12,12,0,0,1,24,0Z"
+              className="fill-[#456765]"
+            />
+          </svg>
+          <span
+            className={`absolute top-1 flex h-8 w-8 items-center justify-center rounded-full bg-[linear-gradient(145deg,#f8fbfa,#ffffff)] shadow-[0_8px_18px_rgba(15,23,42,0.14),inset_0_1px_0_rgba(255,255,255,0.88)] outline-none transition-all duration-300 ${
+              statusLabel?.includes("LOCKED")
+                ? "left-1"
+                : "left-1 translate-x-10"
+            }`}
+          />
+        </button>
+      ) : null}
       {point ? (
         <button
           type="button"
           onClick={onDelete}
+          aria-label={`Delete ${label} point`}
           className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[#6b8582] transition hover:bg-white/48 hover:text-red-600 active:scale-[0.98]"
           title={`Delete ${label.toLowerCase()} point`}
         >
@@ -1035,7 +1324,7 @@ function LayerToggle({
       type="button"
       onClick={onToggle}
       disabled={disabled}
-      className={`flex items-center justify-between gap-3 rounded-2xl p-3 text-left ${liquidGlassInteractiveClass} ${disabled ? "cursor-not-allowed opacity-65" : ""} max-sm:items-start`}
+      className={`flex min-h-[106px] w-full items-center justify-between gap-3 rounded-2xl p-3 text-left ${liquidGlassInteractiveClass} ${disabled ? "cursor-not-allowed opacity-65" : ""} max-sm:items-start`}
       aria-pressed={checked}
     >
       <div className="min-w-0">
@@ -1159,48 +1448,85 @@ function LegendRow({
   );
 }
 
-function PanelTabButton({
-  active,
+function TopBarActionButton({
+  active = false,
   icon,
   label,
   onClick,
+  title,
+  ariaLabel,
+  disabled = false,
+  iconOnly = false,
+  compactOnMobile = false,
 }: {
-  active: boolean;
-  icon: ReactNode;
+  active?: boolean;
+  icon?: ReactNode;
   label: string;
   onClick: () => void;
+  title?: string;
+  ariaLabel?: string;
+  disabled?: boolean;
+  iconOnly?: boolean;
+  compactOnMobile?: boolean;
 }) {
   return (
-    <button
+    <motion.button
       type="button"
       onClick={onClick}
-      className={`inline-flex items-center justify-center gap-2 rounded-full px-3 py-2 text-sm font-semibold transition active:scale-[0.98] max-sm:min-h-11 ${
-        active ? "bg-white/72 text-[#17413f] shadow-[0_8px_18px_rgba(23,65,63,0.08),inset_0_1px_0_rgba(255,255,255,0.8)]" : "text-[#5f8682] hover:text-[#17413f]"
+      title={title}
+      aria-label={ariaLabel ?? label}
+      disabled={disabled}
+      className={`route-page-toolbar-button ${iconOnly ? "route-page-toolbar-button--icon" : "route-page-toolbar-button--text"} ${
+        compactOnMobile ? "route-page-toolbar-button--compact-mobile" : ""
       }`}
+      animate={{
+        scale: active ? 1.03 : 1,
+      }}
+      whileHover={disabled ? undefined : { scale: active ? 1.035 : 1.02 }}
+      whileTap={disabled ? undefined : { scale: 0.96 }}
+      transition={{ type: "spring", stiffness: 260, damping: 18, mass: 0.82 }}
     >
-      {icon}
-      {label}
-    </button>
+      {active ? <motion.span layoutId="route-page-toolbar-active-pill" className="route-page-toolbar-active-pill" /> : null}
+      {icon ? <span className="relative z-[1]">{icon}</span> : null}
+      {!iconOnly ? (
+        <span className={`relative z-[1] ${compactOnMobile ? "max-sm:hidden" : ""}`}>{label}</span>
+      ) : (
+        <span className="sr-only">{label}</span>
+      )}
+    </motion.button>
   );
 }
 
-function CollapsedPanelButton({
-  icon,
-  label,
-  onClick,
-}: {
-  icon: ReactNode;
-  label: string;
-  onClick: () => void;
-}) {
+function RoutePageMenuTrigger({ open, onToggle }: { open: boolean; onToggle: () => void }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="inline-flex h-12 items-center justify-center gap-2 rounded-[14px] border border-white/40 bg-white/28 px-3 text-sm font-semibold text-[#17413f] transition hover:bg-white/38 active:scale-[0.98] max-sm:h-11"
+    <motion.div
+      className="app-top-nav app-top-nav--route-page app-top-nav--tone-dark"
+      animate={{ scale: open ? 1.04 : 1 }}
+      transition={{ type: "spring", stiffness: 240, damping: 18, mass: 0.82 }}
     >
-      {icon}
-      {label}
-    </button>
+      <button
+        type="button"
+        className={`app-top-nav__compact-trigger${open ? " is-open" : ""}`}
+        aria-label={open ? "Close landing navigation menu" : "Open landing navigation menu"}
+        aria-expanded={open}
+        onClick={onToggle}
+      >
+        <span className="app-top-nav__compact-copy">
+          <span className="app-top-nav__compact-label app-top-nav__compact-label--menu">Menu</span>
+          <span className="app-top-nav__compact-label app-top-nav__compact-label--close">Close</span>
+        </span>
+        <span className="app-top-nav__compact-icon-slot" aria-hidden="true">
+          <span className="app-top-nav__compact-icon app-top-nav__compact-bars">
+            <span></span>
+            <span></span>
+            <span></span>
+          </span>
+          <span className="app-top-nav__compact-icon app-top-nav__compact-close">
+            <span className="app-top-nav__compact-close-stroke app-top-nav__compact-close-stroke--a"></span>
+            <span className="app-top-nav__compact-close-stroke app-top-nav__compact-close-stroke--b"></span>
+          </span>
+        </span>
+      </button>
+    </motion.div>
   );
 }

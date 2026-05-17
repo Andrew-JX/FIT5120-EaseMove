@@ -1,5 +1,7 @@
-import { useState } from "react";
+import { createScope, createTimeline, stagger } from "animejs";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
+import { LANDING_CHOREO_EASE, LANDING_REVEAL_DURATIONS } from "./landingMotion";
 
 const screenshotUrls = [
   new URL("../../assets/landing/5.png", import.meta.url).href,
@@ -20,7 +22,7 @@ function HowActionButton({
       <span className="landing-how-learn-more-circle" aria-hidden="true">
         <span className="landing-how-learn-more-icon landing-how-learn-more-arrow"></span>
       </span>
-      <span className="landing-how-learn-more-text">{label}</span>
+      <span className="landing-how-learn-more-text landing-how-action-text-shell">{label}</span>
     </button>
   );
 }
@@ -38,12 +40,7 @@ const steps = [
       "Open the About Us page for team and concept context",
       "Jump into the map, risks, or route tools from clear entry points",
     ],
-    chips: [
-      "Project overview",
-      "Feature story",
-      "Data context",
-      "About Us",
-    ],
+    chips: ["Project overview", "Feature story", "Data context", "About Us"],
     callout: "Use the landing page as the orientation layer before opening the tools.",
   },
   {
@@ -74,7 +71,8 @@ const steps = [
       "Use the quiz and follow-up pages to reinforce understanding",
     ],
     chips: ["Heat", "Rain", "Storm", "Cold", "Dry conditions", "Safety actions"],
-    callout: "The risks page helps you understand whether conditions are just uncomfortable or genuinely unsafe.",
+    callout:
+      "The risks page helps you understand whether conditions are just uncomfortable or genuinely unsafe.",
   },
   {
     shortLabel: "3D Route",
@@ -89,36 +87,50 @@ const steps = [
       "Inspect route guidance in the dedicated 3D planning view",
     ],
     chips: ["3D route", "Route planning", "Alternatives", "Travel mode", "Route tools"],
-    callout: "The 3D route page is for focused route planning once you already know where you want to go.",
+    callout:
+      "The 3D route page is for focused route planning once you already know where you want to go.",
   },
 ] as const;
 
 export default function HowToUseScene() {
   const navigate = useNavigate();
   const location = useLocation();
+  const sceneRef = useRef<HTMLElement | null>(null);
+  const isSceneInViewRef = useRef(false);
   const [activeStepIndex, setActiveStepIndex] = useState(0);
   const [isDetailFlipped, setIsDetailFlipped] = useState(false);
   const [imageAspectRatio, setImageAspectRatio] = useState<number>(16 / 10);
+  const [isMotionReady, setIsMotionReady] = useState(false);
+  const [isSceneRevealed, setIsSceneRevealed] = useState(false);
+  const [choreoSeq, setChoreoSeq] = useState(0);
   const activeStep = steps[activeStepIndex];
   const activeCallout = activeStep.callout;
   const activeScreenshotUrl = screenshotUrls[activeStepIndex];
+
   const openLandingPage = () => {
     if (`${location.pathname}${location.search}` === "/") return;
     navigate("/");
   };
+
   const openMapPage = () => {
     navigate("/map");
   };
+
   const openExtremeWeatherPage = () => {
     navigate("/extreme-weather-risks");
   };
+
   const open3DRoutePage = () => {
     navigate("/map/3d-route");
   };
+
   const activateStep = (index: number) => {
     setIsDetailFlipped(false);
-    setActiveStepIndex(Math.max(0, Math.min(steps.length - 1, index)));
+    const nextIndex = Math.max(0, Math.min(steps.length - 1, index));
+
+    setActiveStepIndex(nextIndex);
   };
+
   const activeAction =
     activeStepIndex === 0
       ? { label: "Open Landing", onClick: openLandingPage }
@@ -127,6 +139,7 @@ export default function HowToUseScene() {
         : activeStepIndex === 2
           ? { label: "Open Risks", onClick: openExtremeWeatherPage }
           : { label: "Open 3D Route", onClick: open3DRoutePage };
+
   const handleStepKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
     if (event.key === "ArrowDown" || event.key === "PageDown") {
       event.preventDefault();
@@ -139,18 +152,155 @@ export default function HowToUseScene() {
     }
   };
 
+  useEffect(() => {
+    const root = sceneRef.current;
+    if (!root) return;
+
+    const prefersReducedMotion =
+      typeof window !== "undefined" &&
+      typeof window.matchMedia === "function" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    if (prefersReducedMotion) {
+      setIsMotionReady(false);
+      setIsSceneRevealed(true);
+      setChoreoSeq(1);
+      return;
+    }
+
+    setIsMotionReady(true);
+
+    if (typeof IntersectionObserver === "undefined") {
+      isSceneInViewRef.current = true;
+      setIsSceneRevealed(true);
+      setChoreoSeq(1);
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const [entry] = entries;
+        if (!entry?.isIntersecting || isSceneInViewRef.current) return;
+
+        isSceneInViewRef.current = true;
+        setIsSceneRevealed(true);
+        setChoreoSeq((current) => current + 1);
+      },
+      {
+        threshold: 0.56,
+        rootMargin: "0px 0px -6% 0px",
+      }
+    );
+
+    observer.observe(root);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
+
+  useLayoutEffect(() => {
+    const root = sceneRef.current;
+    if (!root || !isSceneRevealed || choreoSeq === 0) return;
+
+    const prefersReducedMotion =
+      typeof window !== "undefined" &&
+      typeof window.matchMedia === "function" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    if (prefersReducedMotion) {
+      return;
+    }
+
+    const scope = createScope({ root }).add(() => {
+      const headingPieces = Array.from(
+        root.querySelectorAll<HTMLElement>(".landing-how-heading-block > .landing-how-kicker, .landing-how-heading-block > h2")
+      );
+      const headingChip = root.querySelector<HTMLElement>(".landing-how-flip-chip-accent");
+      const actionChip = root.querySelector<HTMLElement>(".landing-how-action-bar > .landing-how-flip-chip");
+
+      const timeline = createTimeline({
+        defaults: {
+          duration: LANDING_REVEAL_DURATIONS.base,
+          ease: LANDING_CHOREO_EASE,
+        },
+      });
+
+      if (headingPieces.length > 0) {
+        timeline.add(headingPieces, {
+          opacity: [0, 1],
+          x: ["-54px", "0px"],
+          y: ["6px", "0px"],
+          filter: ["blur(10px)", "blur(0px)"],
+          delay: stagger(180),
+          duration: LANDING_REVEAL_DURATIONS.base + 520,
+        });
+      }
+
+      if (headingChip) {
+        timeline.add(
+          headingChip,
+          {
+            opacity: [0, 1],
+            x: ["-24vw", "0vw"],
+            scale: [0.9, 1],
+            filter: ["blur(10px)", "blur(0px)"],
+            duration: LANDING_REVEAL_DURATIONS.base + 620,
+            ease: "out(5)",
+          },
+          "-=680"
+        );
+        timeline.add(headingChip, {
+          scaleX: [1, 1.018, 0.996, 1.006, 1],
+          scaleY: [1, 0.988, 1.01, 0.998, 1],
+          duration: 420,
+          ease: "inOut(2)",
+        });
+      }
+
+      if (actionChip) {
+        timeline.add(
+          actionChip,
+          {
+            opacity: [0, 1],
+            x: ["24vw", "0vw"],
+            scale: [0.9, 1],
+            filter: ["blur(10px)", "blur(0px)"],
+            duration: LANDING_REVEAL_DURATIONS.base + 620,
+            ease: "out(5)",
+          },
+          "-=540"
+        );
+        timeline.add(actionChip, {
+          scaleX: [1, 1.018, 0.996, 1.006, 1],
+          scaleY: [1, 0.988, 1.01, 0.998, 1],
+          duration: 420,
+          ease: "inOut(2)",
+        });
+      }
+    });
+
+    return () => {
+      scope.revert();
+    };
+  }, [choreoSeq, isSceneRevealed]);
+
   return (
     <section
+      ref={sceneRef}
       id="landing-next-section"
-      className="landing-how-scene"
+      className={`landing-how-scene${isMotionReady ? " is-motion-ready" : ""}${isSceneRevealed ? " is-revealed" : ""}`}
+      data-choreo-seq={choreoSeq}
       aria-label="How to use MoveComfortly"
     >
       <div className="landing-how-inner">
         <div className="landing-how-grid">
           <div className="landing-how-copy">
-            <p className="landing-how-kicker">Plan with confidence</p>
-            <h2>How to Use MoveComfortly</h2>
-            <span className="landing-how-flip-chip landing-how-flip-chip-accent">Choose a step</span>
+            <div className="landing-how-heading-block">
+              <p className="landing-how-kicker">Plan with confidence</p>
+              <h2>How to Use MoveComfortly</h2>
+              <span className="landing-how-flip-chip landing-how-flip-chip-accent">Choose a step</span>
+            </div>
 
             <div className="landing-how-steps-wrap">
               <div
@@ -180,9 +330,11 @@ export default function HowToUseScene() {
                   </div>
                 </div>
                 <div className="landing-how-step-preview is-glass-finish" aria-live="polite">
-                  <span className="landing-how-step-preview-eyebrow">{activeStep.eyebrow}</span>
-                  <h3>{activeStep.title}</h3>
-                  <p>{activeCallout}</p>
+                  <div className="landing-how-preview-copy">
+                    <span className="landing-how-step-preview-eyebrow">{activeStep.eyebrow}</span>
+                    <h3>{activeStep.title}</h3>
+                    <p>{activeCallout}</p>
+                  </div>
                 </div>
               </div>
             </div>
@@ -205,7 +357,7 @@ export default function HowToUseScene() {
                 }
               >
                 <span className="landing-how-flip-face landing-how-flip-face-front">
-                  <figure className="landing-how-screenshot">
+                  <figure className="landing-how-screenshot landing-how-screenshot-media">
                     <img
                       src={activeScreenshotUrl}
                       alt="MoveComfortly map interface with places and comfort data"
@@ -228,10 +380,7 @@ export default function HowToUseScene() {
                     </span>
                     <span className="landing-how-detail-list-wrap">
                       <span className="landing-how-detail-list-title">What to do</span>
-                      <ul
-                        className="landing-how-detail-list"
-                        aria-label={`${activeStep.title} details`}
-                      >
+                      <ul className="landing-how-detail-list" aria-label={`${activeStep.title} details`}>
                         {activeStep.details.map((detail) => (
                           <li key={detail}>{detail}</li>
                         ))}
