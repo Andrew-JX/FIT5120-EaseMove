@@ -1136,6 +1136,12 @@
   text-align: left;
 }
 
+.landing-how-heading-block {
+  display: grid;
+  justify-items: start;
+  gap: 0;
+}
+
 .landing-how-kicker {
   margin: 0;
   color: #006d77;
@@ -1383,6 +1389,11 @@
   -webkit-backdrop-filter: blur(18px) saturate(1.08);
 }
 
+.landing-how-preview-copy {
+  display: grid;
+  gap: 8px;
+}
+
 .landing-how-step-preview::before {
   content: '';
   position: absolute;
@@ -1477,6 +1488,7 @@
   width: min(100%, 760px);
   perspective: 1400px;
   position: relative;
+  will-change: transform;
 }
 
 .landing-how-flip-card {
@@ -1544,6 +1556,7 @@
   border-radius: 0;
   background: #ffffff;
   box-shadow: none;
+  will-change: transform, opacity;
 }
 
 .landing-how-screenshot img {
@@ -1653,6 +1666,7 @@
   align-content: start;
   height: 100%;
   min-height: 0;
+  will-change: transform, opacity;
 }
 
 .landing-how-detail-scroll {
@@ -1794,6 +1808,24 @@
   width: min(100%, 760px);
 }
 
+.landing-how-scene.is-motion-ready:not(.is-revealed) .landing-how-heading-block > * {
+  opacity: 0;
+  filter: blur(10px);
+  transform: translate3d(-36px, 6px, 0);
+}
+
+.landing-how-scene.is-motion-ready:not(.is-revealed) .landing-how-flip-chip-accent {
+  opacity: 0;
+  filter: blur(10px);
+  transform: translate3d(-24vw, 0, 0) scale(0.9);
+}
+
+.landing-how-scene.is-motion-ready:not(.is-revealed) .landing-how-action-bar > .landing-how-flip-chip {
+  opacity: 0;
+  filter: blur(10px);
+  transform: translate3d(24vw, 0, 0) scale(0.9);
+}
+
 @keyframes landing-how-tile-jelly {
   0% {
     transform: scale(1);
@@ -1836,6 +1868,7 @@
     filter: saturate(1.02) brightness(1);
   }
 }
+
 
 .landing-how-action {
   display: inline-flex;
@@ -1958,6 +1991,7 @@
   text-align: center;
   text-transform: uppercase;
   text-wrap: balance;
+  will-change: transform, opacity;
 }
 
 .landing-how-learn-more:hover .landing-how-learn-more-circle {

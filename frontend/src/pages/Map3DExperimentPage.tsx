@@ -28,6 +28,7 @@ import WhiteModelMap, {
 } from "../components/WhiteModelMap";
 import EasePlacesDetailPopup from "../components/map/EasePlacesDetailPopup";
 import { type EasePlacesFeature } from "../lib/easePlaces";
+import { isPointInSupportedRegion, AUSTRALIA_REGION_ERROR } from "../lib/melbourneRegion";
 import { APP_ROUTES } from "../lib/navigation";
 
 const MAPBOX_PUBLIC_TOKEN = (import.meta.env.VITE_MAPBOX_PUBLIC_TOKEN as string | undefined)?.trim() || null;
@@ -262,6 +263,15 @@ export default function Map3DExperimentPage() {
   const routeReady = Boolean(route && startPoint && endPoint);
   const canUseRouteApi = Boolean(MAPBOX_PUBLIC_TOKEN);
 
+  const showOutsideRegionError = useCallback(() => {
+    setRouteError({
+      title: AUSTRALIA_REGION_ERROR.title,
+      message: AUSTRALIA_REGION_ERROR.message,
+    });
+  }, []);
+
+  const isSupportedPoint = useCallback((point: RoutePoint) => isPointInSupportedRegion(point), []);
+
   const clearRouteOnly = useCallback(() => {
     requestIdRef.current += 1;
     setRoute(null);
@@ -270,6 +280,13 @@ export default function Map3DExperimentPage() {
 
   const requestRoute = useCallback(
     async (nextProfile: RouteProfile, nextStart: RoutePoint, nextEnd: RoutePoint) => {
+      if (!isSupportedPoint(nextStart) || !isSupportedPoint(nextEnd)) {
+        setRoute(null);
+        setIsRouteLoading(false);
+        showOutsideRegionError();
+        return;
+      }
+
       if (!MAPBOX_PUBLIC_TOKEN) {
         setRoute(null);
         setIsRouteLoading(false);
@@ -322,12 +339,16 @@ export default function Map3DExperimentPage() {
         }
       }
     },
-    []
+    [isSupportedPoint, showOutsideRegionError]
   );
 
   const handleMapClick = useCallback(
     (point: RoutePoint) => {
       if (!isMapPointSelectionEnabled) return;
+      if (!isSupportedPoint(point)) {
+        showOutsideRegionError();
+        return;
+      }
       setFocusedStepIndex(null);
       setGeolocation((current) => (current.status === "loading" ? current : { status: "idle", message: null }));
       setRouteError(null);
@@ -346,7 +367,7 @@ export default function Map3DExperimentPage() {
       setEndPoint(point);
       void requestRoute(profile, startPoint, point);
     },
-    [endPoint, isMapPointSelectionEnabled, isMobileViewport, profile, requestRoute, startPoint]
+    [endPoint, isMapPointSelectionEnabled, isMobileViewport, isSupportedPoint, profile, requestRoute, showOutsideRegionError, startPoint]
   );
 
   const handleProfileChange = useCallback(
@@ -393,6 +414,18 @@ export default function Map3DExperimentPage() {
           lng: position.coords.longitude,
           lat: position.coords.latitude,
         };
+        if (!isSupportedPoint(point)) {
+          clearRouteOnly();
+          setRouteError({
+            title: AUSTRALIA_REGION_ERROR.title,
+            message: AUSTRALIA_REGION_ERROR.message,
+          });
+          setGeolocation({
+            status: "error",
+            message: "Your current location is outside the supported Australia area for this 3D route preview.",
+          });
+          return;
+        }
         clearRouteOnly();
         setStartPoint(point);
         setRouteError(null);
@@ -428,7 +461,7 @@ export default function Map3DExperimentPage() {
         maximumAge: 30000,
       }
     );
-  }, [clearRouteOnly, endPoint, isMobileViewport, profile, requestRoute]);
+  }, [clearRouteOnly, endPoint, isMobileViewport, isSupportedPoint, profile, requestRoute]);
 
   const handleMapError = useCallback((message: string) => {
     setRouteError({
@@ -543,22 +576,39 @@ export default function Map3DExperimentPage() {
     setRouteError(null);
     clearRouteOnly();
 
-    if (endFromSearch) {
-      setEndPoint(endFromSearch);
+    const safeStartPoint = startFromSearch && isSupportedPoint(startFromSearch) ? startFromSearch : null;
+    const safeEndPoint = endFromSearch && isSupportedPoint(endFromSearch) ? endFromSearch : null;
+    const hadOutOfBoundsPoint = Boolean((startFromSearch && !safeStartPoint) || (endFromSearch && !safeEndPoint));
+
+    if (safeEndPoint) {
+      setEndPoint(safeEndPoint);
+    } else if (endFromSearch) {
+      setEndPoint(null);
     }
 
-    if (startFromSearch) {
-      setStartPoint(startFromSearch);
-      if (endFromSearch) {
-        void requestRoute(profile, startFromSearch, endFromSearch);
+    if (hadOutOfBoundsPoint) {
+      showOutsideRegionError();
+    }
+
+    if (safeStartPoint) {
+      setStartPoint(safeStartPoint);
+      if (safeEndPoint) {
+        void requestRoute(profile, safeStartPoint, safeEndPoint);
       }
       return;
     }
 
     if (autoLocate) {
-      handleUseCurrentLocation(endFromSearch);
+      setStartPoint(null);
+      handleUseCurrentLocation(safeEndPoint);
+      return;
     }
-  }, [clearRouteOnly, handleUseCurrentLocation, isMobileViewport, location.search, profile, requestRoute]);
+
+    if (startFromSearch) {
+      setStartPoint(null);
+      return;
+    }
+  }, [clearRouteOnly, handleUseCurrentLocation, isMobileViewport, isSupportedPoint, location.search, profile, requestRoute, showOutsideRegionError]);
 
   useEffect(() => {
     if (!areaLayers.easePlaces) {
