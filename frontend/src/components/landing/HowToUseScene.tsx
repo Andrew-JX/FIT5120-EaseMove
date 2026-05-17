@@ -258,26 +258,20 @@ export default function HowToUseScene() {
         });
       }
 
-      if (actionChip) {
-        timeline.add(
-          actionChip,
-          {
-            opacity: [0, 1],
+        if (actionChip) {
+          timeline.add(
+            actionChip,
+            {
+              opacity: [0, 1],
             x: ["24vw", "0vw"],
             scale: [0.9, 1],
             filter: ["blur(10px)", "blur(0px)"],
             duration: LANDING_REVEAL_DURATIONS.base + 620,
-            ease: "out(5)",
-          },
-          "-=540"
-        );
-        timeline.add(actionChip, {
-          scaleX: [1, 1.018, 0.996, 1.006, 1],
-          scaleY: [1, 0.988, 1.01, 0.998, 1],
-          duration: 420,
-          ease: "inOut(2)",
-        });
-      }
+              ease: "out(5)",
+            },
+            "-=540"
+          );
+        }
     });
 
     return () => {

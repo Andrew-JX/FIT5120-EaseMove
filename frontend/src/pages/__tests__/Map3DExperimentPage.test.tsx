@@ -900,10 +900,20 @@ describe("Map3DExperimentPage - Epic 5", () => {
       </MemoryRouter>
     );
 
-    expect(firstView.container.textContent).toContain("Quick guide");
-    expect(firstView.container.textContent).toContain("3D Route Preview");
+    expect(firstView.container.textContent).toContain("Tips Guide");
+    expect(firstView.container.textContent).toContain("Step 1 of 4");
+    expect(firstView.container.textContent).toContain("Choose your route points");
     expect(firstView.container.querySelector('[data-testid="route-guide-overlay"]')?.className).toContain(
-      "overflow-y-auto"
+      "overflow-hidden"
+    );
+    expect(firstView.container.querySelector('[data-testid="route-guide-step-card"]')?.className).toContain(
+      "route-guide-glass-card"
+    );
+    expect(firstView.container.querySelector('[data-testid="route-guide-body-card"]')?.className).toContain(
+      "route-guide-glass-panel"
+    );
+    expect(firstView.container.querySelector('[data-testid="route-guide-next-button"]')?.className).toContain(
+      "route-guide-glass-button"
     );
     firstView.unmount();
 
@@ -927,7 +937,7 @@ describe("Map3DExperimentPage - Epic 5", () => {
       </MemoryRouter>
     );
 
-    expect(reloadedView.container.textContent).toContain("Quick guide");
+    expect(reloadedView.container.textContent).toContain("Tips Guide");
     reloadedView.unmount();
   });
 
@@ -958,6 +968,8 @@ describe("Map3DExperimentPage - Epic 5", () => {
     expect(view.container.querySelector('[data-testid="collapsed-panel-actions"]')).toBeNull();
     expect(view.container.textContent).toContain("Route");
     expect(view.container.textContent).toContain("Layers");
+    expect(view.container.querySelector('[data-testid="route-top-toolbar"]')?.className).toContain("max-sm:flex-wrap");
+    expect(view.container.querySelector('[data-testid="route-top-toolbar-right"]')?.className).toContain("max-sm:w-full");
 
     view.unmount();
   });

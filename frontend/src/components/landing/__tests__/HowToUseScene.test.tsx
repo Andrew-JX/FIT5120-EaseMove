@@ -126,4 +126,5 @@ describe("HowToUseScene", () => {
 
     view.unmount();
   });
+
 });
