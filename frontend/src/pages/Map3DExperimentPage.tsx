@@ -35,6 +35,7 @@ const MAPBOX_PUBLIC_TOKEN = (import.meta.env.VITE_MAPBOX_PUBLIC_TOKEN as string 
 const ROUTE_REQUEST_TIMEOUT_MS = 12000;
 const LOW_ACCURACY_THRESHOLD_METERS = 120;
 const MOBILE_PANEL_MEDIA_QUERY = "(max-width: 767px)";
+const MOBILE_TOOLBAR_DESIGN_WIDTH = 560;
 let hasAutoShownRouteGuideThisRuntime = false;
 const liquidGlassPanelStyle: CSSProperties = {
   background:
@@ -191,7 +192,7 @@ const ROUTE_GUIDE_STEPS: RouteGuideStep[] = [
     id: "controls",
     title: "Use map controls without losing context",
     description:
-      "Use the top toolbar for Route, Layers, Tips, Menu, and zoom controls. On smaller screens the toolbar now wraps into grouped rows, so controls scale down and reflow instead of overlapping each other.",
+      "Use the top toolbar for Route, Layers, Tips, Menu, and zoom controls. On smaller screens the toolbar stays on one row and scales down to fit cleanly inside the screen.",
     icon: Layers3,
   },
   {
@@ -262,6 +263,12 @@ function isMobilePanelViewport() {
   return window.matchMedia(MOBILE_PANEL_MEDIA_QUERY).matches;
 }
 
+function getMobileToolbarScale() {
+  if (typeof window === "undefined") return 1;
+  if (window.innerWidth >= 768) return 1;
+  return Math.max(0.74, Math.min(1, (window.innerWidth - 14) / MOBILE_TOOLBAR_DESIGN_WIDTH));
+}
+
 export default function Map3DExperimentPage() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -283,6 +290,7 @@ export default function Map3DExperimentPage() {
   const [isMobileViewport, setIsMobileViewport] = useState(initialIsMobileViewport);
   const [showGuide, setShowGuide] = useState(false);
   const [landingMenuOpen, setLandingMenuOpen] = useState(false);
+  const [mobileToolbarScale, setMobileToolbarScale] = useState(getMobileToolbarScale);
   const [mapViewportControls, setMapViewportControls] = useState<MapViewportControls | null>(null);
   const [isMapPointSelectionEnabled, setIsMapPointSelectionEnabled] = useState(true);
   const [mobileSheetMode, setMobileSheetMode] = useState<"expanded" | "peek">("expanded");
@@ -605,6 +613,18 @@ export default function Map3DExperimentPage() {
   }, []);
 
   useEffect(() => {
+    const updateToolbarScale = () => {
+      setMobileToolbarScale(getMobileToolbarScale());
+    };
+
+    updateToolbarScale();
+    window.addEventListener("resize", updateToolbarScale);
+    return () => {
+      window.removeEventListener("resize", updateToolbarScale);
+    };
+  }, []);
+
+  useEffect(() => {
     if (hasAppliedSearchRef.current) return;
 
     const endFromSearch = parsePointFromSearch(location.search, "end");
@@ -728,10 +748,14 @@ export default function Map3DExperimentPage() {
       >
         <div
           data-testid="route-top-toolbar"
-          style={routeToolbarStyle}
-          className="flex min-h-14 w-[min(92vw,112rem)] items-center gap-1 rounded-[28px] border border-white/55 px-2 py-2 text-[#17413f] shadow-[inset_0_1px_0_rgba(255,255,255,0.74)] max-sm:flex-wrap max-sm:justify-between max-sm:gap-y-2 max-sm:rounded-[24px]"
+          style={{
+            ...routeToolbarStyle,
+            transform: `scale(${mobileToolbarScale})`,
+            transformOrigin: "top center",
+          }}
+          className="flex min-h-14 w-[min(92vw,112rem)] flex-nowrap items-center gap-1 rounded-[28px] border border-white/55 px-2 py-2 text-[#17413f] shadow-[inset_0_1px_0_rgba(255,255,255,0.74)] max-sm:gap-0.5 max-sm:rounded-[24px]"
         >
-          <div className="flex min-w-0 items-center gap-1 max-sm:w-full max-sm:justify-between">
+          <div className="flex min-w-0 shrink items-center gap-1 max-sm:gap-0.5">
             <TopBarActionButton
               label="Back"
               icon={<ArrowLeft className="h-4 w-4" />}
@@ -761,7 +785,7 @@ export default function Map3DExperimentPage() {
           <div className="min-w-6 flex-1 max-sm:hidden" />
           <div
             data-testid="route-top-toolbar-right"
-            className="flex min-w-0 items-center justify-end gap-1 max-sm:w-full max-sm:justify-between"
+            className="flex min-w-0 shrink-0 items-center justify-end gap-1 max-sm:gap-0.5"
           >
             <TopBarActionButton
               label="Tips"
