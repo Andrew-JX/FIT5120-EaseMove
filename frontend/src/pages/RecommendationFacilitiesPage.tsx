@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { animate, utils } from "animejs";
 import { ArrowLeft, Bike, Droplet, Armchair, MapPin, AlertCircle, Info } from "lucide-react";
 import type { AreaInfo, AreaRecommendation } from "../lib/areaInfo";
 import {
@@ -37,6 +38,7 @@ export default function RecommendationFacilitiesPage({
   recommendation,
   onBack,
 }: RecommendationFacilitiesPageProps) {
+  const pageRef = useRef<HTMLDivElement | null>(null);
   const [loading, setLoading] = useState(true);
   const [facilitySlots, setFacilitySlots] = useState<NearbyFacilitySlot[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -66,11 +68,27 @@ export default function RecommendationFacilitiesPage({
     };
   }, [recommendation.id, recommendation.lat, recommendation.lng]);
 
+  useEffect(() => {
+    const root = pageRef.current;
+    if (!root) return;
+    const nodes = Array.from(root.querySelectorAll<HTMLElement>("[data-reco-facility-reveal]"));
+    if (nodes.length === 0) return;
+    utils.remove(nodes);
+    animate(nodes, { opacity: 0, translateY: 18, duration: 0 });
+    animate(nodes, {
+      opacity: [0, 1],
+      translateY: [18, 0],
+      delay: utils.stagger(160),
+      duration: 520,
+      ease: "out(3)",
+    });
+  }, [recommendation.id, loading, loadError]);
+
   const pageBackground = "linear-gradient(180deg, #122d2b 0%, #eef8f5 25%, #f7fbfa 75%, #122d2b 100%)";
 
   return (
-    <div className="min-h-screen" style={{ background: pageBackground }}>
-      <div className="relative h-48 overflow-hidden">
+    <div ref={pageRef} className="min-h-screen" style={{ background: pageBackground }}>
+      <div data-reco-facility-reveal className="relative h-48 overflow-hidden">
         <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(18,45,43,0.9)_0%,rgba(23,65,63,0.7)_48%,rgba(238,248,245,0.95)_100%)]">
           <div className="absolute inset-x-0 top-0 h-[46%] bg-[radial-gradient(circle_at_50%_0%,rgba(131,197,190,0.22),transparent_64%)]" />
         </div>
@@ -88,7 +106,7 @@ export default function RecommendationFacilitiesPage({
       </div>
 
       <div className="max-w-4xl mx-auto px-4 -mt-16 relative z-20 pb-8 space-y-6">
-        <div className="overflow-hidden rounded-2xl border border-[#d9d1c6] bg-[#fbf8f1]/95 shadow-[0_10px_28px_rgba(0,0,0,0.06)] backdrop-blur-lg">
+        <div data-reco-facility-reveal className="overflow-hidden rounded-2xl border border-[#d9d1c6] bg-[#fbf8f1]/95 shadow-[0_10px_28px_rgba(0,0,0,0.06)] backdrop-blur-lg">
           <div className="p-6">
             <div className="flex items-center gap-2 mb-3">
               <MapPin className="h-5 w-5 text-[#4a5c3a]" />
@@ -109,7 +127,7 @@ export default function RecommendationFacilitiesPage({
           </div>
         </div>
 
-        <div>
+        <div data-reco-facility-reveal>
           <div className="mb-5">
             <h2 className="mb-2 text-2xl font-bold text-[#2a2a2a]">Nearby Public Facilities</h2>
             <p className="text-sm text-[#5a5a5a]">Useful comfort support around this place</p>
@@ -177,7 +195,7 @@ export default function RecommendationFacilitiesPage({
           )}
         </div>
 
-        <div className="rounded-xl border border-[#d9d1c6] bg-[#fbf8f1]/95 p-5 shadow-[0_8px_22px_rgba(0,0,0,0.05)] backdrop-blur-sm">
+        <div data-reco-facility-reveal className="rounded-xl border border-[#d9d1c6] bg-[#fbf8f1]/95 p-5 shadow-[0_8px_22px_rgba(0,0,0,0.05)] backdrop-blur-sm">
           <div className="flex items-start gap-3">
             <Info className="mt-0.5 h-5 w-5 shrink-0 text-[#4a5c3a]" />
             <div className="text-sm leading-relaxed text-[#4a4a4a]">

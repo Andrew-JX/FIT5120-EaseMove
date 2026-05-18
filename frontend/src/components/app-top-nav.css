@@ -235,7 +235,7 @@
 
 .app-top-nav__landing-overlay-inner {
   position: relative;
-  min-height: 100vh;
+  min-height: 100dvh;
   padding:
     max(32px, calc(24px + env(safe-area-inset-top)))
     clamp(24px, 4vw, 48px)
@@ -1166,6 +1166,15 @@
     flex-shrink: 0;
   }
 
+  .route-page-toolbar-button--text {
+    padding: 0 10px;
+  }
+
+  .route-page-toolbar-button--compact-mobile {
+    min-width: 32px;
+    padding: 0 6px;
+  }
+
   .route-page-toolbar-button--icon {
     min-width: 32px;
     padding: 0 8px;
@@ -1174,6 +1183,19 @@
   .route-page-toolbar-divider {
     margin: 2px 2px;
     flex-shrink: 0;
+  }
+
+  .route-page-menu-trigger--compact-mobile .app-top-nav__compact-trigger {
+    min-width: 32px;
+    padding: 0 8px;
+  }
+
+  .route-page-menu-trigger--compact-mobile .app-top-nav__compact-copy {
+    display: none;
+  }
+
+  .route-page-menu-trigger--compact-mobile .app-top-nav__compact-icon-slot {
+    margin-left: 0;
   }
 
   .route-3d-map .mapboxgl-ctrl-top-right {
@@ -1189,22 +1211,39 @@
   }
 
   .app-top-nav__landing-overlay-brand {
-    max-width: 160px;
+    position: static;
+    top: auto;
+    left: auto;
+    max-width: 148px;
+    margin-right: auto;
   }
 
   .app-top-nav__landing-overlay-visual {
     display: none;
   }
 
+  .app-top-nav__landing-overlay-inner {
+    display: flex;
+    flex-direction: column;
+    gap: 28px;
+    justify-content: flex-start;
+    overflow-x: hidden;
+    overflow-y: auto;
+    padding:
+      max(28px, calc(20px + env(safe-area-inset-top)))
+      20px
+      max(24px, calc(18px + env(safe-area-inset-bottom)));
+  }
+
   .app-top-nav__landing-overlay-nav-wrap {
     position: relative;
     left: auto;
     right: auto;
-    width: auto;
-    min-width: 0;
-    max-width: none;
     top: auto;
     bottom: auto;
+    width: 100%;
+    min-width: 0;
+    max-width: none;
     margin-top: max(88px, calc(64px + env(safe-area-inset-top)));
     transform: none;
     align-items: flex-start;
@@ -1229,14 +1268,21 @@
     left: auto;
     right: auto;
     bottom: auto;
-    margin-top: 20px;
+    margin-top: auto;
+    padding-top: 8px;
     gap: 12px;
-    flex-direction: column;
+    flex-wrap: wrap;
   }
 
   .app-top-nav__landing-shortcut {
-    flex: 1 1 auto;
+    flex: 1 1 180px;
+    min-width: min(180px, 100%);
     padding: 0 0 0.18rem;
+    align-items: flex-start;
+    text-align: left;
+  }
+
+  .app-top-nav__landing-shortcut--map {
     align-items: flex-start;
     text-align: left;
   }
