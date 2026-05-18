@@ -100,6 +100,14 @@ class MockMap {
   getZoom = vi.fn(() => 15.6);
   getCanvas = vi.fn(() => ({ style: { touchAction: "", cursor: "" } }));
   getContainer = vi.fn(() => ({ style: { touchAction: "" }, clientWidth: 1200, clientHeight: 800 }));
+  project = vi.fn((lngLat: { lng: number; lat: number } | [number, number]) => {
+    const lng = Array.isArray(lngLat) ? lngLat[0] : lngLat.lng;
+    const lat = Array.isArray(lngLat) ? lngLat[1] : lngLat.lat;
+    return {
+      x: 600 + (lng - 144.9631) * 10000,
+      y: 400 + (lat + 37.8136) * -10000,
+    };
+  });
   dragPan = { enable: vi.fn() };
   dragRotate = { enable: vi.fn() };
   touchZoomRotate = { enable: vi.fn(), enableRotation: vi.fn() };
@@ -185,6 +193,9 @@ describe("WhiteModelMap", () => {
         startPoint={null}
         endPoint={null}
         route={null}
+        routeProgress={null}
+        routePlaybackMode="idle"
+        followPet={false}
         focusedStep={null}
         showEasePlaces={false}
         showNaturalPlaces={false}
@@ -236,6 +247,9 @@ describe("WhiteModelMap", () => {
         startPoint={{ lng: 144.9542, lat: -37.8114 }}
         endPoint={{ lng: 144.9568, lat: -37.8076 }}
         route={route}
+        routeProgress={null}
+        routePlaybackMode="idle"
+        followPet={false}
         focusedStep={null}
         showEasePlaces={false}
         showNaturalPlaces={false}
@@ -283,6 +297,9 @@ describe("WhiteModelMap", () => {
         startPoint={null}
         endPoint={null}
         route={null}
+        routeProgress={null}
+        routePlaybackMode="idle"
+        followPet={false}
         focusedStep={null}
         showEasePlaces={false}
         showNaturalPlaces={true}
@@ -316,6 +333,9 @@ describe("WhiteModelMap", () => {
         startPoint={null}
         endPoint={null}
         route={null}
+        routeProgress={null}
+        routePlaybackMode="idle"
+        followPet={false}
         focusedStep={null}
         showEasePlaces={false}
         showNaturalPlaces={false}
@@ -347,6 +367,119 @@ describe("WhiteModelMap", () => {
     expect(map.layers.has("white-model-buildings")).toBe(false);
 
     view.unmount();
+  });
+
+  test("updates the route source and places a stable pet marker on the active point", async () => {
+    const module = await import("../WhiteModelMap");
+    const WhiteModelMap = module.default;
+
+    const route = {
+      distanceMeters: 1200,
+      durationSeconds: 780,
+      steps: [],
+      profile: "walking" as const,
+      geometry: {
+        type: "LineString" as const,
+        coordinates: [
+          [144.9542, -37.8114],
+          [144.9552, -37.8108],
+          [144.9568, -37.8076],
+        ],
+      },
+    };
+
+    const view = render(
+      <WhiteModelMap
+        mapboxToken="token"
+        startPoint={{ lng: 144.9542, lat: -37.8114 }}
+        endPoint={{ lng: 144.9568, lat: -37.8076 }}
+        route={route}
+        routeProgress={0.5}
+        routePlaybackMode="autoplay"
+        followPet={false}
+        focusedStep={null}
+        showEasePlaces={false}
+        showNaturalPlaces={false}
+        showStreetFacilities={false}
+        onMapClick={vi.fn()}
+        onMapError={vi.fn()}
+      />
+    );
+
+    const map = mapInstances[0];
+    expect(map).toBeTruthy();
+
+    act(() => {
+      map.trigger("style.load");
+      map.trigger("idle");
+    });
+
+    const routeSource = map.sources.get("route");
+    expect(routeSource).toBeTruthy();
+    expect(routeSource.setData).toHaveBeenCalled();
+
+    const petMarker = markerInstances.find((marker) => marker.options.element.getAttribute("data-testid") === "route-pet-marker");
+    expect(petMarker).toBeTruthy();
+    expect(petMarker?.lngLat).not.toEqual([144.9542, -37.8114]);
+    expect(petMarker?.lngLat).not.toEqual([144.9568, -37.8076]);
+    expect(petMarker?.options.element.getAttribute("data-pet-mode")).toBe("spritesheet");
+
+    view.unmount();
+  });
+
+  test("keeps the live tracked pet marker stable in live mode", async () => {
+    const module = await import("../WhiteModelMap");
+    const WhiteModelMap = module.default;
+
+    const route = {
+      distanceMeters: 1200,
+      durationSeconds: 780,
+      steps: [],
+      profile: "walking" as const,
+      geometry: {
+        type: "LineString" as const,
+        coordinates: [
+          [144.9542, -37.8114],
+          [144.9552, -37.8108],
+          [144.9568, -37.8076],
+        ],
+      },
+    };
+
+    const view = render(
+      <WhiteModelMap
+        mapboxToken="token"
+        startPoint={{ lng: 144.9542, lat: -37.8114 }}
+        endPoint={{ lng: 144.9568, lat: -37.8076 }}
+        route={route}
+        routeProgress={0.5}
+        routePlaybackMode="live"
+        followPet={true}
+        liveTrackedPoint={{ lng: 144.9552, lat: -37.8108 }}
+        focusedStep={null}
+        showEasePlaces={false}
+        showNaturalPlaces={false}
+        showStreetFacilities={false}
+        onMapClick={vi.fn()}
+        onMapError={vi.fn()}
+      />
+    );
+
+    const map = mapInstances[0];
+    expect(map).toBeTruthy();
+
+    act(() => {
+      map.trigger("style.load");
+      map.trigger("idle");
+    });
+
+    const petMarker = markerInstances.find((marker) => marker.options.element.getAttribute("data-testid") === "route-pet-marker");
+    expect(petMarker?.options.element.getAttribute("data-pet-mode")).toBe("spritesheet");
+    expect(petMarker?.lngLat).toEqual([144.9552, -37.8108]);
+
+    act(() => {
+      view.unmount();
+    });
   });
 
 });

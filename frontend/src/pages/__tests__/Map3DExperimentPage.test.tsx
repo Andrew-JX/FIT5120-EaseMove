@@ -31,6 +31,10 @@ type WhiteModelMapProps = {
   startPoint: MockRoutePoint | null;
   endPoint: MockRoutePoint | null;
   route: MockRouteSummary | null;
+  routeProgress: number | null;
+  routePlaybackMode: "idle" | "autoplay" | "live";
+  followPet: boolean;
+  liveTrackedPoint?: MockRoutePoint | null;
   focusedStep: MockRouteStepItem | null;
   showEasePlaces: boolean;
   showNaturalPlaces: boolean;
@@ -104,6 +108,14 @@ vi.mock("../../components/WhiteModelMap", async () => {
         <p>Mock 3D city view</p>
         <p data-testid="mock-token">{props.mapboxToken ? "token-on" : "token-off"}</p>
         <p data-testid="mock-route-profile">{props.route?.profile ?? "no-route"}</p>
+        <p data-testid="mock-route-progress">
+          {typeof props.routeProgress !== "number" ? "none" : props.routeProgress.toFixed(3)}
+        </p>
+        <p data-testid="mock-route-playback-mode">{props.routePlaybackMode ?? "missing"}</p>
+        <p data-testid="mock-follow-pet">{String(props.followPet ?? false)}</p>
+        <p data-testid="mock-live-tracked-point">
+          {props.liveTrackedPoint ? `${props.liveTrackedPoint.lat.toFixed(4)},${props.liveTrackedPoint.lng.toFixed(4)}` : "none"}
+        </p>
         <p data-testid="mock-layers">
           {JSON.stringify({
             easePlaces: props.showEasePlaces,
@@ -590,6 +602,7 @@ describe("Map3DExperimentPage - Epic 5", () => {
     await view.flush();
 
     expect(view.container.querySelector('[data-testid="mock-route-profile"]')?.textContent).toBe("walking");
+    expect(view.container.querySelector('[data-testid="mock-route-playback-mode"]')?.textContent).toBe("autoplay");
     expect(view.container.textContent).toContain("Distance");
     expect(view.container.textContent).toContain("1.8 km");
     expect(view.container.textContent).toContain("Time");
@@ -604,6 +617,71 @@ describe("Map3DExperimentPage - Epic 5", () => {
     expect(view.container.querySelector('[data-testid="mock-focused-step"]')?.textContent).toContain(
       "Head north on Swanston Street"
     );
+
+    view.unmount();
+  });
+
+  test("autoplay advances route progress after the route loads and resets when travel mode changes", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => ({
+      ok: true,
+      json: async () => createRouteResponse(String(input).includes("/cycling/") ? "cycling" : "walking"),
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const Map3DExperimentPage = await loadPageWithToken();
+    const view = render(
+      <MemoryRouter initialEntries={["/map/3d-route"]}>
+        <Routes>
+          <Route path="/map/3d-route" element={<Map3DExperimentPage />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    clickByText(view.container, "Map click start");
+    clickByText(view.container, "Map click end");
+    await view.flush();
+
+    expect(view.container.querySelector('[data-testid="mock-route-playback-mode"]')?.textContent).toBe("autoplay");
+    expect(view.container.querySelector('[data-testid="mock-route-progress"]')?.textContent).toBe("0.000");
+
+    await view.flushTimers(1400);
+
+    const autoplayProgress = Number(view.container.querySelector('[data-testid="mock-route-progress"]')?.textContent ?? "0");
+    expect(autoplayProgress).toBeGreaterThan(0);
+
+    clickByText(view.container, "Cycling");
+    await view.flush();
+
+    expect(view.container.querySelector('[data-testid="mock-route-profile"]')?.textContent).toBe("cycling");
+    expect(view.container.querySelector('[data-testid="mock-route-playback-mode"]')?.textContent).toBe("autoplay");
+    expect(view.container.querySelector('[data-testid="mock-route-progress"]')?.textContent).toBe("0.000");
+
+    view.unmount();
+  });
+
+  test("autoplay keeps looping instead of stopping after one pass", async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => createRouteResponse("walking"),
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const Map3DExperimentPage = await loadPageWithToken();
+    const view = render(
+      <MemoryRouter initialEntries={["/map/3d-route"]}>
+        <Routes>
+          <Route path="/map/3d-route" element={<Map3DExperimentPage />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    clickByText(view.container, "Map click start");
+    clickByText(view.container, "Map click end");
+    await view.flush();
+    await view.flushTimers(12450);
+
+    expect(view.container.querySelector('[data-testid="mock-route-playback-mode"]')?.textContent).toBe("autoplay");
+    expect(Number(view.container.querySelector('[data-testid="mock-route-progress"]')?.textContent ?? "1")).toBeLessThan(0.1);
 
     view.unmount();
   });
@@ -857,6 +935,316 @@ describe("Map3DExperimentPage - Epic 5", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
 
     view.unmount();
+  });
+
+  test("switches to live tracking mode and maps the user's real position onto the current route", async () => {
+    let watchSuccess: PositionCallback | null = null;
+    const watchPositionMock = vi.fn((success: PositionCallback) => {
+      watchSuccess = success;
+      return 9;
+    });
+    const clearWatchMock = vi.fn();
+
+    vi.stubGlobal("navigator", {
+      ...window.navigator,
+      geolocation: {
+        getCurrentPosition: vi.fn(),
+        watchPosition: watchPositionMock,
+        clearWatch: clearWatchMock,
+      },
+    });
+
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => createRouteResponse("walking"),
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const Map3DExperimentPage = await loadPageWithToken();
+    const view = render(
+      <MemoryRouter initialEntries={["/map/3d-route"]}>
+        <Routes>
+          <Route path="/map/3d-route" element={<Map3DExperimentPage />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    clickByText(view.container, "Map click start");
+    clickByText(view.container, "Map click end");
+    await view.flush();
+
+    const liveButton = view.container.querySelector('button[aria-label="Track my live route progress"]');
+    expect(liveButton).toBeTruthy();
+
+    act(() => {
+      liveButton!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(watchPositionMock).toHaveBeenCalledTimes(1);
+    expect(view.container.querySelector('[data-testid="mock-route-playback-mode"]')?.textContent).toBe("live");
+    expect(view.container.querySelector('[data-testid="mock-follow-pet"]')?.textContent).toBe("true");
+
+    act(() => {
+      watchSuccess?.({
+        coords: {
+          latitude: -37.8079,
+          longitude: 144.9728,
+          accuracy: 18,
+          altitude: null,
+          altitudeAccuracy: null,
+          heading: null,
+          speed: null,
+          toJSON: () => ({}),
+        },
+        timestamp: Date.now(),
+        toJSON: () => ({}),
+      } as GeolocationPosition);
+    });
+
+    const liveProgress = Number(view.container.querySelector('[data-testid="mock-route-progress"]')?.textContent ?? "0");
+    expect(liveProgress).toBeGreaterThan(0.2);
+    expect(view.container.querySelector('[data-testid="mock-live-tracked-point"]')?.textContent).toBe("-37.8079,144.9728");
+    expect(view.container.textContent).toContain("Live route progress is tracking your current location");
+
+    view.unmount();
+    expect(clearWatchMock).toHaveBeenCalledWith(9);
+  });
+
+  test("clicking the live tracking button again turns tracking off and restarts autoplay", async () => {
+    let watchSuccess: PositionCallback | null = null;
+    const watchPositionMock = vi.fn((success: PositionCallback) => {
+      watchSuccess = success;
+      return 17;
+    });
+    const clearWatchMock = vi.fn();
+
+    vi.stubGlobal("navigator", {
+      ...window.navigator,
+      geolocation: {
+        getCurrentPosition: vi.fn(),
+        watchPosition: watchPositionMock,
+        clearWatch: clearWatchMock,
+      },
+    });
+
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => createRouteResponse("walking"),
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const Map3DExperimentPage = await loadPageWithToken();
+    const view = render(
+      <MemoryRouter initialEntries={["/map/3d-route"]}>
+        <Routes>
+          <Route path="/map/3d-route" element={<Map3DExperimentPage />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    clickByText(view.container, "Map click start");
+    clickByText(view.container, "Map click end");
+    await view.flush();
+
+    const liveButton = () => view.container.querySelector('button[aria-label="Track my live route progress"], button[aria-label="Stop live route progress"]');
+    expect(liveButton()).toBeTruthy();
+
+    act(() => {
+      liveButton()!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    act(() => {
+      watchSuccess?.({
+        coords: {
+          latitude: -37.8079,
+          longitude: 144.9728,
+          accuracy: 18,
+          altitude: null,
+          altitudeAccuracy: null,
+          heading: null,
+          speed: null,
+          toJSON: () => ({}),
+        },
+        timestamp: Date.now(),
+        toJSON: () => ({}),
+      } as GeolocationPosition);
+    });
+
+    expect(view.container.querySelector('[data-testid="mock-route-playback-mode"]')?.textContent).toBe("live");
+
+    act(() => {
+      liveButton()!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(clearWatchMock).toHaveBeenCalledWith(17);
+    expect(view.container.querySelector('[data-testid="mock-route-playback-mode"]')?.textContent).toBe("autoplay");
+    expect(view.container.querySelector('[data-testid="mock-route-progress"]')?.textContent).toBe("0.000");
+
+    view.unmount();
+  });
+
+  test("autoplay pauses briefly at the route end before looping back to the start", async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => createRouteResponse("walking"),
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const Map3DExperimentPage = await loadPageWithToken();
+    const view = render(
+      <MemoryRouter initialEntries={["/map/3d-route"]}>
+        <Routes>
+          <Route path="/map/3d-route" element={<Map3DExperimentPage />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    clickByText(view.container, "Map click start");
+    clickByText(view.container, "Map click end");
+    await view.flush();
+
+    await view.flushTimers(11000);
+    expect(view.container.querySelector('[data-testid="mock-route-progress"]')?.textContent).toBe("1.000");
+
+    await view.flushTimers(800);
+    expect(view.container.querySelector('[data-testid="mock-route-progress"]')?.textContent).toBe("1.000");
+
+    await view.flushTimers(450);
+    expect(Number(view.container.querySelector('[data-testid="mock-route-progress"]')?.textContent ?? "1")).toBeLessThan(0.1);
+
+    view.unmount();
+  });
+
+  test("live tracking can suggest rerouting when the current location is far from the selected start point", async () => {
+    let watchSuccess: PositionCallback | null = null;
+    const watchPositionMock = vi.fn((success: PositionCallback) => {
+      watchSuccess = success;
+      return 21;
+    });
+    const clearWatchMock = vi.fn();
+
+    vi.stubGlobal("navigator", {
+      ...window.navigator,
+      geolocation: {
+        getCurrentPosition: vi.fn(),
+        watchPosition: watchPositionMock,
+        clearWatch: clearWatchMock,
+      },
+    });
+
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => ({
+      ok: true,
+      json: async () => createRouteResponse(String(input).includes("/cycling/") ? "cycling" : "walking"),
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const Map3DExperimentPage = await loadPageWithToken();
+    const view = render(
+      <MemoryRouter initialEntries={["/map/3d-route"]}>
+        <Routes>
+          <Route path="/map/3d-route" element={<Map3DExperimentPage />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    clickByText(view.container, "Map click start");
+    clickByText(view.container, "Map click end");
+    await view.flush();
+
+    const liveButton = view.container.querySelector('button[aria-label="Track my live route progress"]');
+    expect(liveButton).toBeTruthy();
+
+    act(() => {
+      liveButton!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    act(() => {
+      watchSuccess?.({
+        coords: {
+          latitude: -37.7001,
+          longitude: 145.1201,
+          accuracy: 16,
+          altitude: null,
+          altitudeAccuracy: null,
+          heading: null,
+          speed: null,
+          toJSON: () => ({}),
+        },
+        timestamp: Date.now(),
+        toJSON: () => ({}),
+      } as GeolocationPosition);
+    });
+
+    expect(view.container.textContent).toContain("You are far from the selected start point");
+    expect(view.container.textContent).toContain("Re-route from my location");
+    expect(view.container.textContent).toContain("Keep current route");
+
+    clickByText(view.container, "Re-route from my location");
+    await view.flush();
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(String(fetchMock.mock.calls[1]?.[0])).toContain("145.1201,-37.7001");
+    expect(view.container.querySelector('[data-testid="mock-route-playback-mode"]')?.textContent).toBe("live");
+
+    view.unmount();
+    expect(clearWatchMock).toHaveBeenCalledWith(21);
+  });
+
+  test("live tracking errors fall back gracefully without clearing the route", async () => {
+    const watchPositionMock = vi.fn((_success: PositionCallback, error?: PositionErrorCallback) => {
+      error?.({
+        code: 1,
+        message: "permission denied",
+        PERMISSION_DENIED: 1,
+        POSITION_UNAVAILABLE: 2,
+        TIMEOUT: 3,
+      } as GeolocationPositionError);
+      return 13;
+    });
+    const clearWatchMock = vi.fn();
+
+    vi.stubGlobal("navigator", {
+      ...window.navigator,
+      geolocation: {
+        getCurrentPosition: vi.fn(),
+        watchPosition: watchPositionMock,
+        clearWatch: clearWatchMock,
+      },
+    });
+
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => createRouteResponse("walking"),
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const Map3DExperimentPage = await loadPageWithToken();
+    const view = render(
+      <MemoryRouter initialEntries={["/map/3d-route"]}>
+        <Routes>
+          <Route path="/map/3d-route" element={<Map3DExperimentPage />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    clickByText(view.container, "Map click start");
+    clickByText(view.container, "Map click end");
+    await view.flush();
+
+    const liveButton = view.container.querySelector('button[aria-label="Track my live route progress"]');
+    expect(liveButton).toBeTruthy();
+
+    act(() => {
+      liveButton!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(view.container.querySelector('[data-testid="mock-route-profile"]')?.textContent).toBe("walking");
+    expect(view.container.querySelector('[data-testid="mock-route-playback-mode"]')?.textContent).toBe("idle");
+    expect(view.container.textContent).toContain("Live route tracking could not start");
+    expect(view.container.textContent).toContain("Location permission was denied");
+
+    view.unmount();
+    expect(clearWatchMock).toHaveBeenCalledWith(13);
   });
 
   test("ignores out-of-bound search parameters and does not request a route for points outside Australia", async () => {
