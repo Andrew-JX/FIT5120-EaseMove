@@ -535,6 +535,7 @@ export default function ExtremeWeatherRisksPage() {
   const quizIntroRef = useRef<HTMLDivElement | null>(null);
   const wheelLockedRef = useRef(false);
   const [activePanel, setActivePanel] = useState<"ring" | "quiz">("ring");
+  const [landingMenuOpen, setLandingMenuOpen] = useState(false);
   const [legendDropdownOpen, setLegendDropdownOpen] = useState(false);
   const [introAnimated, setIntroAnimated] = useState(false);
   const ringIntroRef = useRef<HTMLDivElement | null>(null);
@@ -563,6 +564,11 @@ export default function ExtremeWeatherRisksPage() {
     const timer = window.setTimeout(() => setIntroAnimated(true), 360);
     return () => window.clearTimeout(timer);
   }, []);
+
+  useEffect(() => {
+    if (!landingMenuOpen) return;
+    setLegendDropdownOpen(false);
+  }, [landingMenuOpen]);
 
   useEffect(() => {
     const host = ringIntroRef.current;
@@ -826,10 +832,6 @@ export default function ExtremeWeatherRisksPage() {
             }
           : null;
 
-  const handleTopNavBackToTop = () => {
-    containerRef.current?.scrollTo({ top: 0, left: 0, behavior: "smooth" });
-  };
-
   return (
     <div
       ref={containerRef}
@@ -841,15 +843,23 @@ export default function ExtremeWeatherRisksPage() {
           "linear-gradient(180deg, #122d2b 0%, #eef8f5 16%, #f7fbfa 76%, #dfeee9 100%)",
       }}
     >
-      <div className="fixed top-0 left-0 right-0 z-40 px-3 sm:px-4 pt-2 sm:pt-3 pointer-events-none">
-        <div className="pointer-events-auto">
-          <AppTopNav variant="app" onBackToTop={handleTopNavBackToTop} />
-        </div>
-      </div>
+      <AppTopNav
+        variant="landing"
+        landingMode="compact"
+        landingTone="dark"
+        landingTransitionProgress={1}
+        landingOverlayOpen={landingMenuOpen}
+        onLandingOverlayOpenChange={setLandingMenuOpen}
+        className="app-top-nav--map-overlay"
+      />
 
       <nav
-        className="fixed top-0 left-0 z-50 py-3 px-4 sm:py-4 sm:px-6 pointer-events-auto"
-        style={{ backgroundColor: "transparent" }}
+        className="fixed top-0 left-0 z-50 py-3 px-4 sm:py-4 sm:px-6 transition-opacity duration-200"
+        style={{
+          backgroundColor: "transparent",
+          opacity: landingMenuOpen ? 0 : 1,
+          pointerEvents: landingMenuOpen ? "none" : "auto",
+        }}
       >
         <div className="flex flex-col items-start gap-1.5">
           {([
@@ -895,6 +905,7 @@ export default function ExtremeWeatherRisksPage() {
             }}
           >
             <motion.svg
+            data-testid="weather-ring"
             width={viewSize}
             height={viewSize}
             viewBox={`0 0 ${viewSize} ${viewSize}`}
