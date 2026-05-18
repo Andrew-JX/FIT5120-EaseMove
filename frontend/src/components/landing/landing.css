@@ -65,6 +65,10 @@
   pointer-events: none;
 }
 
+.landing-global-nav-shell.is-nav-overlay-open {
+  z-index: 260;
+}
+
 .landing-global-nav-shell .app-top-nav {
   pointer-events: auto;
 }

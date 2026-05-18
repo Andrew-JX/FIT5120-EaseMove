@@ -1584,6 +1584,7 @@ export default function App() {
             landingOverlayOpen={landingMenuOpen}
             onLandingOverlayOpenChange={setLandingMenuOpen}
             landingOverlayContext="map"
+            className="app-top-nav--map-overlay"
           />
         </div>
       </header>
