@@ -10,6 +10,9 @@ import {
 } from "lucide-react";
 import type { Precinct } from "../../lib/api";
 import tips3Image from "../../assets/tips3.png";
+import comfortTipsImage from "../../assets/Comfort_tips.png";
+import streetTipsImage from "../../assets/Street_tips.png";
+import naturalTipsImage from "../../assets/Natural_tips.png";
 
 type MapGuideDialogProps = {
   open: boolean;
@@ -57,6 +60,12 @@ const GUIDE_STEPS: GuideStep[] = [
   },
 ];
 
+const FILTER_TIPS_IMAGES = [
+  { src: comfortTipsImage, alt: "Comfort area tips preview" },
+  { src: streetTipsImage, alt: "Street facilities tips preview" },
+  { src: naturalTipsImage, alt: "Natural places tips preview" },
+] as const;
+
 export default function MapGuideDialog({
   open,
   onOpenChange,
@@ -65,6 +74,7 @@ export default function MapGuideDialog({
   onPrecinctSelect,
 }: MapGuideDialogProps) {
   const [stepIndex, setStepIndex] = useState(0);
+  const [filterImageIndex, setFilterImageIndex] = useState(0);
   const [mounted, setMounted] = useState(open);
   const backdropRef = useRef<HTMLDivElement | null>(null);
   const panelRef = useRef<HTMLElement | null>(null);
@@ -79,7 +89,13 @@ export default function MapGuideDialog({
   useEffect(() => {
     if (!open) return;
     setStepIndex(0);
+    setFilterImageIndex(0);
   }, [open]);
+
+  useEffect(() => {
+    if (GUIDE_STEPS[stepIndex]?.id !== "filters") return;
+    setFilterImageIndex(0);
+  }, [stepIndex]);
 
   useEffect(() => {
     if (!mounted) return;
@@ -233,18 +249,70 @@ export default function MapGuideDialog({
                 alt="Legend guide preview"
                 className="h-40 w-full rounded-2xl object-cover sm:h-48"
               />
-            ) : (
-              <div className="flex items-center gap-3">
-                <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-[#d4e3df] bg-gradient-to-b from-[#122d2b] to-[#17413f] text-white">
-                  <StepIcon className="h-6 w-6" />
+            ) : currentStep.id === "filters" ? (
+              <div>
+                <div className="relative">
+                  <img
+                    src={FILTER_TIPS_IMAGES[filterImageIndex].src}
+                    alt={FILTER_TIPS_IMAGES[filterImageIndex].alt}
+                    className="h-56 w-full rounded-2xl bg-[#eef3ef] object-cover object-bottom sm:h-64"
+                  />
                 </div>
-                <div className="min-w-0">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#5f8682]">
-                    Step {stepIndex + 1} of {GUIDE_STEPS.length}
-                  </p>
-                  <h3 className="mt-1 text-xl font-bold text-[#10201f] sm:text-2xl">{currentStep.title}</h3>
+                <div className="mt-3 flex items-center justify-between gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setFilterImageIndex((value) => Math.max(value - 1, 0))}
+                    disabled={filterImageIndex === 0}
+                    className={`rounded-md border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] shadow-[0_6px_14px_rgba(10,24,23,0.2)] transition ${
+                      filterImageIndex === 0
+                        ? "cursor-not-allowed border-[#c9d8d4] bg-[#dde8e5] text-[#7a918d]"
+                        : "border-white/30 bg-gradient-to-b from-[#122d2b] to-[#17413f] text-white hover:brightness-110"
+                    }`}
+                  >
+                    Previous
+                  </button>
+                  <div className="flex items-center gap-2">
+                    {FILTER_TIPS_IMAGES.map((image, index) => (
+                      <span
+                        key={image.alt}
+                        className={`h-2 w-2 rounded-full ${index === filterImageIndex ? "bg-[#17413f]" : "bg-[#b7cbc7]"}`}
+                      />
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setFilterImageIndex((value) => Math.min(value + 1, FILTER_TIPS_IMAGES.length - 1))
+                    }
+                    disabled={filterImageIndex === FILTER_TIPS_IMAGES.length - 1}
+                    className={`rounded-md border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] shadow-[0_6px_14px_rgba(10,24,23,0.2)] transition ${
+                      filterImageIndex === FILTER_TIPS_IMAGES.length - 1
+                        ? "cursor-not-allowed border-[#c9d8d4] bg-[#dde8e5] text-[#7a918d]"
+                        : "border-white/30 bg-gradient-to-b from-[#122d2b] to-[#17413f] text-white hover:brightness-110"
+                    }`}
+                  >
+                    Next
+                  </button>
                 </div>
               </div>
+            ) : (
+              currentStep.id === "top-five" || currentStep.id === "explore" ? (
+                <div className="min-w-0">
+                  <h3 className="text-xl font-bold text-[#10201f] sm:text-2xl">{currentStep.title}</h3>
+                </div>
+              ) : (
+                <div className="flex items-center gap-3">
+                  <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-[#d4e3df] bg-gradient-to-b from-[#122d2b] to-[#17413f] text-white">
+                    <StepIcon className="h-6 w-6" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#5f8682]">
+                      Step {stepIndex + 1} of {GUIDE_STEPS.length}
+                    </p>
+                    <h3 className="mt-1 text-xl font-bold text-[#10201f] sm:text-2xl">{currentStep.title}</h3>
+                  </div>
+                </div>
+              )
             )}
           </div>
 

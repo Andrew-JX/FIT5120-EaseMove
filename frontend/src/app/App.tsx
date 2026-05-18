@@ -5,7 +5,7 @@ import {
   Thermometer, Droplets, Users, X, Wind, Map, ArrowLeft,
   Layers, Plus, Minus, ZoomIn, Snowflake, Tag,
   ChevronDown, ChevronUp, ThermometerSun, Sun, Moon, Clock, Lightbulb,
-  Eye, TrendingUp, Star, MapPin,
+  Eye, TrendingUp, TrendingDown, Star, MapPin, CheckCircle2, RefreshCw,
 } from "lucide-react";
 import { LineChart, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import L from "leaflet";
@@ -38,6 +38,7 @@ import { APP_ROUTES } from "../lib/navigation";
 import AreaDetailPage from "../pages/AreaDetailPage";
 import RecommendationFacilitiesPage from "../pages/RecommendationFacilitiesPage";
 let hasAutoShownMapGuideThisRuntime = false;
+let suppressNextAutoMapGuide = false;
 
 const MAP_LAYOUT_NAV_ITEMS = [
   { label: "Landing Page", to: APP_ROUTES.home },
@@ -492,6 +493,7 @@ export default function App() {
   const [compareSelection1, setCompareSelection1] = useState<string | null>(null);
   const [compareSelection2, setCompareSelection2] = useState<string | null>(null);
   const [panelOpen, setPanelOpen] = useState(false);
+  const [landingMenuOpen, setLandingMenuOpen] = useState(false);
   const [activeView, setActiveView] = useState<"view" | "compare">("view");
   const [currentPageLabel, setCurrentPageLabel] = useState("Map");
   const [exploreOpen, setExploreOpen] = useState(false);
@@ -502,9 +504,17 @@ export default function App() {
   const floatingUiRefs = useRef<HTMLElement[]>([]);
   const explorePanelRef = useRef<HTMLDivElement | null>(null);
   const legendPanelRef = useRef<HTMLDivElement | null>(null);
+  const detailCardRef = useRef<HTMLDivElement | null>(null);
+  const recommendationPageRef = useRef<HTMLDivElement | null>(null);
   const exploreItemRefs = useRef<HTMLButtonElement[]>([]);
   const legendItemRefs = useRef<HTMLElement[]>([]);
-  const floatingUiFadeClass = panelOpen ? "pointer-events-none" : "pointer-events-auto";
+  const floatingUiFadeClass = panelOpen || landingMenuOpen ? "pointer-events-none" : "pointer-events-auto";
+  const sideControlsFadeClass = activeView === "compare"
+    ? "pointer-events-none opacity-0 -translate-y-40"
+    : `${floatingUiFadeClass} opacity-100 translate-y-0`;
+  const bottomControlsFadeClass = activeView === "compare"
+    ? "pointer-events-none opacity-0 translate-y-28"
+    : `${floatingUiFadeClass} opacity-100 translate-y-0`;
 
   // Right panel: 'layers' | 'legend' | null — mutually exclusive
   const [openPanel, setOpenPanel] = useState<'layers' | 'legend' | null>(null);
@@ -528,7 +538,14 @@ export default function App() {
   const sectionContainerRef = useRef<HTMLDivElement | null>(null);
   const viewSectionRef = useRef<HTMLElement | null>(null);
   const compareSectionRef = useRef<HTMLElement | null>(null);
+  const legacyScrollRef = useRef<HTMLDivElement | null>(null);
+  const legacyCompareSectionRef = useRef<HTMLElement | null>(null);
+  const compareLeftRef = useRef<HTMLDivElement | null>(null);
+  const compareRightRef = useRef<HTMLDivElement | null>(null);
+  const compareBottomRef = useRef<HTMLDivElement | null>(null);
+  const compareCenterRef = useRef<HTMLDivElement | null>(null);
   const wheelLockRef = useRef(false);
+  const [compareResetVisible, setCompareResetVisible] = useState(false);
 
   // Leaflet map instance for programmatic zoom / flyTo
   const mapInstanceRef = useRef<L.Map | null>(null);
@@ -653,8 +670,8 @@ export default function App() {
 
   useEffect(() => {
     const panel = legendPanelRef.current;
-    const items = legendItemRefs.current.filter(Boolean);
     if (!panel) return;
+    const items = Array.from(panel.querySelectorAll<HTMLElement>("[data-legend-item]"));
     utils.remove(panel);
     utils.remove(items);
     if (!legendDropdownOpen) return;
@@ -671,7 +688,48 @@ export default function App() {
       duration: 340,
       ease: "out(3)",
     });
-  }, [legendDropdownOpen]);
+  }, [legendDropdownOpen, mapFilters]);
+
+  useEffect(() => {
+    const card = detailCardRef.current;
+    const selectedPrecinct = showCard ? precincts[showCard] : null;
+    if (!card || !showCard || !selectedPrecinct || !mapFilters.comfortArea) return;
+    const sections = Array.from(card.querySelectorAll<HTMLElement>("[data-comfort-reveal]"));
+    utils.remove([card, ...sections]);
+    animate(card, {
+      opacity: [0, 1],
+      translateY: [14, 0],
+      duration: 680,
+      ease: "out(3)",
+    });
+    if (sections.length > 0) {
+      animate(sections, { opacity: 0, translateY: 12, duration: 0 });
+      animate(sections, {
+        opacity: [0, 1],
+        translateY: [12, 0],
+        delay: utils.stagger(130, { start: 160 }),
+        duration: 420,
+        ease: "out(3)",
+      });
+    }
+  }, [showCard, precincts, mapFilters.comfortArea]);
+
+  useEffect(() => {
+    if (!showTimeRecommendation) return;
+    const root = recommendationPageRef.current;
+    if (!root) return;
+    const nodes = Array.from(root.querySelectorAll<HTMLElement>("[data-reco-reveal]"));
+    if (nodes.length === 0) return;
+    utils.remove(nodes);
+    animate(nodes, { opacity: 0, translateY: 18, duration: 0 });
+    animate(nodes, {
+      opacity: [0, 1],
+      translateY: [18, 0],
+      delay: utils.stagger(170),
+      duration: 560,
+      ease: "out(3)",
+    });
+  }, [showTimeRecommendation, selectedDestId]);
 
   useEffect(() => {
     const panel = leftPanelRef.current;
@@ -746,6 +804,19 @@ export default function App() {
   }, [location.pathname, location.search]);
 
   useEffect(() => {
+    const host = sectionContainerRef.current;
+    if (!host) return;
+    const targetTop = activeView === "compare"
+      ? (compareSectionRef.current?.offsetTop ?? 0)
+      : (viewSectionRef.current?.offsetTop ?? 0);
+    host.scrollTo({ top: targetTop, left: 0, behavior: "smooth" });
+  }, [activeView]);
+
+  useEffect(() => {
+    if (suppressNextAutoMapGuide) {
+      suppressNextAutoMapGuide = false;
+      return;
+    }
     if (
       !selectedAreaId &&
       !selectedRecommendationId &&
@@ -818,8 +889,92 @@ export default function App() {
   }, [compareSelection1, compareSelection2]);
 
   const handleMapClickCombined = useCallback((id: string) => {
+    if (!mapFilters.comfortArea) {
+      setMapFilters((current: MapFilters) => ({ ...current, comfortArea: true }));
+    }
+    const selected = precincts[id];
+    if (selected && Number.isFinite(selected.lat) && Number.isFinite(selected.lng)) {
+      mapInstanceRef.current?.flyTo([selected.lat, selected.lng], Math.max(mapInstanceRef.current?.getZoom() ?? 13, 14), {
+        duration: 0.8,
+      });
+    }
     setShowCard(id);
+  }, [mapFilters.comfortArea, precincts]);
+
+  const handleTopModeSwitch = useCallback((mode: "view" | "compare") => {
+    setActiveView(mode);
+    const host = legacyScrollRef.current;
+    if (!host) return;
+    if (mode === "view") {
+      host.scrollTo({ top: 0, left: 0, behavior: "smooth" });
+      return;
+    }
+    const targetTop = legacyCompareSectionRef.current?.offsetTop ?? host.scrollHeight;
+    host.scrollTo({ top: targetTop, left: 0, behavior: "smooth" });
   }, []);
+
+  const handleResetCompare = useCallback(() => {
+    setCompareSelection1(null);
+    setCompareSelection2(null);
+    setCompareResetVisible(false);
+    setShowCard(null);
+  }, []);
+
+  const compareReady = activeView === "compare" && !!compareSelection1 && !!compareSelection2;
+
+  useEffect(() => {
+    if (!compareReady) {
+      setCompareResetVisible(false);
+      return;
+    }
+    const left = compareLeftRef.current;
+    const right = compareRightRef.current;
+    const bottom = compareBottomRef.current;
+    const center = compareCenterRef.current;
+    if (!left || !right || !bottom || !center) return;
+    utils.remove([left, right, bottom, center]);
+    animate(left, { opacity: 0, translateX: -28, duration: 0 });
+    animate(right, { opacity: 0, translateX: 28, duration: 0 });
+    animate(bottom, { opacity: 0, translateY: 26, duration: 0 });
+    animate(left, { opacity: [0, 1], translateX: [-28, 0], delay: 180, duration: 420, ease: "out(3)" });
+    animate(right, { opacity: [0, 1], translateX: [28, 0], delay: 250, duration: 420, ease: "out(3)" });
+    animate(bottom, { opacity: [0, 1], translateY: [26, 0], delay: 330, duration: 430, ease: "out(3)" });
+
+    const revealItems = Array.from(
+      document.querySelectorAll<HTMLElement>("[data-compare-reveal]")
+    );
+    utils.remove(revealItems);
+    animate(revealItems, { opacity: 0, translateY: 10, duration: 0 });
+    animate(revealItems, {
+      opacity: [0, 1],
+      translateY: [10, 0],
+      delay: utils.stagger(70, { start: 420 }),
+      duration: 320,
+      ease: "out(3)",
+    });
+
+    const scoreBars = Array.from(
+      document.querySelectorAll<HTMLElement>("[data-compare-score-bar]")
+    );
+    scoreBars.forEach((bar) => {
+      const target = Number(bar.dataset.target ?? "0");
+      bar.style.width = "0%";
+      animate(bar, {
+        width: [`0%`, `${Math.max(0, Math.min(100, target))}%`],
+        delay: 420,
+        duration: 650,
+        ease: "out(3)",
+      });
+    });
+    animate(center, {
+      opacity: [0, 1],
+      translateY: [10, 0],
+      delay: 520,
+      duration: 360,
+      ease: "out(3)",
+      onComplete: () => setCompareResetVisible(true),
+    });
+  }, [compareReady, compareSelection1, compareSelection2]);
 
   const handleEasePlacesClick = useCallback((
     feature: EasePlacesFeature,
@@ -1097,20 +1252,22 @@ export default function App() {
     ];
 
     return (
-      <div className="min-h-screen bg-[#081515]">
-        <div className="relative h-64 overflow-hidden">
-          <div
-            className="absolute inset-0 bg-cover bg-center"
-            style={{ backgroundImage: "url('https://images.unsplash.com/photo-1562310503-a918c4c61e38?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080')" }}
-          >
-            <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/40 to-transparent" />
-          </div>
-
+      <div
+        ref={recommendationPageRef}
+        className="min-h-screen"
+        style={{ background: "linear-gradient(180deg, #122d2b 0%, #eef8f5 16%, #f7fbfa 76%, #dfeee9 100%)" }}
+      >
+        <div data-reco-reveal className="relative h-64 overflow-hidden border-b border-[#d9d1c6]">
           <div className="relative z-10 px-4 py-6">
             <button
               type="button"
-              onClick={() => { setShowTimeRecommendation(false); setSelectedDestId(null); setTodayData(null); }}
-              className="flex items-center gap-2 text-white/90 hover:text-white mb-6 transition-colors"
+              onClick={() => {
+                suppressNextAutoMapGuide = true;
+                setShowTimeRecommendation(false);
+                setSelectedDestId(null);
+                setTodayData(null);
+              }}
+              className="mb-6 inline-flex items-center gap-2 rounded-xl border border-white/30 bg-gradient-to-b from-[#122d2b] to-[#17413f] px-3 py-2 text-white shadow-[0_8px_18px_rgba(0,0,0,0.18)] transition hover:brightness-110"
             >
               <ArrowLeft className="w-5 h-5" />
               <span>Back</span>
@@ -1121,19 +1278,19 @@ export default function App() {
                 <MapPin className="w-5 h-5 text-emerald-400" />
                 <span className="text-emerald-400 text-sm font-medium">Destination</span>
               </div>
-              <h1 className="text-3xl font-bold text-white mb-2">{destName}</h1>
-              <p className="text-white/80 text-sm">Optimal time recommendations based on weather, crowd, and conditions</p>
+              <h1 className="mb-2 text-3xl font-bold text-[#10201f]">{destName}</h1>
+              <p className="text-sm text-[#456765]">Optimal time recommendations based on weather, crowd, and conditions</p>
             </div>
           </div>
         </div>
 
         <div className="max-w-4xl mx-auto px-4 py-8 space-y-8">
-          <div className="bg-gradient-to-br from-slate-800/90 to-slate-900/90 backdrop-blur-sm rounded-2xl border border-slate-700/50 overflow-hidden">
+          <div data-reco-reveal className="overflow-hidden rounded-2xl border border-[#d9d1c6] bg-[#f5f0e8]/95 shadow-[0_10px_28px_rgba(0,0,0,0.06)]">
             <div className="p-6">
               <div className="flex items-center justify-between mb-6">
                 <div>
-                  <h2 className="text-2xl font-bold text-white mb-1">Right Now</h2>
-                  <p className="text-slate-400 text-sm">Current conditions at {destName}</p>
+                  <h2 className="mb-1 text-2xl font-bold text-[#10201f]">Right Now</h2>
+                  <p className="text-sm text-[#5f6f64]">Current conditions at {destName}</p>
                 </div>
                 <Clock className="w-8 h-8 text-emerald-400" />
               </div>
@@ -1143,12 +1300,12 @@ export default function App() {
                   <div className="text-7xl font-bold text-emerald-400">{currentScore}</div>
                   <div className="flex items-center gap-2 mt-2">
                     <Star className="w-5 h-5 text-yellow-400 fill-yellow-400" />
-                    <span className="text-slate-300">{currentStatus}</span>
+                    <span className="text-[#3f5f5b]">{currentStatus}</span>
                   </div>
                 </div>
 
                 <div className="flex-1 pb-2">
-                  <div className="text-sm text-slate-400 mb-2">Score Trend</div>
+                  <div className="mb-2 text-sm text-[#5f6f64]">Score Trend</div>
                   <div className="h-16">
                     <ResponsiveContainer width="100%" height="100%">
                       <AreaChart data={hourlyData}>
@@ -1166,67 +1323,52 @@ export default function App() {
               </div>
 
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/30">
+                <div className="rounded-xl border border-[#d9d1c6] bg-[#f1ecdf] p-4">
                   <div className="flex items-center gap-2 mb-2">
                     <ThermometerSun className="w-5 h-5 text-orange-400" />
-                    <span className="text-slate-400 text-xs">Temperature</span>
+                    <span className="text-xs text-[#5f6f64]">Temperature</span>
                   </div>
-                  <div className="text-2xl font-bold text-white">{currentTemp !== null && currentTemp !== undefined ? `${currentTemp}°C` : "N/A"}</div>
+                  <div className="text-2xl font-bold text-[#10201f]">{currentTemp !== null && currentTemp !== undefined ? `${currentTemp}°C` : "N/A"}</div>
                 </div>
-                <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/30">
+                <div className="rounded-xl border border-[#d9d1c6] bg-[#f1ecdf] p-4">
                   <div className="flex items-center gap-2 mb-2">
                     <Droplets className="w-5 h-5 text-blue-400" />
-                    <span className="text-slate-400 text-xs">Humidity</span>
+                    <span className="text-xs text-[#5f6f64]">Humidity</span>
                   </div>
-                  <div className="text-2xl font-bold text-white">{currentHumidity !== null && currentHumidity !== undefined ? `${currentHumidity}%` : "N/A"}</div>
+                  <div className="text-2xl font-bold text-[#10201f]">{currentHumidity !== null && currentHumidity !== undefined ? `${currentHumidity}%` : "N/A"}</div>
                 </div>
-                <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/30">
+                <div className="rounded-xl border border-[#d9d1c6] bg-[#f1ecdf] p-4">
                   <div className="flex items-center gap-2 mb-2">
                     <Wind className="w-5 h-5 text-cyan-400" />
-                    <span className="text-slate-400 text-xs">Wind Speed</span>
+                    <span className="text-xs text-[#5f6f64]">Wind Speed</span>
                   </div>
-                  <div className="text-2xl font-bold text-white">{currentWind !== null && currentWind !== undefined ? `${currentWind} m/s` : "N/A"}</div>
+                  <div className="text-2xl font-bold text-[#10201f]">{currentWind !== null && currentWind !== undefined ? `${currentWind} m/s` : "N/A"}</div>
                 </div>
-                <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/30">
+                <div className="rounded-xl border border-[#d9d1c6] bg-[#f1ecdf] p-4">
                   <div className="flex items-center gap-2 mb-2">
                     <Users className="w-5 h-5 text-purple-400" />
-                    <span className="text-slate-400 text-xs">Crowd Level</span>
+                    <span className="text-xs text-[#5f6f64]">Crowd Level</span>
                   </div>
-                  <div className="text-2xl font-bold text-white">{crowdLevel}</div>
+                  <div className="text-2xl font-bold text-[#10201f]">{crowdLevel}</div>
                 </div>
               </div>
             </div>
 
-            <div className="px-6 pb-6">
-              <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-700/30">
-                <h3 className="text-white font-semibold mb-4">Today's Forecast</h3>
-                <ResponsiveContainer width="100%" height={120}>
-                  <LineChart data={hourlyData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                    <XAxis dataKey="time" stroke="#94a3b8" style={{ fontSize: "12px" }} />
-                    <YAxis stroke="#94a3b8" style={{ fontSize: "12px" }} />
-                    <Tooltip contentStyle={{ backgroundColor: "#1e293b", border: "1px solid #334155", borderRadius: "8px" }} labelStyle={{ color: "#e2e8f0" }} />
-                    <Line type="monotone" dataKey="score" stroke="#10b981" strokeWidth={2} dot={{ fill: "#10b981", r: 4 }} />
-                    <Line type="monotone" dataKey="temp" stroke="#f59e0b" strokeWidth={2} dot={{ fill: "#f59e0b", r: 4 }} />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
           </div>
 
-          <div>
+          <div data-reco-reveal>
             <div className="flex items-center gap-3 mb-6">
               <TrendingUp className="w-6 h-6 text-emerald-400" />
-              <h2 className="text-2xl font-bold text-white">Recommended Time Slots</h2>
+              <h2 className="text-2xl font-bold text-[#10201f]">Recommended Time Slots</h2>
             </div>
 
             <div className="space-y-6">
               {timeSlots.map((slot) => (
-                <div key={slot.period} className="group bg-slate-800/90 backdrop-blur-sm rounded-2xl border border-slate-700/50 overflow-hidden hover:border-emerald-500/50 transition-all cursor-pointer">
+                <div key={slot.period} className="group cursor-pointer overflow-hidden rounded-2xl border border-[#d9d1c6] bg-[#f5f0e8]/95 transition-all hover:border-[#9aa884]">
                   <div className="grid md:grid-cols-5 gap-0">
                     <div className="md:col-span-2 relative h-64 md:h-auto overflow-hidden">
                       <img src={slot.image} alt={slot.period} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
-                      <div className="absolute inset-0 bg-gradient-to-r from-transparent to-slate-800/90" />
+                      <div className="absolute inset-0 bg-gradient-to-r from-transparent to-[#f5f0e8]/90" />
                       <div className="absolute top-4 left-4 bg-emerald-500 text-white px-4 py-2 rounded-full font-bold text-lg">
                         Score: {slot.score}
                       </div>
@@ -1237,20 +1379,20 @@ export default function App() {
                         <div className="flex items-center gap-3">
                           <div className="p-3 bg-emerald-500/20 rounded-xl text-emerald-400">{slot.icon}</div>
                           <div>
-                            <h3 className="text-xl font-bold text-white">{slot.period}</h3>
-                            <p className="text-slate-400">{slot.time}</p>
+                            <h3 className="text-xl font-bold text-[#10201f]">{slot.period}</h3>
+                            <p className="text-[#5f6f64]">{slot.time}</p>
                           </div>
                         </div>
                       </div>
 
                       <div className="grid grid-cols-3 gap-3 mb-4">
                         {slot.stats.map((stat) => (
-                          <div key={stat.label} className="bg-slate-900/50 rounded-lg p-3 border border-slate-700/30">
-                            <div className="flex items-center gap-2 text-slate-400 mb-1">
+                          <div key={stat.label} className="rounded-lg border border-[#d9d1c6] bg-[#f1ecdf] p-3">
+                            <div className="mb-1 flex items-center gap-2 text-[#5f6f64]">
                               {stat.icon}
                               <span className="text-xs">{stat.label}</span>
                             </div>
-                            <div className="text-white font-semibold text-sm">{stat.value}</div>
+                            <div className="text-sm font-semibold text-[#10201f]">{stat.value}</div>
                           </div>
                         ))}
                       </div>
@@ -1259,7 +1401,7 @@ export default function App() {
                         {slot.reasons.map((reason) => (
                           <div key={reason} className="flex items-start gap-2">
                             <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1.5 shrink-0" />
-                            <span className="text-slate-300 text-sm">{reason}</span>
+                            <span className="text-sm text-[#3f5f5b]">{reason}</span>
                           </div>
                         ))}
                       </div>
@@ -1268,43 +1410,43 @@ export default function App() {
                 </div>
               ))}
 
-              <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl border border-slate-700/30 p-5">
+              <div className="rounded-xl border border-[#d9d1c6] bg-[#f1ecdf] p-5">
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-2">
-                      <Clock className="w-5 h-5 text-slate-400" />
-                      <span className="font-semibold text-white">{alternativeSlot.period}</span>
+                      <Clock className="w-5 h-5 text-[#5f6f64]" />
+                      <span className="font-semibold text-[#10201f]">{alternativeSlot.period}</span>
                     </div>
-                    <div className="text-sm text-slate-400 mb-1">{alternativeSlot.time}</div>
-                    <div className="text-xs text-slate-500">{alternativeSlot.note}</div>
+                    <div className="mb-1 text-sm text-[#5f6f64]">{alternativeSlot.time}</div>
+                    <div className="text-xs text-[#6f827f]">{alternativeSlot.note}</div>
                   </div>
-                  <div className="text-3xl font-bold text-slate-400">{alternativeSlot.score}</div>
+                  <div className="text-3xl font-bold text-[#5f6f64]">{alternativeSlot.score}</div>
                 </div>
               </div>
             </div>
           </div>
 
-          <div className="pb-8">
+          <div data-reco-reveal className="pb-8">
             <div className="flex items-center gap-3 mb-6">
               <Lightbulb className="w-6 h-6 text-yellow-400" />
-              <h2 className="text-2xl font-bold text-white">Preparation Advice</h2>
+              <h2 className="text-2xl font-bold text-[#10201f]">Preparation Advice</h2>
             </div>
 
             <div className="grid md:grid-cols-2 gap-4">
               {preparations.map((prep) => (
-                <div key={prep.title} className="bg-slate-800/90 backdrop-blur-sm rounded-xl border border-slate-700/50 p-5 hover:border-emerald-500/50 transition-colors">
+                <div key={prep.title} className="rounded-xl border border-[#d9d1c6] bg-[#f5f0e8]/95 p-5 transition-colors hover:border-[#9aa884]">
                   <div className="flex items-start gap-4">
                     <div className="p-3 bg-gradient-to-br from-emerald-500/20 to-cyan-500/20 rounded-xl text-emerald-400 shrink-0">
                       {prep.icon}
                     </div>
                     <div className="flex-1">
                       <div className="flex items-center justify-between mb-2">
-                        <h3 className="font-semibold text-white">{prep.title}</h3>
+                        <h3 className="font-semibold text-[#10201f]">{prep.title}</h3>
                         <span className={`text-xs px-2 py-1 rounded-full ${prep.priority === "High" ? "bg-red-500/20 text-red-400" : "bg-yellow-500/20 text-yellow-400"}`}>
                           {prep.priority}
                         </span>
                       </div>
-                      <p className="text-sm text-slate-300">{prep.text}</p>
+                      <p className="text-sm text-[#3f5f5b]">{prep.text}</p>
                     </div>
                   </div>
                 </div>
@@ -1319,9 +1461,11 @@ export default function App() {
   // ─── Main Map View ────────────────────────────────────────────────────────────
 
   const showCardPrecinct = showCard ? precincts[showCard] : null;
+  const shouldLiftDetailCard = exploreOpen || legendDropdownOpen;
   const betterPrecinctId = getBetterPrecinct();
   const selectedArea = getAreaInfo(selectedAreaId);
   const selectedRecommendation = getAreaRecommendation(selectedAreaId, selectedRecommendationId);
+  const useLegacyLayout = true;
 
   if (selectedArea && selectedRecommendation) {
     return (
@@ -1346,8 +1490,11 @@ export default function App() {
     );
   }
 
-  return (
-    <div className="fixed inset-0 overflow-y-auto overflow-x-hidden text-[#10201f]">
+  const compareLeftPrecinct = compareSelection1 ? precincts[compareSelection1] : null;
+  const compareRightPrecinct = compareSelection2 ? precincts[compareSelection2] : null;
+
+  if (useLegacyLayout) return (
+    <div ref={legacyScrollRef} className="fixed inset-0 overflow-y-auto overflow-x-hidden snap-y snap-mandatory text-[#10201f]">
       {panelOpen && (
         <button
           type="button"
@@ -1405,14 +1552,14 @@ export default function App() {
             if (!el) return;
             floatingUiRefs.current[0] = el;
           }}
-          className={`flex flex-col gap-1 ${floatingUiFadeClass}`}
+          className="flex flex-col gap-1 pointer-events-auto"
           style={{ width: "clamp(64px, 11vw, 92px)" }}
         >
           {(["view", "compare"] as const).map((mode) => (
             <button
               key={mode}
               type="button"
-              onClick={() => setActiveView(mode)}
+              onClick={() => handleTopModeSwitch(mode)}
               className={`rounded-sm border-l-2 px-2 py-1 text-left text-[9px] font-medium tracking-[0.14em] uppercase transition-all duration-300 ease-out sm:px-3 sm:text-[10px] sm:tracking-[0.24em] ${
                 activeView === mode
                   ? "scale-[1.04] border-white bg-gradient-to-b from-[#122d2b] to-[#17413f] text-white shadow-[0_8px_18px_rgba(0,0,0,0.2)]"
@@ -1428,13 +1575,17 @@ export default function App() {
           <img src={logoTransparent} alt="Move Comfortly" className="mx-auto mt-6 h-45 w-auto object-contain sm:mt-14" />
         </div>
 
-        <button
-          type="button"
-          onClick={() => setPanelOpen((open) => !open)}
-          className="flex items-center gap-1.5 rounded-sm border border-white/25 bg-gradient-to-b from-[#122d2b] to-[#17413f] px-2.5 py-1.5 text-[9px] font-medium tracking-[0.14em] uppercase text-white/90 backdrop-blur sm:gap-2 sm:px-4 sm:py-2 sm:text-[11px] sm:tracking-[0.24em]"
-        >
-          Menu
-        </button>
+        <div className="pointer-events-auto">
+          <AppTopNav
+            variant="landing"
+            landingMode="compact"
+            landingTone="dark"
+            landingTransitionProgress={1}
+            landingOverlayOpen={landingMenuOpen}
+            onLandingOverlayOpenChange={setLandingMenuOpen}
+            landingOverlayContext="map"
+          />
+        </div>
       </header>
 
       <MapGuideDialog
@@ -1448,13 +1599,13 @@ export default function App() {
       <div className="fixed inset-0 z-0">
         <LeafletMap
           precincts={mapFilters.comfortArea ? precinctList : []}
-          selectedCategory={mapFilters.comfortArea ? selectedCategory : null}
-          activeMode="view"
-          compareSelection1={null}
-          compareSelection2={null}
-          onPrecinctClick={handleMapClickCombined}
-          onAreaClick={handleAreaNavigation}
-          showInteractiveAreas={mapFilters.comfortArea}
+          selectedCategory={activeView === "compare" ? null : (mapFilters.comfortArea ? selectedCategory : null)}
+          activeMode={activeView}
+          compareSelection1={activeView === "compare" ? compareSelection1 : null}
+          compareSelection2={activeView === "compare" ? compareSelection2 : null}
+          onPrecinctClick={activeView === "compare" ? handleCompareClick : handleMapClickCombined}
+          onAreaClick={activeView === "compare" ? undefined : handleAreaNavigation}
+          showInteractiveAreas={activeView === "compare" ? false : mapFilters.comfortArea}
           showEasePlaces={mapFilters.easePlaces}
           showStreetFacilities={mapFilters.streetFacilities}
           showNaturalPlaces={mapFilters.naturalPlaces}
@@ -1463,11 +1614,11 @@ export default function App() {
         />
       </div>
 
-      <div className="relative z-10 h-screen pt-14 pointer-events-none sm:pt-16">
-        <div className="h-[calc(100vh-56px)] w-full sm:h-[calc(100vh-64px)]">
+      <div className="relative z-10 pt-14 pointer-events-none sm:pt-16">
+        <section className="snap-start h-[calc(100vh-56px)] w-full sm:h-[calc(100vh-64px)]">
             <div className="relative h-full w-full pointer-events-none">
               <div
-                className={`pointer-events-auto absolute left-3 top-16 z-40 flex items-start sm:left-8 sm:top-20 ${floatingUiFadeClass}`}
+                className={`absolute left-3 top-16 z-40 flex items-start transition-all duration-300 ease-out sm:left-8 sm:top-20 ${sideControlsFadeClass}`}
               >
                 <div
                   ref={leftPanelRef}
@@ -1540,11 +1691,13 @@ export default function App() {
 
               </div>
 
-              <MapSidebarControls
-                onZoomIn={handleZoomIn}
-                onZoomOut={handleZoomOut}
-                hidden={panelOpen}
-              />
+              <div className={`transition-all duration-300 ease-out ${sideControlsFadeClass}`}>
+                <MapSidebarControls
+                  onZoomIn={handleZoomIn}
+                  onZoomOut={handleZoomOut}
+                  hidden={panelOpen || landingMenuOpen}
+                />
+              </div>
               <button
                 type="button"
                 onClick={() => {
@@ -1559,7 +1712,7 @@ export default function App() {
                   if (!el) return;
                   floatingUiRefs.current[2] = el;
                 }}
-                className={`pointer-events-auto absolute left-3 z-40 rounded-xl border border-[#83c5be]/30 bg-gradient-to-b from-[#122d2b] to-[#17413f] p-1.5 text-white shadow-[0_16px_36px_rgba(4,14,14,0.18)] sm:left-8 sm:rounded-2xl sm:p-2 ${floatingUiFadeClass}`}
+                className={`absolute left-3 z-40 rounded-xl border border-[#83c5be]/30 bg-gradient-to-b from-[#122d2b] to-[#17413f] p-1.5 text-white shadow-[0_16px_36px_rgba(4,14,14,0.18)] transition-all duration-300 ease-out sm:left-8 sm:rounded-2xl sm:p-2 ${sideControlsFadeClass}`}
                 style={{
                   top: "34px",
                 }}
@@ -1581,7 +1734,7 @@ export default function App() {
                   if (!el) return;
                   floatingUiRefs.current[1] = el;
                 }}
-                className={`pointer-events-none absolute left-3 z-40 rounded-md border px-1.5 py-1 text-[9px] font-semibold leading-tight backdrop-blur-sm whitespace-normal break-words sm:left-8 sm:px-2 sm:text-[10px] ${floatingUiFadeClass} ${
+                className={`absolute left-3 z-40 rounded-md border px-1.5 py-1 text-[9px] font-semibold leading-tight backdrop-blur-sm whitespace-normal break-words transition-all duration-300 ease-out sm:left-8 sm:px-2 sm:text-[10px] ${sideControlsFadeClass} ${
                   loading
                     ? "border-amber-300/60 bg-amber-200/55 text-amber-950"
                     : error
@@ -1607,16 +1760,186 @@ export default function App() {
                   onZoomTo={handleZoomTo}
                 />
               )}
+
+              {activeView === "view" && showCard && showCardPrecinct && mapFilters.comfortArea && (
+                <div
+                  ref={detailCardRef}
+                  className="pointer-events-auto fixed left-1/2 z-[520] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl border border-[#4a5c3a]/25 text-[#10201f] shadow-[0_28px_72px_rgba(4,14,14,0.24)] backdrop-blur-md"
+                  style={{
+                    top: shouldLiftDetailCard ? "40%" : "50%",
+                    width: "clamp(280px, 42vw, 520px)",
+                    maxHeight: "clamp(260px, 56vh, 620px)",
+                    padding: "clamp(12px, 1.2vw, 18px)",
+                    background: "linear-gradient(180deg, #122d2b 0%, #eef8f5 18%, #f7fbfa 64%, #b8d7d2 100%)",
+                  }}
+                >
+                  <div data-comfort-reveal className="mb-3 flex items-start justify-between gap-3">
+                    <div>
+                      <h3 className="text-lg font-bold">{showCardPrecinct.name}</h3>
+                      <p className="mt-1 text-xs text-[#27413f]">{formatDetailSensorStatus(showCardPrecinct)}</p>
+                    </div>
+                    <button
+                      type="button"
+                      aria-label="Close"
+                      onClick={() => setShowCard(null)}
+                      className="text-[#27413f] hover:text-[#10201f]"
+                    >
+                      <X className="h-5 w-5" />
+                    </button>
+                  </div>
+                  <div data-comfort-reveal className="grid grid-cols-2 gap-3 text-sm">
+                    <div className="rounded-xl border border-[#4a5c3a]/20 bg-[rgba(239,233,223,0.78)] p-3">
+                      <p className="text-xs text-[#27413f]">Temperature</p>
+                      <p className="mt-1 text-base font-bold text-orange-700">{showCardPrecinct.temperature !== null ? `${showCardPrecinct.temperature}°C` : "N/A"}</p>
+                    </div>
+                    <div className="rounded-xl border border-[#4a5c3a]/20 bg-[rgba(239,233,223,0.78)] p-3">
+                      <p className="text-xs text-[#27413f]">Humidity</p>
+                      <p className="mt-1 text-base font-bold text-blue-700">{showCardPrecinct.humidity !== null ? `${showCardPrecinct.humidity}%` : "N/A"}</p>
+                    </div>
+                    <div className="rounded-xl border border-[#4a5c3a]/20 bg-[rgba(239,233,223,0.78)] p-3">
+                      <p className="text-xs text-[#27413f]">Wind Speed</p>
+                      <p className="mt-1 text-base font-bold text-teal-700">{showCardPrecinct.wind_speed !== null ? `${showCardPrecinct.wind_speed} m/s` : "N/A"}</p>
+                    </div>
+                    <div className="rounded-xl border border-[#4a5c3a]/20 bg-[rgba(239,233,223,0.78)] p-3">
+                      <p className="text-xs text-[#27413f]">Comfort Score</p>
+                      <p className="mt-1 text-base font-bold text-[#17413f]">{showCardPrecinct.comfort_score}/100</p>
+                    </div>
+                  </div>
+                  <div data-comfort-reveal className="mt-3 rounded-xl border border-[#4a5c3a]/20 bg-[rgba(239,233,223,0.78)] p-3">
+                    <p className="text-xs text-[#27413f]">Crowd Density</p>
+                    <p className="mt-1 text-base font-bold text-purple-700">{showCardPrecinct.activity_level}</p>
+                  </div>
+                  <button
+                    data-comfort-reveal
+                    type="button"
+                    onClick={() => handleWantToGo(showCard)}
+                    className="mt-4 w-full rounded-2xl bg-gradient-to-r from-[#006d77] to-[#17413f] py-3 font-semibold text-white shadow-md"
+                  >
+                    Best time & travel suggestion
+                  </button>
+                </div>
+              )}
+
+              {!compareReady && activeView === "compare" && (
+                <div className="pointer-events-auto fixed bottom-6 left-1/2 z-[520] w-[92vw] max-w-[680px] -translate-x-1/2 rounded-2xl border border-[#d9d1c6] bg-[#fbf8f1]/95 p-4 shadow-[0_18px_42px_rgba(10,24,23,0.18)]">
+                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#4a5c3a]">Compare Mode</p>
+                  <p className="mt-1 text-sm text-[#3f5f5b]">Click two comfort markers on the map to compare.</p>
+                </div>
+              )}
             </div>
-        </div>
+        </section>
+        <section ref={legacyCompareSectionRef} className="snap-start h-screen w-full" />
       </div>
+
+      {compareReady && compareLeftPrecinct && compareRightPrecinct && comparisonRecommendation && (
+        <div className="pointer-events-auto fixed inset-0 z-[560]">
+          <div className="absolute inset-0 pt-2 sm:pt-3">
+            <div className="relative h-full w-full">
+              <div className="grid h-[64%] grid-cols-2 gap-2 px-2 sm:gap-3 sm:px-3">
+              {([
+                { side: "left", precinct: compareLeftPrecinct, selectedId: compareSelection1, refEl: compareLeftRef },
+                { side: "right", precinct: compareRightPrecinct, selectedId: compareSelection2, refEl: compareRightRef },
+              ] as const).map(({ side, precinct, selectedId, refEl }) => {
+                const isBetter = betterPrecinctId === selectedId;
+                return (
+                  <div
+                    key={selectedId}
+                    ref={refEl}
+                    className={`relative h-full overflow-y-auto rounded-3xl border p-4 shadow-[0_22px_50px_rgba(4,14,14,0.12)] sm:p-6 ${
+                      side === "left" ? "bg-[#f4efe4]" : "bg-[#edf4f2]"
+                    } ${
+                      isBetter ? "border-[#1d9a5f] ring-2 ring-[#1d9a5f]/40" : "border-[#d3ddd9]"
+                    }`}
+                    style={{ opacity: 0 }}
+                  >
+                    {isBetter && (
+                      <span className="absolute right-3 top-3 rounded-full bg-[#1d9a5f] px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.1em] text-white">
+                        Better
+                      </span>
+                    )}
+                    <p data-compare-reveal className="text-xs font-semibold uppercase tracking-[0.12em] text-[#4a5c3a]">{side === "left" ? "Point 1" : "Point 2"}</p>
+                    <h3 data-compare-reveal className="mt-2 text-xl font-bold text-[#10201f]">{precinct.name}</h3>
+                    <div data-compare-reveal className="mt-1 flex items-center gap-1.5 text-xs font-medium text-emerald-700">
+                      <CheckCircle2 className="h-3.5 w-3.5" />
+                      <span>{formatDetailSensorStatus(precinct)}</span>
+                    </div>
+                    <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
+                      <div data-compare-reveal className="col-span-2 rounded-xl border border-[#d9d1c6] bg-white/85 p-3">
+                        <p className="text-xs font-medium text-[#456765]">Comfort</p>
+                        <p className="text-3xl font-bold tracking-tight text-[#17413f]">
+                          {precinct.comfort_score}
+                          <span className="ml-1 text-base font-normal text-[#5f8682]">/100</span>
+                        </p>
+                        <div className="mt-2 h-2 overflow-hidden rounded-full bg-[#d9d1c6]">
+                          <div
+                            data-compare-score-bar
+                            data-target={Math.max(0, Math.min(100, precinct.comfort_score))}
+                            className={`h-full rounded-full ${isBetter ? "bg-emerald-500" : "bg-[#7a8f8d]"}`}
+                            style={{ width: "0%" }}
+                          />
+                        </div>
+                      </div>
+                      <div data-compare-reveal className="rounded-xl border border-[#e7cf9f] bg-gradient-to-br from-amber-50 to-amber-100/60 p-2.5">
+                        <div className="mb-1 flex items-center gap-1.5"><Thermometer className="h-3.5 w-3.5 text-amber-600" /><p className="text-xs font-medium text-amber-700">Temp</p></div>
+                        <p className="font-bold text-[#9a4b22]">{precinct.temperature !== null ? `${precinct.temperature}°C` : "N/A"}</p>
+                      </div>
+                      <div data-compare-reveal className="rounded-xl border border-[#bcd8e6] bg-gradient-to-br from-blue-50 to-blue-100/60 p-2.5">
+                        <div className="mb-1 flex items-center gap-1.5"><Droplets className="h-3.5 w-3.5 text-blue-600" /><p className="text-xs font-medium text-blue-700">Humidity</p></div>
+                        <p className="font-bold text-[#205f86]">{precinct.humidity !== null ? `${precinct.humidity}%` : "N/A"}</p>
+                      </div>
+                      <div data-compare-reveal className="col-span-2 rounded-xl border border-[#d9d1c6] bg-white/80 p-2.5">
+                        <div className="mb-1 flex items-center gap-1.5"><Users className="h-3.5 w-3.5 text-[#5a6c6a]" /><p className="text-xs font-medium text-[#5a6c6a]">Crowd</p></div>
+                        <p className="font-bold text-[#5a3f8c]">{precinct.activity_level}</p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+              </div>
+              <div ref={compareBottomRef} className="h-[36%] overflow-y-auto rounded-t-3xl border-t border-[#d3ddd9] bg-[#f5f0e8] px-4 pb-5 pt-4 shadow-[0_-14px_34px_rgba(4,14,14,0.08)] sm:px-6 sm:pb-6 sm:pt-5" style={{ opacity: 0 }}>
+                <div data-compare-reveal className="mb-2 flex items-center gap-2 text-sm font-bold uppercase tracking-[0.14em] text-[#4a5c3a]">
+                  <TrendingUp className="h-4 w-4 text-emerald-600" />
+                  <span>Recommendation</span>
+                </div>
+                <div data-compare-reveal className="rounded-xl border border-[#d9d1c6] bg-white/85 p-3">
+                  <p className="text-sm text-[#10201f]">{comparisonRecommendation.base}</p>
+                </div>
+                {comparisonRecommendation.nonOptimalNotice && (
+                  <div data-compare-reveal className="mt-2 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3">
+                    <TrendingDown className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+                    <p className="text-sm font-bold text-amber-700">{comparisonRecommendation.nonOptimalNotice}</p>
+                  </div>
+                )}
+                {comparisonRecommendation.staleWarning && (
+                  <div data-compare-reveal className="mt-2 flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 p-3">
+                    <img src={warningIcon} alt="" className="mt-0.5 h-4 w-4 shrink-0 object-contain" aria-hidden="true" />
+                    <p className="text-sm font-bold text-red-700">{comparisonRecommendation.staleWarning}</p>
+                  </div>
+                )}
+              </div>
+              <div ref={compareCenterRef} className="absolute left-1/2 top-[64%] z-20 -translate-x-1/2 -translate-y-1/2" style={{ opacity: 0 }}>
+                <button
+                  type="button"
+                  onClick={handleResetCompare}
+                  className={`rounded-2xl bg-gradient-to-r from-[#006d77] to-[#17413f] px-6 py-3 text-sm font-semibold text-white shadow-[0_16px_36px_rgba(4,14,14,0.24)] transition-all ${compareResetVisible ? "opacity-100" : "opacity-0"}`}
+                >
+                  <span className="inline-flex items-center gap-2">
+                    <RefreshCw className="h-4 w-4" />
+                    Reselect
+                  </span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div
         ref={(el) => {
           if (!el) return;
           floatingUiRefs.current[3] = el;
         }}
-        className={`map-bottom-actions fixed bottom-4 left-1/2 z-[460] w-[96vw] max-w-[980px] -translate-x-1/2 sm:bottom-7 sm:w-[92vw] ${floatingUiFadeClass}`}
+        className={`map-bottom-actions fixed bottom-4 left-1/2 z-[460] w-[96vw] max-w-[980px] -translate-x-1/2 transition-all duration-300 ease-out sm:bottom-7 sm:w-[92vw] ${bottomControlsFadeClass}`}
       >
         <div className="map-bottom-actions-row flex items-stretch justify-center gap-2 sm:gap-3">
           <div className="relative map-explore-wrap flex-1">
@@ -1692,14 +2015,44 @@ export default function App() {
                     </div>
                   </div>
                   <div className="legend-dropdown-scroll max-h-[40vh] overflow-y-auto px-3 py-2 text-[11px] text-[#2a2a2a] sm:max-h-[46vh] sm:px-4 sm:text-xs">
-                    <div ref={(el)=>{ if(el) legendItemRefs.current[0]=el; }} className="mb-1 font-semibold text-[#4a5c3a]" style={{ opacity: 0, transform: "translateY(10px)" }}>Comfort</div>
-                    <div ref={(el)=>{ if(el) legendItemRefs.current[1]=el; }} className="mb-1 flex items-start gap-2" style={{ opacity: 0, transform: "translateY(10px)" }}><div className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-[#22c55e]" /><span className="min-w-0 whitespace-normal break-words leading-tight">Comfortable</span></div>
-                    <div ref={(el)=>{ if(el) legendItemRefs.current[2]=el; }} className="mb-1 flex items-start gap-2" style={{ opacity: 0, transform: "translateY(10px)" }}><div className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-[#eab308]" /><span className="min-w-0 whitespace-normal break-words leading-tight">Caution</span></div>
-                    <div ref={(el)=>{ if(el) legendItemRefs.current[3]=el; }} className="mb-2 flex items-start gap-2" style={{ opacity: 0, transform: "translateY(10px)" }}><div className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-[#ef4444]" /><span className="min-w-0 whitespace-normal break-words leading-tight">High Risk</span></div>
-                    <div ref={(el)=>{ if(el) legendItemRefs.current[4]=el; }} className="mb-1 font-semibold text-[#4a5c3a]" style={{ opacity: 0, transform: "translateY(10px)" }}>Places</div>
-                    <div ref={(el)=>{ if(el) legendItemRefs.current[5]=el; }} className="mb-1 flex items-start gap-2" style={{ opacity: 0, transform: "translateY(10px)" }}><div className="cp-dot cp-dot-arts !mt-1 !h-2.5 !w-2.5 shrink-0 !shadow-none" /><span className="min-w-0 whitespace-normal break-words leading-tight">Arts</span></div>
-                    <div ref={(el)=>{ if(el) legendItemRefs.current[6]=el; }} className="mb-1 flex items-start gap-2" style={{ opacity: 0, transform: "translateY(10px)" }}><div className="cp-dot cp-dot-recreation !mt-1 !h-2.5 !w-2.5 shrink-0 !shadow-none" /><span className="min-w-0 whitespace-normal break-words leading-tight">Recreation</span></div>
-                    <div ref={(el)=>{ if(el) legendItemRefs.current[7]=el; }} className="flex items-start gap-2" style={{ opacity: 0, transform: "translateY(10px)" }}><div className="cp-dot cp-dot-shopping !mt-1 !h-2.5 !w-2.5 shrink-0 !shadow-none" /><span className="min-w-0 whitespace-normal break-words leading-tight">Shopping</span></div>
+                    {mapFilters.comfortArea && (
+                      <>
+                        <div data-legend-item className="mb-1 font-semibold text-[#4a5c3a]" style={{ opacity: 0, transform: "translateY(10px)" }}>Comfort Level</div>
+                        <div data-legend-item className="mb-1 flex items-start gap-2" style={{ opacity: 0, transform: "translateY(10px)" }}><div className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-[#22c55e]" /><span className="min-w-0 whitespace-normal break-words leading-tight">Comfortable (70-100)</span></div>
+                        <div data-legend-item className="mb-1 flex items-start gap-2" style={{ opacity: 0, transform: "translateY(10px)" }}><div className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-[#eab308]" /><span className="min-w-0 whitespace-normal break-words leading-tight">Caution (40-69)</span></div>
+                        <div data-legend-item className="mb-2 flex items-start gap-2" style={{ opacity: 0, transform: "translateY(10px)" }}><div className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-[#ef4444]" /><span className="min-w-0 whitespace-normal break-words leading-tight">High Risk (0-39)</span></div>
+                        <div data-legend-item className="mb-2 flex items-start gap-2" style={{ opacity: 0, transform: "translateY(10px)" }}><div className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-[#9ca3af]" /><span className="min-w-0 whitespace-normal break-words leading-tight">No sensor data</span></div>
+                      </>
+                    )}
+                    {mapFilters.easePlaces && (
+                      <>
+                        <div data-legend-item className="mb-1 font-semibold text-[#4a5c3a]" style={{ opacity: 0, transform: "translateY(10px)" }}>Ease Places</div>
+                        <div data-legend-item className="mb-1 flex items-start gap-2" style={{ opacity: 0, transform: "translateY(10px)" }}><div className="cp-dot cp-dot-arts !mt-1 !h-2.5 !w-2.5 shrink-0 !shadow-none" /><span className="min-w-0 whitespace-normal break-words leading-tight">Arts, Culture & Enrichment</span></div>
+                        <div data-legend-item className="mb-1 flex items-start gap-2" style={{ opacity: 0, transform: "translateY(10px)" }}><div className="cp-dot cp-dot-recreation !mt-1 !h-2.5 !w-2.5 shrink-0 !shadow-none" /><span className="min-w-0 whitespace-normal break-words leading-tight">Recreation / Leisure & Open Spaces</span></div>
+                        <div data-legend-item className="mb-1 flex items-start gap-2" style={{ opacity: 0, transform: "translateY(10px)" }}><div className="cp-dot cp-dot-shopping !mt-1 !h-2.5 !w-2.5 shrink-0 !shadow-none" /><span className="min-w-0 whitespace-normal break-words leading-tight">Shopping</span></div>
+                        <div data-legend-item className="mb-2 flex items-start gap-2" style={{ opacity: 0, transform: "translateY(10px)" }}><div className="cp-dot cp-dot-food !mt-1 !h-2.5 !w-2.5 shrink-0 !shadow-none" /><span className="min-w-0 whitespace-normal break-words leading-tight">Food & Dining</span></div>
+                      </>
+                    )}
+                    {mapFilters.streetFacilities && (
+                      <>
+                        <div data-legend-item className="mb-1 font-semibold text-[#4a5c3a]" style={{ opacity: 0, transform: "translateY(10px)" }}>Street Facilities</div>
+                        <div data-legend-item className="mb-1 flex items-start gap-2" style={{ opacity: 0, transform: "translateY(10px)" }}><div className="furniture-dot furniture-dot-drinking mt-1 !h-2.5 !w-2.5 shrink-0" /><span className="min-w-0 whitespace-normal break-words leading-tight">Drinking Fountain</span></div>
+                        <div data-legend-item className="mb-1 flex items-start gap-2" style={{ opacity: 0, transform: "translateY(10px)" }}><div className="furniture-dot furniture-dot-bike mt-1 !h-2.5 !w-2.5 shrink-0" /><span className="min-w-0 whitespace-normal break-words leading-tight">Bicycle Rack</span></div>
+                        <div data-legend-item className="mb-2 flex items-start gap-2" style={{ opacity: 0, transform: "translateY(10px)" }}><div className="furniture-dot furniture-dot-seat mt-1 !h-2.5 !w-2.5 shrink-0" /><span className="min-w-0 whitespace-normal break-words leading-tight">Seat</span></div>
+                      </>
+                    )}
+                    {mapFilters.naturalPlaces && (
+                      <>
+                        <div data-legend-item className="mb-1 font-semibold text-[#4a5c3a]" style={{ opacity: 0, transform: "translateY(10px)" }}>Natural Places</div>
+                        <div data-legend-item className="mb-1 flex items-start gap-2" style={{ opacity: 0, transform: "translateY(10px)" }}><div className="mt-1 h-2.5 w-2.5 shrink-0 border border-blue-900 bg-blue-200" /><span className="min-w-0 whitespace-normal break-words leading-tight">Waterbody</span></div>
+                        <div data-legend-item className="mb-2 flex items-start gap-2" style={{ opacity: 0, transform: "translateY(10px)" }}><div className="mt-1 h-2.5 w-2.5 shrink-0 border border-green-900 bg-green-300" /><span className="min-w-0 whitespace-normal break-words leading-tight">Park</span></div>
+                      </>
+                    )}
+                    {!mapFilters.comfortArea && !mapFilters.easePlaces && !mapFilters.streetFacilities && !mapFilters.naturalPlaces && (
+                      <div data-legend-item className="py-2 text-[11px] text-[#5f6f64]" style={{ opacity: 0, transform: "translateY(10px)" }}>
+                        Turn on a layer in Explore Map to show its legend.
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -2033,7 +2386,7 @@ export default function App() {
               </div>
           </section>
 
-          <div className="mx-auto w-full max-w-[1320px] overflow-hidden rounded-[28px] border border-white/28 bg-transparent shadow-[0_24px_60px_rgba(16,32,31,0.14)] backdrop-blur-md" id="map-container-compare">
+          <div className="mx-auto w-full max-w-[1320px]" id="map-container-compare">
             {/* ── Compare Tab ── */}
             <section ref={compareSectionRef} className="snap-start min-h-[100dvh] border-t border-[#17413f]/10 py-6 sm:py-8">
                 <div className="p-6 pb-4">
