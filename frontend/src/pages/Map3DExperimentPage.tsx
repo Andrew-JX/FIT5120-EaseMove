@@ -22,6 +22,7 @@ import AppTopNav from "../components/AppTopNav";
 import WhiteModelMap, {
   type MapViewportControls,
   type RoutePoint,
+  type RoutePlaybackMode,
   type RouteProfile,
   type RouteStepItem,
   type RouteSummary,
@@ -34,6 +35,9 @@ import { APP_ROUTES } from "../lib/navigation";
 const MAPBOX_PUBLIC_TOKEN = (import.meta.env.VITE_MAPBOX_PUBLIC_TOKEN as string | undefined)?.trim() || null;
 const ROUTE_REQUEST_TIMEOUT_MS = 12000;
 const LOW_ACCURACY_THRESHOLD_METERS = 120;
+const ROUTE_AUTOPLAY_DURATION_MS = 11000;
+const ROUTE_AUTOPLAY_END_HOLD_MS = 1100;
+const LIVE_REROUTE_PROMPT_DISTANCE_METERS = 1200;
 const MOBILE_PANEL_MEDIA_QUERY = "(max-width: 767px)";
 let hasAutoShownRouteGuideThisRuntime = false;
 const liquidGlassPanelStyle: CSSProperties = {
@@ -257,6 +261,96 @@ function geolocationMessage(error: GeolocationPositionError) {
   return "We could not read your location. You can still select points manually.";
 }
 
+function clampProgress(progress: number) {
+  return Math.max(0, Math.min(1, progress));
+}
+
+function segmentLength(start: [number, number], end: [number, number]) {
+  const dx = end[0] - start[0];
+  const dy = end[1] - start[1];
+  return Math.hypot(dx, dy);
+}
+
+function interpolatePoint(start: [number, number], end: [number, number], ratio: number): RoutePoint {
+  return {
+    lng: start[0] + (end[0] - start[0]) * ratio,
+    lat: start[1] + (end[1] - start[1]) * ratio,
+  };
+}
+
+function projectPointToRoute(point: RoutePoint, route: RouteSummary): { progress: number; snappedPoint: RoutePoint } {
+  const coordinates = route.geometry.coordinates as [number, number][];
+  if (coordinates.length <= 1) {
+    return {
+      progress: 0,
+      snappedPoint: coordinates[0] ? { lng: coordinates[0][0], lat: coordinates[0][1] } : point,
+    };
+  }
+
+  const segmentLengths = coordinates.slice(0, -1).map((coord, index) => segmentLength(coord, coordinates[index + 1]));
+  const totalLength = segmentLengths.reduce((sum, value) => sum + value, 0);
+
+  let bestDistance = Number.POSITIVE_INFINITY;
+  let bestProgress = 0;
+  let bestPoint: RoutePoint = { lng: coordinates[0][0], lat: coordinates[0][1] };
+  let traversedLength = 0;
+
+  for (let index = 0; index < coordinates.length - 1; index += 1) {
+    const start = coordinates[index];
+    const end = coordinates[index + 1];
+    const vx = end[0] - start[0];
+    const vy = end[1] - start[1];
+    const segmentSquared = vx * vx + vy * vy;
+    const wx = point.lng - start[0];
+    const wy = point.lat - start[1];
+    const projection = segmentSquared === 0 ? 0 : clampProgress((wx * vx + wy * vy) / segmentSquared);
+    const snappedPoint = interpolatePoint(start, end, projection);
+    const distance = Math.hypot(point.lng - snappedPoint.lng, point.lat - snappedPoint.lat);
+
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      bestPoint = snappedPoint;
+      bestProgress = totalLength === 0 ? 0 : clampProgress((traversedLength + segmentLengths[index] * projection) / totalLength);
+    }
+
+    traversedLength += segmentLengths[index];
+  }
+
+  return {
+    progress: bestProgress,
+    snappedPoint: bestPoint,
+  };
+}
+
+function distanceBetweenPointsMeters(start: RoutePoint, end: RoutePoint) {
+  const toRadians = (value: number) => (value * Math.PI) / 180;
+  const earthRadiusMeters = 6371000;
+  const dLat = toRadians(end.lat - start.lat);
+  const dLng = toRadians(end.lng - start.lng);
+  const lat1 = toRadians(start.lat);
+  const lat2 = toRadians(end.lat);
+
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return earthRadiusMeters * c;
+}
+
+function easeInOutSine(progress: number) {
+  return -(Math.cos(Math.PI * progress) - 1) / 2;
+}
+
+function getAutoplayLoopProgress(elapsedMs: number) {
+  const movementDuration = ROUTE_AUTOPLAY_DURATION_MS;
+  const cycleDuration = movementDuration + ROUTE_AUTOPLAY_END_HOLD_MS;
+  const cycleElapsed = elapsedMs % cycleDuration;
+  if (cycleElapsed >= movementDuration) {
+    return 1;
+  }
+  return clampProgress(easeInOutSine(cycleElapsed / movementDuration));
+}
+
 function isMobilePanelViewport() {
   if (typeof window === "undefined") return false;
   return window.matchMedia(MOBILE_PANEL_MEDIA_QUERY).matches;
@@ -299,13 +393,24 @@ export default function Map3DExperimentPage() {
     point: { x: number; y: number };
     viewport: { width: number; height: number };
   } | null>(null);
+  const [routePlaybackMode, setRoutePlaybackMode] = useState<RoutePlaybackMode>("idle");
+  const [routeProgress, setRouteProgress] = useState<number | null>(null);
+  const [liveTrackedPoint, setLiveTrackedPoint] = useState<RoutePoint | null>(null);
+  const [pendingLiveReroute, setPendingLiveReroute] = useState<{
+    point: RoutePoint;
+    distanceMeters: number;
+  } | null>(null);
   const [geolocation, setGeolocation] = useState<GeolocationState>({
     status: "idle",
     message: null,
   });
   const requestIdRef = useRef(0);
   const hasAppliedSearchRef = useRef(false);
-  const sheetRef = useRef<HTMLElement | null>(null);
+  const sheetRef = useRef<HTMLDivElement | null>(null);
+  const autoplayFrameRef = useRef<number | null>(null);
+  const liveWatchIdRef = useRef<number | null>(null);
+  const routeRef = useRef<RouteSummary | null>(route);
+  const shouldAutoplayRouteRef = useRef(false);
 
   const routeReady = Boolean(route && startPoint && endPoint);
   const canUseRouteApi = Boolean(MAPBOX_PUBLIC_TOKEN);
@@ -319,14 +424,44 @@ export default function Map3DExperimentPage() {
 
   const isSupportedPoint = useCallback((point: RoutePoint) => isPointInSupportedRegion(point), []);
 
-  const clearRouteOnly = useCallback(() => {
-    requestIdRef.current += 1;
-    setRoute(null);
-    setIsRouteLoading(false);
+  const stopRouteAutoplay = useCallback(() => {
+    if (autoplayFrameRef.current !== null) {
+      window.cancelAnimationFrame(autoplayFrameRef.current);
+      autoplayFrameRef.current = null;
+    }
   }, []);
 
+  const stopLiveTracking = useCallback(() => {
+    if (liveWatchIdRef.current !== null && navigator.geolocation?.clearWatch) {
+      navigator.geolocation.clearWatch(liveWatchIdRef.current);
+      liveWatchIdRef.current = null;
+    }
+  }, []);
+
+  const resetRoutePlaybackState = useCallback(() => {
+    stopRouteAutoplay();
+    stopLiveTracking();
+    shouldAutoplayRouteRef.current = false;
+    setRoutePlaybackMode("idle");
+    setRouteProgress(null);
+    setLiveTrackedPoint(null);
+    setPendingLiveReroute(null);
+  }, [stopLiveTracking, stopRouteAutoplay]);
+
+  const clearRouteOnly = useCallback(() => {
+    requestIdRef.current += 1;
+    resetRoutePlaybackState();
+    setRoute(null);
+    setIsRouteLoading(false);
+  }, [resetRoutePlaybackState]);
+
   const requestRoute = useCallback(
-    async (nextProfile: RouteProfile, nextStart: RoutePoint, nextEnd: RoutePoint) => {
+    async (
+      nextProfile: RouteProfile,
+      nextStart: RoutePoint,
+      nextEnd: RoutePoint,
+      options?: { preserveLiveTracking?: boolean }
+    ) => {
       if (!isSupportedPoint(nextStart) || !isSupportedPoint(nextEnd)) {
         setRoute(null);
         setIsRouteLoading(false);
@@ -349,6 +484,12 @@ export default function Map3DExperimentPage() {
       const controller = new AbortController();
       const timeoutId = window.setTimeout(() => controller.abort(), ROUTE_REQUEST_TIMEOUT_MS);
 
+      if (options?.preserveLiveTracking) {
+        stopRouteAutoplay();
+        setPendingLiveReroute(null);
+      } else {
+        resetRoutePlaybackState();
+      }
       setIsRouteLoading(true);
       setRoute(null);
       setRouteError(null);
@@ -386,8 +527,22 @@ export default function Map3DExperimentPage() {
         }
       }
     },
-    [isSupportedPoint, showOutsideRegionError]
+    [isSupportedPoint, resetRoutePlaybackState, showOutsideRegionError, stopRouteAutoplay]
   );
+
+  const startRouteAutoplay = useCallback((nextRoute: RouteSummary) => {
+    stopRouteAutoplay();
+    routeRef.current = nextRoute;
+    setRoutePlaybackMode("autoplay");
+    setRouteProgress(0);
+    const startedAt = Date.now();
+    const animate = () => {
+      const elapsed = Date.now() - startedAt;
+      setRouteProgress(getAutoplayLoopProgress(elapsed));
+      autoplayFrameRef.current = window.requestAnimationFrame(animate);
+    };
+    autoplayFrameRef.current = window.requestAnimationFrame(animate);
+  }, [stopRouteAutoplay]);
 
   const handleMapClick = useCallback(
     (point: RoutePoint) => {
@@ -510,6 +665,115 @@ export default function Map3DExperimentPage() {
     );
   }, [clearRouteOnly, endPoint, isMobileViewport, isSupportedPoint, profile, requestRoute]);
 
+  const handleStartLiveTracking = useCallback(() => {
+    if (!routeRef.current) return;
+    if (routePlaybackMode === "live") {
+      stopLiveTracking();
+      setPendingLiveReroute(null);
+      setLiveTrackedPoint(null);
+      startRouteAutoplay(routeRef.current);
+      setGeolocation({
+        status: "success",
+        message: "Live route tracking stopped. Auto playback restarted.",
+      });
+      return;
+    }
+    if (!navigator.geolocation?.watchPosition) {
+      setRoutePlaybackMode("idle");
+      setGeolocation({
+        status: "error",
+        message: "Live route tracking could not start. This browser does not support location tracking.",
+      });
+      return;
+    }
+
+    stopRouteAutoplay();
+    stopLiveTracking();
+    setRoutePlaybackMode("live");
+    setGeolocation({
+      status: "loading",
+      message: "Starting live route progress...",
+    });
+
+    const watchId = navigator.geolocation.watchPosition(
+      (position) => {
+        const point = {
+          lng: position.coords.longitude,
+          lat: position.coords.latitude,
+        };
+
+        if (!routeRef.current || !isSupportedPoint(point)) {
+          setRoutePlaybackMode("idle");
+          setGeolocation({
+            status: "error",
+            message: "Live route tracking could not continue because your location is outside the supported Australia area.",
+          });
+          stopLiveTracking();
+          return;
+        }
+
+        const projection = projectPointToRoute(point, routeRef.current);
+        setLiveTrackedPoint(point);
+        setRouteProgress(projection.progress);
+        if (startPoint && endPoint) {
+          const startDistance = distanceBetweenPointsMeters(startPoint, point);
+          if (startDistance > LIVE_REROUTE_PROMPT_DISTANCE_METERS) {
+            setPendingLiveReroute({
+              point,
+              distanceMeters: startDistance,
+            });
+          } else {
+            setPendingLiveReroute(null);
+          }
+        }
+        setGeolocation({
+          status: position.coords.accuracy > LOW_ACCURACY_THRESHOLD_METERS ? "warning" : "success",
+          message:
+            position.coords.accuracy > LOW_ACCURACY_THRESHOLD_METERS
+              ? `Live route progress is tracking your current location, but GPS accuracy is about ${Math.round(position.coords.accuracy)} m.`
+              : "Live route progress is tracking your current location.",
+        });
+      },
+      (error) => {
+        setRoutePlaybackMode("idle");
+        setGeolocation({
+          status: "error",
+          message: `Live route tracking could not start. ${geolocationMessage(error)}`,
+        });
+        stopLiveTracking();
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 5000,
+      }
+    );
+
+    liveWatchIdRef.current = watchId;
+  }, [endPoint, isSupportedPoint, routePlaybackMode, startPoint, startRouteAutoplay, stopLiveTracking, stopRouteAutoplay]);
+
+  const handleKeepCurrentLiveRoute = useCallback(() => {
+    setPendingLiveReroute(null);
+    setGeolocation({
+      status: "success",
+      message: "Live route progress is tracking your current location while keeping the original route.",
+    });
+  }, []);
+
+  const handleRerouteFromLiveLocation = useCallback(() => {
+    if (!pendingLiveReroute || !endPoint) return;
+    setStartPoint(pendingLiveReroute.point);
+    setLiveTrackedPoint(pendingLiveReroute.point);
+    setRoutePlaybackMode("live");
+    setGeolocation({
+      status: "success",
+      message: "Re-routing from your current location while keeping the same destination.",
+    });
+    void requestRoute(profile, pendingLiveReroute.point, endPoint, {
+      preserveLiveTracking: true,
+    });
+  }, [endPoint, pendingLiveReroute, profile, requestRoute]);
+
   const handleMapError = useCallback((message: string) => {
     setRouteError({
       title: "3D map problem",
@@ -527,13 +791,14 @@ export default function Map3DExperimentPage() {
 
   const currentInstruction = useMemo(() => {
     if (!canUseRouteApi) return "Configure the Mapbox public token before using the 3D route preview.";
+    if (routePlaybackMode === "live") return "Live tracking is active. Your Codex pet and completed path now follow your route progress.";
     if (!isMapPointSelectionEnabled) return "Point picking is locked. Turn the map point toggle back on before selecting a new start or end point.";
     if (!startPoint) return "Click the map once to set a start point.";
     if (!endPoint) return "Click the map again to set the destination.";
     if (isRouteLoading) return `Loading the default ${profile} route...`;
     if (routeReady) return "Route preview is ready.";
     return "Reselect points or switch travel mode to try again.";
-  }, [canUseRouteApi, endPoint, isMapPointSelectionEnabled, isRouteLoading, profile, routeReady, startPoint]);
+  }, [canUseRouteApi, endPoint, isMapPointSelectionEnabled, isRouteLoading, profile, routePlaybackMode, routeReady, startPoint]);
 
   const panelHasDenseContent = Boolean(route || routeError || isRouteLoading);
   const activeLayerCount =
@@ -581,8 +846,24 @@ export default function Map3DExperimentPage() {
   const handleActivityHourChange = useCallback((_hour: number) => {}, []);
 
   useEffect(() => {
+    routeRef.current = route;
+    shouldAutoplayRouteRef.current = Boolean(route);
+  }, [route]);
+
+  useEffect(() => {
     setFocusedStepIndex(null);
   }, [route]);
+
+  useEffect(() => {
+    if (!route) {
+      stopRouteAutoplay();
+      return;
+    }
+
+    if (!shouldAutoplayRouteRef.current || routePlaybackMode !== "idle") return;
+    shouldAutoplayRouteRef.current = false;
+    startRouteAutoplay(route);
+  }, [route, routePlaybackMode, startRouteAutoplay, stopRouteAutoplay]);
 
   useEffect(() => {
     if (!hasAutoShownRouteGuideThisRuntime) {
@@ -661,9 +942,11 @@ export default function Map3DExperimentPage() {
 
   useEffect(() => {
     return () => {
+      stopRouteAutoplay();
+      stopLiveTracking();
       requestIdRef.current += 1;
     };
-  }, []);
+  }, [stopLiveTracking, stopRouteAutoplay]);
 
   useEffect(() => {
     if (!isMobileViewport || activePanel === null) return;
@@ -806,6 +1089,10 @@ export default function Map3DExperimentPage() {
         startPoint={startPoint}
         endPoint={endPoint}
         route={route}
+        routeProgress={routeProgress}
+        routePlaybackMode={routePlaybackMode}
+        followPet={routePlaybackMode === "live"}
+        liveTrackedPoint={liveTrackedPoint}
         focusedStep={focusedStepIndex !== null && route ? route.steps[focusedStepIndex] ?? null : null}
         showEasePlaces={areaLayers.easePlaces}
         showNaturalPlaces={areaLayers.naturalPlaces}
@@ -829,13 +1116,55 @@ export default function Map3DExperimentPage() {
           onClose={() => setSelectedEasePlace(null)}
         />
       ) : null}
+      <AnimatePresence>
+        {pendingLiveReroute ? (
+          <motion.div
+            className="fixed inset-0 z-[420] flex items-center justify-center bg-[rgba(7,21,21,0.26)] px-4 py-6 backdrop-blur-[3px] sm:px-6"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <motion.div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="live-reroute-title"
+              initial={{ opacity: 0, y: 18, scale: 0.96 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 12, scale: 0.97 }}
+              transition={{ type: "spring", stiffness: 220, damping: 22, mass: 0.92 }}
+              className="w-full max-w-[min(92vw,31rem)] rounded-[28px] border border-white/60 bg-[radial-gradient(circle_at_18%_0%,rgba(255,255,255,0.72),transparent_38%),linear-gradient(145deg,rgba(255,255,255,0.95),rgba(239,248,246,0.92)_58%,rgba(231,245,241,0.88))] p-5 text-[#17413f] shadow-[0_28px_64px_rgba(7,21,21,0.22),inset_0_1px_0_rgba(255,255,255,0.84)] sm:p-6"
+            >
+              <p id="live-reroute-title" className="text-lg font-semibold tracking-[-0.01em] text-[#17413f]">
+                You are far from the selected start point
+              </p>
+              <p className="mt-3 text-sm leading-6 text-[#456765] sm:text-[0.95rem]">
+                Your current location is about {Math.round(pendingLiveReroute.distanceMeters)} m from the chosen start.
+                Keep the current route or re-route from your live location while keeping the same destination.
+              </p>
+              <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                <button
+                  type="button"
+                  onClick={handleKeepCurrentLiveRoute}
+                  className="inline-flex min-h-11 items-center justify-center rounded-full border border-[#83c5be]/55 bg-white px-4 py-2 text-sm font-semibold text-[#17413f] transition hover:bg-[#f7fcfb] active:scale-[0.98]"
+                >
+                  Keep current route
+                </button>
+                <button
+                  type="button"
+                  onClick={handleRerouteFromLiveLocation}
+                  className="inline-flex min-h-11 items-center justify-center rounded-full bg-[#17413f] px-4 py-2 text-sm font-semibold text-white shadow-[0_10px_20px_rgba(23,65,63,0.16)] transition hover:bg-[#0f3230] active:scale-[0.98]"
+                >
+                  Re-route from my location
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
 
       <AnimatePresence initial={false}>
       {!panelCollapsed ? (
       <motion.aside
-        ref={(node) => {
-          sheetRef.current = node;
-        }}
         style={liquidGlassPanelStyle}
         className={`absolute left-4 top-20 z-10 flex max-w-[calc(100vw-2rem)] flex-col overflow-hidden border border-white/55 max-md:fixed max-md:bottom-0 max-md:left-3 max-md:right-3 max-md:top-auto max-md:max-w-none max-md:rounded-t-[26px] max-md:rounded-b-[18px] max-md:pb-[max(env(safe-area-inset-bottom),0px)] ${
           panelHasDenseContent
@@ -866,6 +1195,7 @@ export default function Map3DExperimentPage() {
         }}
         transition={{ type: "spring", stiffness: 210, damping: 20, mass: 0.92 }}
       >
+        <div ref={sheetRef} className="relative flex min-h-0 flex-1 flex-col">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_0%,rgba(255,255,255,0.48),transparent_34%),linear-gradient(120deg,rgba(255,255,255,0.12),transparent_42%,rgba(255,255,255,0.1)_68%,transparent)]" />
           <>
         {isMobileViewport ? (
@@ -915,6 +1245,22 @@ export default function Map3DExperimentPage() {
                   <LocateFixed className="h-4 w-4" />
                 )}
               </button>
+              {routeReady ? (
+                <button
+                  type="button"
+                  onClick={handleStartLiveTracking}
+                  disabled={!canUseRouteApi}
+                  aria-label={routePlaybackMode === "live" ? "Stop live route progress" : "Track my live route progress"}
+                  className={`inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/42 shadow-[inset_0_1px_0_rgba(255,255,255,0.7),0_8px_18px_rgba(23,65,63,0.08)] transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-45 ${
+                    routePlaybackMode === "live"
+                      ? "bg-[#17413f] text-white hover:bg-[#0f3230]"
+                      : "bg-white/42 text-[#17413f] hover:bg-white/62"
+                  }`}
+                  title={routePlaybackMode === "live" ? "Stop live route progress" : "Track live route progress"}
+                >
+                  <Navigation className="h-4 w-4" />
+                </button>
+              ) : null}
               <button
                 type="button"
                 onClick={closePanel}
@@ -927,7 +1273,7 @@ export default function Map3DExperimentPage() {
           </div>
         </div>
 
-        <div className={`relative ${panelHasDenseContent ? "flex-1 overflow-y-auto" : ""} px-4 py-4 sm:px-5`}>
+        <div className={`relative min-h-0 ${panelHasDenseContent ? "flex-1 overflow-y-auto" : ""} px-4 py-4 sm:px-5`}>
           {activePanel === "route" ? (
             <>
               <div className={`mb-4 rounded-2xl p-4 text-sm text-[#456765] ${liquidGlassInteractiveClass}`} tabIndex={0}>
@@ -1173,6 +1519,7 @@ export default function Map3DExperimentPage() {
           ) : null}
         </div>
           </>
+        </div>
       </motion.aside>
       ) : null}
       </AnimatePresence>
