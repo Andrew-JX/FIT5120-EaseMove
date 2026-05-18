@@ -194,4 +194,55 @@ describe("AppTopNav landing overlay", () => {
 
     view.unmount();
   });
+
+  test("scales the mobile landing overlay down on shorter phone viewports", () => {
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn().mockImplementation((query: string) => ({
+        matches: query === "(max-width: 720px)",
+        media: query,
+        onchange: null,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      }))
+    );
+
+    Object.defineProperty(window, "innerWidth", {
+      configurable: true,
+      writable: true,
+      value: 390,
+    });
+
+    Object.defineProperty(window, "innerHeight", {
+      configurable: true,
+      writable: true,
+      value: 640,
+    });
+
+    const view = render(
+      <MemoryRouter initialEntries={["/map"]}>
+        <Routes>
+          <Route
+            path="/map"
+            element={
+              <AppTopNav
+                variant="landing"
+                landingMode="compact"
+                landingTransitionProgress={1}
+              />
+            }
+          />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    const root = view.container.querySelector(".app-top-nav--landing-enhanced") as HTMLDivElement | null;
+    expect(root?.style.getPropertyValue("--landing-mobile-overlay-scale")).not.toBe("");
+    expect(Number(root?.style.getPropertyValue("--landing-mobile-overlay-scale"))).toBeLessThan(1);
+
+    view.unmount();
+  });
 });
