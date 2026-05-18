@@ -32,6 +32,7 @@
 .app-top-nav--landing-enhanced {
   position: relative;
   isolation: isolate;
+  --landing-mobile-overlay-scale: 1;
 }
 
 .app-top-nav__landing-hero-layer {
@@ -235,7 +236,7 @@
 
 .app-top-nav__landing-overlay-inner {
   position: relative;
-  min-height: 100vh;
+  min-height: 100dvh;
   padding:
     max(32px, calc(24px + env(safe-area-inset-top)))
     clamp(24px, 4vw, 48px)
@@ -246,7 +247,8 @@
     linear-gradient(180deg, #061212 0%, #0b1b1b 52%, #102423 100%);
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
   transform-origin: top right;
   will-change: transform;
   transform: translate3d(0, -106%, 0) skewY(-5deg);
@@ -293,9 +295,10 @@
 
 .app-top-nav__landing-overlay-visual {
   position: absolute;
-  left: clamp(58px, 8vw, 136px);
+  left: clamp(32px, 5vw, 92px);
   top: 52%;
-  width: clamp(270px, 35vw, 540px);
+  width: clamp(240px, 30vw, 460px);
+  max-width: calc(100vw - 560px);
   pointer-events: none;
   opacity: 0.92;
   transform: translate3d(0, -50%, 0) rotate(0deg) scale(1);
@@ -393,8 +396,10 @@
 .app-top-nav__landing-overlay-nav-wrap {
   position: absolute;
   top: 50%;
-  right: clamp(52px, 7vw, 124px);
-  width: min(32vw, 480px);
+  right: clamp(28px, 5vw, 92px);
+  width: min(40vw, 480px);
+  min-width: min(420px, calc(100vw - 120px));
+  max-width: calc(100vw - 120px);
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -431,14 +436,16 @@
   overflow: hidden;
   display: flex;
   justify-content: flex-start;
+  width: 100%;
 }
 
 .app-top-nav__landing-overlay-link {
   position: relative;
-  display: inline-flex;
+  display: flex;
   flex-direction: column;
   justify-content: flex-start;
-  align-self: flex-start;
+  align-self: stretch;
+  width: 100%;
   color: #f5efe3;
   text-decoration: none;
   font-size: clamp(2.95rem, 5vw, 4.7rem);
@@ -475,6 +482,7 @@
 
 .app-top-nav__landing-overlay-link-main {
   display: block;
+  pointer-events: none;
 }
 
 .app-top-nav__landing-overlay-link-meta {
@@ -485,6 +493,7 @@
   line-height: 1.45;
   letter-spacing: 0;
   max-width: 28ch;
+  pointer-events: none;
   transition: color 0.24s ease, transform 0.24s ease;
 }
 
@@ -1008,6 +1017,13 @@
   pointer-events: none;
 }
 
+.app-top-nav--map-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 620;
+  pointer-events: none;
+}
+
 .app-top-nav--route-page .app-top-nav__compact-trigger {
   position: static;
   top: auto;
@@ -1101,16 +1117,31 @@
 }
 
 .route-3d-map .mapboxgl-ctrl-group {
+  border: 1px solid rgba(255, 255, 255, 0.55);
   border-radius: 18px;
   overflow: hidden;
+  background:
+    radial-gradient(circle at 18% 0%, rgba(255, 255, 255, 0.72), transparent 42%),
+    linear-gradient(145deg, rgba(255, 255, 255, 0.94), rgba(236, 245, 248, 0.86) 56%, rgba(245, 240, 232, 0.8));
   box-shadow:
     0 14px 32px rgba(4, 14, 14, 0.18),
-    inset 0 1px 0 rgba(255, 255, 255, 0.72);
+    inset 0 1px 0 rgba(255, 255, 255, 0.78);
 }
 
 .route-3d-map .mapboxgl-ctrl-group button {
   width: 36px;
   height: 36px;
+  background: transparent;
+  color: #173f3d;
+}
+
+.route-3d-map .mapboxgl-ctrl-group button + button {
+  border-top: 1px solid rgba(23, 65, 63, 0.12);
+}
+
+.route-3d-map .mapboxgl-ctrl-group button:hover,
+.route-3d-map .mapboxgl-ctrl-group button:focus-visible {
+  background: rgba(255, 255, 255, 0.46);
 }
 
 .route-3d-map .mapboxgl-ctrl-group .mapboxgl-ctrl-zoom-in,
@@ -1155,6 +1186,18 @@
     font-size: 0.88rem;
     letter-spacing: 0.08em;
     padding: 0 8px;
+    flex-shrink: 0;
+  }
+
+  .route-page-toolbar-button--text {
+    padding: 0 9px;
+    font-size: 0.82rem;
+    letter-spacing: 0.06em;
+  }
+
+  .route-page-toolbar-button--compact-mobile {
+    min-width: 32px;
+    padding: 0 6px;
   }
 
   .route-page-toolbar-button--icon {
@@ -1164,11 +1207,39 @@
 
   .route-page-toolbar-divider {
     margin: 2px 2px;
+    flex-shrink: 0;
+  }
+
+  .route-page-menu-trigger--compact-mobile .app-top-nav__compact-trigger {
+    min-width: 32px;
+    padding: 0 8px;
+  }
+
+  .route-page-menu-trigger--compact-mobile .app-top-nav__compact-copy {
+    display: none;
+  }
+
+  .route-page-menu-trigger--compact-mobile .app-top-nav__compact-icon-slot {
+    margin-left: 0;
   }
 
   .route-3d-map .mapboxgl-ctrl-top-right {
-    top: 5rem;
-    right: 0.75rem;
+    top: calc(max(0.75rem, env(safe-area-inset-top)) + 4.4rem);
+    right: 0.6rem;
+  }
+
+  .route-3d-map .mapboxgl-ctrl-group {
+    border-radius: 20px;
+  }
+
+  .route-3d-map .mapboxgl-ctrl-group button {
+    width: 38px;
+    height: 38px;
+  }
+
+  .route-3d-map .mapboxgl-ctrl-group .mapboxgl-ctrl-zoom-in,
+  .route-3d-map .mapboxgl-ctrl-group .mapboxgl-ctrl-zoom-out {
+    display: block;
   }
 
 
@@ -1179,54 +1250,103 @@
   }
 
   .app-top-nav__landing-overlay-brand {
-    max-width: 160px;
+    position: static;
+    top: auto;
+    left: auto;
+    max-width: calc(148px * var(--landing-mobile-overlay-scale));
+    margin-right: auto;
   }
 
   .app-top-nav__landing-overlay-visual {
-    left: 34px;
-    top: 24%;
-    width: min(48vw, 214px);
-    border-radius: 24px;
-    opacity: 0.54;
-    transform: translate3d(0, -50%, 0) rotate(0deg) scale(1);
+    display: none;
   }
 
-  .app-top-nav__landing-overlay-visual-shell,
-  .app-top-nav__landing-overlay-visual-image {
-    border-radius: 24px;
+  .app-top-nav__landing-overlay-inner {
+    display: flex;
+    flex-direction: column;
+    gap: calc(28px * var(--landing-mobile-overlay-scale));
+    justify-content: flex-start;
+    overflow-x: hidden;
+    overflow-y: auto;
+    padding:
+      max(calc(20px * var(--landing-mobile-overlay-scale)), calc(14px + env(safe-area-inset-top)))
+      20px
+      max(calc(18px * var(--landing-mobile-overlay-scale)), calc(12px + env(safe-area-inset-bottom)));
   }
 
   .app-top-nav__landing-overlay-nav-wrap {
-    left: 20px;
-    right: 20px;
-    width: auto;
+    position: relative;
+    left: auto;
+    right: auto;
     top: auto;
-    bottom: 24%;
+    bottom: auto;
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+    margin-top: max(calc(52px * var(--landing-mobile-overlay-scale)), calc(36px + env(safe-area-inset-top)));
     transform: none;
     align-items: flex-start;
     text-align: left;
+    padding-right: 0;
   }
 
   .app-top-nav__landing-overlay-link {
     justify-content: flex-start;
-    font-size: clamp(2.5rem, 11vw, 3.7rem);
+    align-self: stretch;
+    width: 100%;
+    font-size: clamp(
+      calc(1.82rem * var(--landing-mobile-overlay-scale)),
+      calc(7.4vw * var(--landing-mobile-overlay-scale)),
+      calc(3rem * var(--landing-mobile-overlay-scale))
+    );
   }
 
   .app-top-nav__landing-overlay-link-meta {
-    margin-top: 0.35rem;
-    max-width: 24ch;
+    margin-top: calc(0.3rem * var(--landing-mobile-overlay-scale));
+    max-width: 30ch;
+    font-size: calc(0.76rem * var(--landing-mobile-overlay-scale));
+    line-height: calc(1.35 / max(var(--landing-mobile-overlay-scale), 0.72));
   }
 
   .app-top-nav__landing-shortcut-row {
-    left: 20px;
-    right: 20px;
-    bottom: max(22px, calc(16px + env(safe-area-inset-bottom)));
-    gap: 12px;
+    position: relative;
+    left: auto;
+    right: auto;
+    bottom: auto;
+    margin-top: auto;
+    padding-top: calc(6px * var(--landing-mobile-overlay-scale));
+    gap: calc(10px * var(--landing-mobile-overlay-scale));
+    flex-wrap: wrap;
   }
 
   .app-top-nav__landing-shortcut {
-    flex: 1 1 0;
-    padding: 0 0 0.18rem;
+    flex: 1 1 180px;
+    min-width: min(180px, 100%);
+    padding: 0 0 calc(0.16rem * var(--landing-mobile-overlay-scale));
+    align-items: flex-start;
+    text-align: left;
+  }
+
+  .app-top-nav__landing-shortcut-label {
+    font-size: clamp(
+      calc(0.88rem * var(--landing-mobile-overlay-scale)),
+      calc(3.8vw * var(--landing-mobile-overlay-scale)),
+      calc(1.08rem * var(--landing-mobile-overlay-scale))
+    );
+  }
+
+  .app-top-nav__landing-shortcut-copy {
+    font-size: calc(0.7rem * var(--landing-mobile-overlay-scale));
+  }
+
+  .app-top-nav__landing-shortcut--map {
+    align-items: flex-start;
+    text-align: left;
+  }
+
+  .app-top-nav__landing-shortcut--map {
+    align-items: flex-start;
+    text-align: left;
   }
 
   .app-top-nav__inner {

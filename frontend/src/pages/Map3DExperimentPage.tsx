@@ -191,7 +191,7 @@ const ROUTE_GUIDE_STEPS: RouteGuideStep[] = [
     id: "controls",
     title: "Use map controls without losing context",
     description:
-      "Use the top toolbar for Route, Layers, Tips, Menu, and zoom controls. On smaller screens the toolbar now wraps into grouped rows, so controls scale down and reflow instead of overlapping each other.",
+      "Use the top toolbar for Route, Layers, Tips, Menu, and zoom controls. On smaller screens the toolbar stays on one row and scales down to fit cleanly inside the screen.",
     icon: Layers3,
   },
   {
@@ -729,9 +729,9 @@ export default function Map3DExperimentPage() {
         <div
           data-testid="route-top-toolbar"
           style={routeToolbarStyle}
-          className="flex min-h-14 w-[min(92vw,112rem)] items-center gap-1 rounded-[28px] border border-white/55 px-2 py-2 text-[#17413f] shadow-[inset_0_1px_0_rgba(255,255,255,0.74)] max-sm:flex-wrap max-sm:justify-between max-sm:gap-y-2 max-sm:rounded-[24px]"
+          className="flex min-h-14 w-[min(94vw,112rem)] flex-nowrap items-center gap-1 rounded-[28px] border border-white/55 px-2 py-2 text-[#17413f] shadow-[inset_0_1px_0_rgba(255,255,255,0.74)] max-sm:min-h-12 max-sm:w-[calc(100vw-0.6rem)] max-sm:justify-between max-sm:gap-0.5 max-sm:overflow-hidden max-sm:rounded-[24px] max-sm:px-1.5 max-sm:py-1.5"
         >
-          <div className="flex min-w-0 items-center gap-1 max-sm:w-full max-sm:justify-between">
+          <div className="flex min-w-0 shrink items-center gap-1 max-sm:flex-1 max-sm:flex-nowrap max-sm:gap-0.5">
             <TopBarActionButton
               label="Back"
               icon={<ArrowLeft className="h-4 w-4" />}
@@ -742,7 +742,7 @@ export default function Map3DExperimentPage() {
             />
             <div className="route-page-toolbar-divider" aria-hidden="true" />
             <LayoutGroup id="route-page-bar-panels">
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1 max-sm:min-w-0 max-sm:gap-0.5">
                 <TopBarActionButton
                   label="Route"
                   icon={<Navigation className="h-4 w-4" />}
@@ -761,7 +761,7 @@ export default function Map3DExperimentPage() {
           <div className="min-w-6 flex-1 max-sm:hidden" />
           <div
             data-testid="route-top-toolbar-right"
-            className="flex min-w-0 items-center justify-end gap-1 max-sm:w-full max-sm:justify-between"
+            className="flex min-w-0 shrink-0 items-center justify-end gap-1 max-sm:flex-nowrap max-sm:gap-0.5"
           >
             <TopBarActionButton
               label="Tips"
@@ -770,26 +770,34 @@ export default function Map3DExperimentPage() {
               title="Open quick guide"
               ariaLabel="Open quick guide"
             />
-            <RoutePageMenuTrigger open={landingMenuOpen} onToggle={() => setLandingMenuOpen((current) => !current)} />
-            <div className="route-page-toolbar-divider" aria-hidden="true" />
-            <TopBarActionButton
-              label="Zoom out"
-              icon={<Minus className="h-4 w-4" />}
-              onClick={() => mapViewportControls?.zoomOut()}
-              title="Zoom out"
-              ariaLabel="Zoom out"
-              iconOnly
-              disabled={!mapViewportControls}
+            <RoutePageMenuTrigger
+              open={landingMenuOpen}
+              onToggle={() => setLandingMenuOpen((current) => !current)}
+              compactOnMobile
             />
-            <TopBarActionButton
-              label="Zoom in"
-              icon={<Plus className="h-4 w-4" />}
-              onClick={() => mapViewportControls?.zoomIn()}
-              title="Zoom in"
-              ariaLabel="Zoom in"
-              iconOnly
-              disabled={!mapViewportControls}
-            />
+            {!isMobileViewport ? (
+              <>
+                <div className="route-page-toolbar-divider" aria-hidden="true" />
+                <TopBarActionButton
+                  label="Zoom out"
+                  icon={<Minus className="h-4 w-4" />}
+                  onClick={() => mapViewportControls?.zoomOut()}
+                  title="Zoom out"
+                  ariaLabel="Zoom out"
+                  iconOnly
+                  disabled={!mapViewportControls}
+                />
+                <TopBarActionButton
+                  label="Zoom in"
+                  icon={<Plus className="h-4 w-4" />}
+                  onClick={() => mapViewportControls?.zoomIn()}
+                  title="Zoom in"
+                  ariaLabel="Zoom in"
+                  iconOnly
+                  disabled={!mapViewportControls}
+                />
+              </>
+            ) : null}
           </div>
         </div>
       </motion.div>
@@ -865,10 +873,11 @@ export default function Map3DExperimentPage() {
             <button
               type="button"
               onClick={() => setMobileSheetMode((current) => (current === "expanded" ? "peek" : "expanded"))}
-              className="route-page-sheet-handle"
+              className="route-page-sheet-handle inline-flex min-h-7 min-w-[84px] items-center justify-center rounded-full bg-transparent px-3 py-1.5 transition hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#83c5be]/65"
               aria-label={mobileSheetMode === "expanded" ? "Collapse panel preview" : "Expand panel preview"}
+              data-testid="route-mobile-sheet-handle"
             >
-              <span className="route-page-sheet-handle-bar" />
+              <span className="route-page-sheet-handle-bar block h-1.5 w-14 rounded-full bg-[#6f8f8b]/80 shadow-[inset_0_1px_0_rgba(255,255,255,0.58),0_1px_3px_rgba(23,65,63,0.16)]" />
             </button>
           </div>
         ) : null}
@@ -1446,6 +1455,7 @@ function TopBarActionButton({
   disabled = false,
   iconOnly = false,
   compactOnMobile = false,
+  className = "",
 }: {
   active?: boolean;
   icon?: ReactNode;
@@ -1456,6 +1466,7 @@ function TopBarActionButton({
   disabled?: boolean;
   iconOnly?: boolean;
   compactOnMobile?: boolean;
+  className?: string;
 }) {
   return (
     <motion.button
@@ -1466,7 +1477,7 @@ function TopBarActionButton({
       disabled={disabled}
       className={`route-page-toolbar-button ${iconOnly ? "route-page-toolbar-button--icon" : "route-page-toolbar-button--text"} ${
         compactOnMobile ? "route-page-toolbar-button--compact-mobile" : ""
-      }`}
+      } ${className}`.trim()}
       animate={{
         scale: active ? 1.03 : 1,
       }}
@@ -1631,10 +1642,20 @@ function RouteGuideDialog({
   );
 }
 
-function RoutePageMenuTrigger({ open, onToggle }: { open: boolean; onToggle: () => void }) {
+function RoutePageMenuTrigger({
+  open,
+  onToggle,
+  compactOnMobile = false,
+}: {
+  open: boolean;
+  onToggle: () => void;
+  compactOnMobile?: boolean;
+}) {
   return (
     <motion.div
-      className="app-top-nav app-top-nav--route-page app-top-nav--tone-dark"
+      className={`app-top-nav app-top-nav--route-page app-top-nav--tone-dark${
+        compactOnMobile ? " route-page-menu-trigger--compact-mobile" : ""
+      }`}
       animate={{ scale: open ? 1.04 : 1 }}
       transition={{ type: "spring", stiffness: 240, damping: 18, mass: 0.82 }}
     >

@@ -5,6 +5,8 @@ import { MemoryRouter, Route, Routes } from "react-router";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import App from "../App";
 
+const appTopNavMock = vi.fn(() => <div data-testid="app-top-nav" />);
+
 vi.mock("../../hooks/usePrecincts", () => ({
   usePrecincts: () => ({
     precincts: [
@@ -28,7 +30,7 @@ vi.mock("../../hooks/usePrecincts", () => ({
 }));
 
 vi.mock("../../components/AppTopNav", () => ({
-  default: () => <div data-testid="app-top-nav" />,
+  default: (props: unknown) => appTopNavMock(props),
 }));
 
 vi.mock("../../components/LeafletMap", () => ({
@@ -65,6 +67,7 @@ function render(element: React.ReactNode) {
 
 afterEach(() => {
   document.body.innerHTML = "";
+  appTopNavMock.mockClear();
 });
 
 describe("App map guide", () => {
@@ -77,9 +80,9 @@ describe("App map guide", () => {
       </MemoryRouter>
     );
 
-    expect(view.container.textContent).toContain("Interactive Map Quick Guide");
-    expect(view.container.querySelector('[data-testid="map-guide-scroll-shell"]')?.className).toContain(
-      "overflow-y-auto"
+    expect(view.container.textContent).toContain("Tips Guide");
+    expect(view.container.textContent).toContain(
+      "Comfort Area shows precinct scores and lets you open each score card."
     );
 
     view.unmount();
@@ -92,7 +95,28 @@ describe("App map guide", () => {
       </MemoryRouter>
     );
 
-    expect(secondView.container.textContent).not.toContain("Interactive Map Quick Guide");
+    expect(secondView.container.textContent).not.toContain("Tips Guide");
     secondView.unmount();
+  });
+
+  test("uses the same compact landing menu shell on /map as the landing and 3D route pages", () => {
+    render(
+      <MemoryRouter initialEntries={["/map"]}>
+        <Routes>
+          <Route path="/map" element={<App />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    expect(appTopNavMock).toHaveBeenCalled();
+    expect(appTopNavMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        variant: "landing",
+        landingMode: "compact",
+        landingTone: "dark",
+        landingOverlayContext: "map",
+        className: "app-top-nav--map-overlay",
+      })
+    );
   });
 });
