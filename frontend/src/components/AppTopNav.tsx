@@ -21,6 +21,7 @@ type AppTopNavProps = {
   landingOverlayOpen?: boolean;
   onLandingOverlayOpenChange?: (open: boolean) => void;
   hideCompactTrigger?: boolean;
+  landingOverlayContext?: "landing" | "route" | "map";
 };
 
 const navItems = [
@@ -65,6 +66,7 @@ export default function AppTopNav({
   landingOverlayOpen = false,
   onLandingOverlayOpenChange,
   hideCompactTrigger = false,
+  landingOverlayContext,
 }: AppTopNavProps) {
   const location = useLocation();
   const navigate = useNavigate();
@@ -73,8 +75,11 @@ export default function AppTopNav({
   const [landingOverlayMotionState, setLandingOverlayMotionState] = useState<
     "closed" | "opening" | "open" | "closing"
   >("closed");
+  const [isSmallLandingViewport, setIsSmallLandingViewport] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const routeOverlayContext = className.includes("app-top-nav--route-page");
+  const resolvedLandingOverlayContext =
+    landingOverlayContext ?? (routeOverlayContext ? "route" : "landing");
   const isEnhancedLanding = variant === "landing" && landingMode !== undefined;
   const clampedLandingProgress = Math.min(1, Math.max(0, landingTransitionProgress));
   const effectiveLandingOverlayOpen =
@@ -161,11 +166,32 @@ export default function AppTopNav({
     };
   }, [effectiveLandingOverlayOpen, isEnhancedLanding]);
 
+  useEffect(() => {
+    if (!isEnhancedLanding) return;
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
+      setIsSmallLandingViewport(false);
+      return;
+    }
+
+    const mediaQuery = window.matchMedia("(max-width: 720px)");
+    const syncViewport = (event?: MediaQueryListEvent) => {
+      setIsSmallLandingViewport(event ? event.matches : mediaQuery.matches);
+    };
+
+    syncViewport();
+    mediaQuery.addEventListener("change", syncViewport);
+
+    return () => {
+      mediaQuery.removeEventListener("change", syncViewport);
+    };
+  }, [isEnhancedLanding]);
+
   if (isEnhancedLanding) {
     const showHeroLinks = landingMode !== "compact";
     const heroOpacity = landingMode === "hero" ? 1 : 1 - clampedLandingProgress;
     const compactOpacity = landingMode === "hero" ? 0 : clampedLandingProgress;
     const overlayVisible = landingOverlayMotionState !== "closed";
+    const showOverlayVisual = !isSmallLandingViewport;
     const overlayClassName =
       landingOverlayMotionState === "opening"
         ? "is-opening"
@@ -298,25 +324,39 @@ export default function AppTopNav({
                 <img src={landingLogo} alt="EaseMove" className="app-top-nav__landing-logo" />
               </div>
 
-              <div className="app-top-nav__landing-overlay-visual" aria-hidden="true">
-                <div className="app-top-nav__landing-overlay-visual-shell">
-                  <img src={landingOverlayVisual} alt="" className="app-top-nav__landing-overlay-visual-image" />
-                  <div className="app-top-nav__landing-overlay-visual-wash"></div>
-                  <div className="app-top-nav__landing-overlay-orbit app-top-nav__landing-overlay-orbit--outer"></div>
-                  <div className="app-top-nav__landing-overlay-orbit app-top-nav__landing-overlay-orbit--inner"></div>
-                  <div className="app-top-nav__landing-overlay-visual-copy">
-                    <p className="app-top-nav__landing-overlay-visual-kicker">
-                      {routeOverlayContext ? "3D route menu" : "Landing menu"}
-                    </p>
-                    <h2>{routeOverlayContext ? "Route-first navigation." : "Move through the product faster."}</h2>
-                    <p>
-                      {routeOverlayContext
-                        ? "Jump between the map, route rehearsal, and supporting pages without losing the journey context."
-                        : "Open the story, compare comfort, preview the route, or step into the project background."}
-                    </p>
+              {showOverlayVisual ? (
+                <div className="app-top-nav__landing-overlay-visual" aria-hidden="true">
+                  <div className="app-top-nav__landing-overlay-visual-shell">
+                    <img src={landingOverlayVisual} alt="" className="app-top-nav__landing-overlay-visual-image" />
+                    <div className="app-top-nav__landing-overlay-visual-wash"></div>
+                    <div className="app-top-nav__landing-overlay-orbit app-top-nav__landing-overlay-orbit--outer"></div>
+                    <div className="app-top-nav__landing-overlay-orbit app-top-nav__landing-overlay-orbit--inner"></div>
+                    <div className="app-top-nav__landing-overlay-visual-copy">
+                      <p className="app-top-nav__landing-overlay-visual-kicker">
+                        {resolvedLandingOverlayContext === "route"
+                          ? "3D route menu"
+                          : resolvedLandingOverlayContext === "map"
+                            ? "Map menu"
+                            : "Landing menu"}
+                      </p>
+                      <h2>
+                        {resolvedLandingOverlayContext === "route"
+                          ? "Route-first navigation."
+                          : resolvedLandingOverlayContext === "map"
+                            ? "Map-first navigation."
+                            : "Move through the product faster."}
+                      </h2>
+                      <p>
+                        {resolvedLandingOverlayContext === "route"
+                          ? "Jump between the map, route rehearsal, and supporting pages without losing the journey context."
+                          : resolvedLandingOverlayContext === "map"
+                            ? "Jump between comfort planning, route rehearsal, and the supporting story without leaving the map workflow."
+                            : "Open the story, compare comfort, preview the route, or step into the project background."}
+                      </p>
+                    </div>
                   </div>
                 </div>
-              </div>
+              ) : null}
 
               <div className="app-top-nav__landing-overlay-nav-wrap">
                 <div className="app-top-nav__landing-overlay-nav-intro">
