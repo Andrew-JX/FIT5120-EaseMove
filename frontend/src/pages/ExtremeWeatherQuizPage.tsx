@@ -27,6 +27,7 @@ export default function ExtremeWeatherQuizPage() {
   const [lockInput, setLockInput] = useState(false);
   const [wrongModalOpen, setWrongModalOpen] = useState(false);
   const [wrongPickedIndex, setWrongPickedIndex] = useState<number | null>(null);
+  const [isCompactQuizScreen, setIsCompactQuizScreen] = useState(false);
 
   const current = activeQuestions[currentIndex] ?? null;
   const total = activeQuestions.length;
@@ -41,6 +42,30 @@ export default function ExtremeWeatherQuizPage() {
       return sum + (answer === q.correctIndex ? 1 : 0);
     }, 0);
   }, [answers, activeQuestions]);
+  const summaryTone = useMemo(() => {
+    if (total <= 0) {
+      return {
+        title: "💪 Keep Trying!",
+        subtitle: "Let’s do one round and learn fast.",
+      };
+    }
+    if (score === total) {
+      return {
+        title: "🎉 Perfect!",
+        subtitle: "Excellent work. You nailed every question.",
+      };
+    }
+    if (score >= Math.ceil(total * 0.6)) {
+      return {
+        title: "😅 Almost!",
+        subtitle: "Not bad, but you can do better. Try again?",
+      };
+    }
+    return {
+      title: "💪 Keep Trying!",
+      subtitle: "Good effort. Another round will help lock it in.",
+    };
+  }, [score, total]);
 
   useEffect(() => {
     const prev = document.body.style.overflow;
@@ -48,6 +73,15 @@ export default function ExtremeWeatherQuizPage() {
     return () => {
       document.body.style.overflow = prev;
     };
+  }, []);
+
+  useEffect(() => {
+    const updateCompactMode = () => {
+      setIsCompactQuizScreen(window.innerHeight < 760 || window.innerWidth < 390);
+    };
+    updateCompactMode();
+    window.addEventListener("resize", updateCompactMode);
+    return () => window.removeEventListener("resize", updateCompactMode);
   }, []);
 
   const advanceToNext = () => {
@@ -108,7 +142,7 @@ export default function ExtremeWeatherQuizPage() {
     <div className="fixed inset-0 overflow-hidden bg-[linear-gradient(180deg,#122d2b_0%,#eef8f5_16%,#f7fbfa_76%,#dfeee9_100%)] text-[#10201f]">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_0%,rgba(131,197,190,0.26),transparent_44%),radial-gradient(circle_at_84%_84%,rgba(23,65,63,0.12),transparent_42%)]" />
 
-      <header className="relative z-20 mx-auto flex h-20 w-full max-w-[1200px] items-center justify-between px-5 sm:px-8">
+      <header className={`relative z-20 mx-auto flex w-full max-w-[1200px] items-center justify-between px-5 sm:px-8 ${isCompactQuizScreen ? "h-16" : "h-20"}`}>
         <button
           type="button"
           onClick={() => navigate("/extreme-weather-risks")}
@@ -120,8 +154,8 @@ export default function ExtremeWeatherQuizPage() {
         <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#17413f]">Extreme Weather Quiz</div>
       </header>
 
-      <div className="relative z-10 mx-auto flex h-[calc(100vh-80px)] w-full max-w-[1200px] flex-col px-5 pb-8 sm:px-8 sm:pb-10">
-        <div className="mb-6">
+      <div className={`relative z-10 mx-auto flex w-full max-w-[1200px] flex-col px-5 sm:px-8 ${isCompactQuizScreen ? "h-[calc(100vh-64px)] pb-4" : "h-[calc(100vh-80px)] pb-8 sm:pb-10"}`}>
+        <div className={isCompactQuizScreen ? "mb-3" : "mb-6"}>
           <div className="mb-2 flex items-center justify-between text-sm text-[#17413f]">
             <span>Question {Math.min(currentIndex + 1, total)} / {total}</span>
             <span>{progress}%</span>
@@ -139,7 +173,7 @@ export default function ExtremeWeatherQuizPage() {
             {!isFinished && current && (
               <motion.div
                 key={current.id}
-                className="absolute inset-0 flex h-full flex-col justify-between p-6 sm:p-10"
+                className={`absolute inset-0 flex h-full flex-col justify-between ${isCompactQuizScreen ? "p-4 sm:p-6" : "p-7 sm:p-12"}`}
                 initial={{ opacity: 0, filter: "blur(9px)" }}
                 animate={{ opacity: 1, filter: "blur(0px)" }}
                 exit={{ opacity: 0, filter: "blur(8px)", y: 18, scale: 0.985 }}
@@ -149,14 +183,14 @@ export default function ExtremeWeatherQuizPage() {
                   initial={{ y: -80, opacity: 0, filter: "blur(10px)" }}
                   animate={{ y: 0, opacity: 1, filter: "blur(0px)" }}
                   transition={{ duration: 0.82, ease: EASE }}
-                  className="pt-2"
+                  className={isCompactQuizScreen ? "pt-0.5" : "pt-2"}
                 >
-                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#4a5c3a]">Question {currentIndex + 1}</p>
-                  <h2 className="mt-3 text-2xl font-bold leading-snug text-[#10201f] sm:text-4xl">{current.prompt}</h2>
+                  <p className={`${isCompactQuizScreen ? "text-[11px]" : "text-sm"} font-semibold uppercase tracking-[0.2em] text-[#4a5c3a]`}>Question {currentIndex + 1}</p>
+                  <h2 className={`mt-2 font-bold leading-snug text-[#10201f] ${isCompactQuizScreen ? "text-xl sm:text-2xl" : "text-3xl sm:text-5xl"}`}>{current.prompt}</h2>
                 </motion.div>
 
                 <motion.div
-                  className="grid gap-3 pb-2"
+                  className={`grid ${isCompactQuizScreen ? "gap-2.5 pb-1" : "gap-4 pb-3"}`}
                   initial="hidden"
                   animate="show"
                   variants={{
@@ -185,7 +219,9 @@ export default function ExtremeWeatherQuizPage() {
                         }}
                         whileHover={{ scale: 1.015, boxShadow: "0 0 0 1px rgba(132,210,195,0.55), 0 14px 28px rgba(12,40,37,0.32)" }}
                         whileTap={{ scale: 0.99 }}
-                        className={`w-full rounded-2xl border px-4 py-3 text-left text-sm transition-all sm:px-5 sm:py-4 sm:text-base ${
+                        className={`w-full rounded-2xl border text-left transition-all ${
+                          isCompactQuizScreen ? "px-3.5 py-2.5 text-sm sm:text-base" : "px-5 py-4 text-base sm:px-6 sm:py-5 sm:text-lg"
+                        } ${
                           isCorrectChoice
                             ? "border-emerald-300 bg-emerald-300/20"
                             : isWrongChoice
@@ -205,33 +241,39 @@ export default function ExtremeWeatherQuizPage() {
             {isFinished && (
               <motion.div
                 key="summary"
-                className="absolute inset-0 flex h-full flex-col justify-center bg-[linear-gradient(180deg,rgba(245,240,232,0.96),rgba(237,248,245,0.94))] p-6 sm:p-10"
-                initial={{ opacity: 0, y: 22, filter: "blur(8px)" }}
+                className="absolute inset-0 flex h-full items-center justify-center bg-[#f6f1e8] p-6 text-center sm:p-10"
+                initial={{ opacity: 0, y: 22, filter: "blur(6px)" }}
                 animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
                 transition={{ duration: 0.78, ease: EASE }}
               >
-                <h2 className="text-3xl font-bold text-[#10201f] sm:text-4xl">Quiz Summary</h2>
-                <p className="mt-3 text-lg text-[#17413f]">You scored {score} out of {total}.</p>
-                <p className="mt-2 text-sm text-[#365c58] sm:text-base">
-                  {score === total
-                    ? "Great work. You are ready to apply these safety steps outdoors."
-                    : "Good progress. Review the feedback and try again for a perfect score."}
-                </p>
-                <div className="mt-8 flex flex-wrap gap-3">
-                  <button
-                    type="button"
-                    onClick={restartCurrentSet}
-                    className="rounded-full border border-[#17413f]/24 bg-[#17413f] px-5 py-2.5 text-sm font-semibold text-[#f3fbf9] transition-opacity hover:opacity-90"
-                  >
-                    Try Again
-                  </button>
-                  <button
-                    type="button"
-                    onClick={replaceQuestions}
-                    className="rounded-full border border-[#e2b063]/42 bg-[#f5e8cf] px-5 py-2.5 text-sm font-semibold text-[#6d4617] transition-opacity hover:opacity-90"
-                  >
-                    Replace Questions
-                  </button>
+                <div className="mx-auto w-full max-w-2xl">
+                  <h2 className="text-5xl font-extrabold tracking-tight text-[#10201f] sm:text-7xl">
+                    {summaryTone.title}
+                  </h2>
+                  <p className="mt-7 text-xl font-medium text-[#17413f] sm:text-2xl">
+                    You scored {score} out of {total}.
+                  </p>
+                  <p className="mx-auto mt-3 max-w-xl text-base leading-relaxed text-[#365c58] sm:text-lg">
+                    {summaryTone.subtitle}
+                  </p>
+                  <div className="mt-10 flex flex-col items-center gap-4">
+                    <motion.button
+                      type="button"
+                      onClick={restartCurrentSet}
+                      whileHover={{ scale: 1.04 }}
+                      whileTap={{ scale: 0.97 }}
+                      className="rounded-full border border-[#e1b45e] bg-[#f4cf72] px-10 py-3 text-base font-bold text-[#6d4617] shadow-[0_12px_26px_rgba(109,70,23,0.2)]"
+                    >
+                      Try Again
+                    </motion.button>
+                    <button
+                      type="button"
+                      onClick={replaceQuestions}
+                      className="rounded-full border border-[#17413f]/26 bg-white/72 px-6 py-2.5 text-sm font-semibold text-[#17413f] shadow-[0_8px_20px_rgba(16,32,31,0.08)] transition-all hover:scale-[1.02] hover:bg-white"
+                    >
+                      Replace Questions
+                    </button>
+                  </div>
                 </div>
               </motion.div>
             )}
