@@ -11,6 +11,7 @@ import {
 } from "./landingSceneController";
 
 const melVideoUrl = new URL("../../assets/landing/Mel.mp4", import.meta.url).href;
+const loadingPosterUrl = new URL("../../assets/landing/loading.png", import.meta.url).href;
 const WHEEL_PROGRESS_FACTOR = 0.001;
 const TOUCH_PROGRESS_FACTOR = 0.003;
 const KEY_PROGRESS_STEP = 0.1;
@@ -122,6 +123,7 @@ export default function HeroSplitScene() {
   );
   const [hasVideoError, setHasVideoError] = useState(false);
   const [isVideoReady, setIsVideoReady] = useState(false);
+  const [isPosterReady, setIsPosterReady] = useState(false);
   const [completed, setCompleted] = useState(false);
   const [isHeroControlEnabled, setIsHeroControlEnabled] = useState(true);
   const targetProgress = useMotionValue(0);
@@ -405,7 +407,7 @@ export default function HeroSplitScene() {
 
   const marqueeOpacity = useTransform(smoothedProgress, [0.28, 0.55, 0.72], [0, 0.82, 1]);
   const marqueeY = useTransform(smoothedProgress, [0.28, 0.72], ["24px", "0px"]);
-  const shouldShowVideoPlaceholder = !isVideoReady;
+  const shouldShowVideoPlaceholder = !isPosterReady;
   const scrollToNextSection = () => {
     completedRef.current = true;
     latestRawInputDeltaRef.current = KEYBOARD_HANDOFF_DELTA_PX;
@@ -443,6 +445,14 @@ export default function HeroSplitScene() {
               </div>
             </div>
           ) : null}
+          <img
+            className={`landing-video-poster${isPosterReady ? " is-ready" : ""}${isVideoReady ? " is-hidden" : ""}`}
+            src={loadingPosterUrl}
+            alt=""
+            aria-hidden="true"
+            onLoad={() => setIsPosterReady(true)}
+            onError={() => setIsPosterReady(false)}
+          />
           {!hasVideoError ? (
             <video
               ref={videoRef}
