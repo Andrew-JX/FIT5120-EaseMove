@@ -202,7 +202,7 @@ const ROUTE_GUIDE_STEPS: RouteGuideStep[] = [
     id: "refine",
     title: "Refine the route when needed",
     description:
-      "Use the pin button or the Start card to lock point picking, use current location when available, and reopen Tips any time from the toolbar. Turn on Natural Places, Ease Places, or Public Facilities to add more context to the 3D map.",
+      "Use the pin button or the Start card to lock point picking, use current location when available, and reopen Tips any time from the toolbar. After both start and destination are selected, Track live route progress uses your current location, places the pet on that live position along the route, and follows your progress. If your live position is far from the selected start point, a prompt lets you keep the current route or re-route from your location while keeping the same destination. Tap Track live route progress again to stop live tracking and resume Auto playback. Turn on Natural Places, Ease Places, or Public Facilities to add more context to the 3D map.",
     icon: LocateFixed,
   },
 ];

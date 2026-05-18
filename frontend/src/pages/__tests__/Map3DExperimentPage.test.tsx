@@ -1329,6 +1329,46 @@ describe("Map3DExperimentPage - Epic 5", () => {
     reloadedView.unmount();
   });
 
+  test("3D route guide explains live tracking, pet movement, reroute prompt, and autoplay resume", async () => {
+    const Map3DExperimentPage = await loadPageWithToken();
+    const view = render(
+      <MemoryRouter initialEntries={["/map/3d-route"]}>
+        <Routes>
+          <Route path="/map/3d-route" element={<Map3DExperimentPage />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    const nextButton = () => view.container.querySelector('[data-testid="route-guide-next-button"]');
+
+    expect(view.container.textContent).toContain("Choose your route points");
+
+    act(() => {
+      nextButton()!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    expect(view.container.textContent).toContain("Read the route summary quickly");
+
+    act(() => {
+      nextButton()!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    expect(view.container.textContent).toContain("Use map controls without losing context");
+
+    act(() => {
+      nextButton()!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(view.container.textContent).toContain("Refine the route when needed");
+    expect(view.container.textContent).toContain("Track live route progress");
+    expect(view.container.textContent).toContain("pet");
+    expect(view.container.textContent).toContain("current location");
+    expect(view.container.textContent).toContain("selected start point");
+    expect(view.container.textContent).toContain("re-route");
+    expect(view.container.textContent).toContain("same destination");
+    expect(view.container.textContent).toContain("Auto playback");
+
+    view.unmount();
+  });
+
   test("mobile collapsed state hides the floating side panel and keeps panel launchers in the top bar", async () => {
     Object.defineProperty(window, "matchMedia", {
       writable: true,

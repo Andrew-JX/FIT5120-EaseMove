@@ -928,6 +928,155 @@
   padding-bottom: clamp(78px, 9vw, 126px);
 }
 
+.aboutus-ending-trigger {
+  width: 100%;
+  height: 1px;
+  margin-top: 1px;
+}
+
+.aboutus-ending-celebration {
+  position: fixed;
+  inset: 0;
+  z-index: 960;
+  pointer-events: none;
+  overflow: hidden;
+  animation: aboutus-ending-overlay-fade var(--aboutus-ending-duration, 3400ms) ease forwards;
+}
+
+.aboutus-ending-celebration__veil {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at center, rgba(255, 255, 255, 0.08), transparent 32%),
+    linear-gradient(180deg, rgba(9, 21, 21, 0.16), rgba(9, 21, 21, 0.42));
+  backdrop-filter: blur(10px) saturate(1.08);
+}
+
+.aboutus-ending-celebration__stage {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.aboutus-ending-fireworks-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.aboutus-ending-burst {
+  position: absolute;
+  inset: 0;
+}
+
+.aboutus-ending-centerpiece {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  transform: translate(-50%, -50%);
+}
+
+.aboutus-ending-emoji {
+  user-select: none;
+  -webkit-user-drag: none;
+  filter: drop-shadow(0 18px 34px rgba(8, 20, 20, 0.28));
+}
+
+.aboutus-ending-emoji--hero {
+  width: clamp(184px, 24vw, 284px);
+  animation: aboutus-ending-hero-pop var(--aboutus-ending-duration, 3400ms) cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.aboutus-ending-emoji--orbiter {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: clamp(76px, 9vw, 124px);
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(0.2) rotate(0deg);
+  animation: aboutus-ending-orbiter-burst calc(var(--aboutus-ending-duration, 3400ms) - 280ms) cubic-bezier(0.18, 1, 0.32, 1) forwards;
+  animation-delay: var(--emoji-delay, 0ms);
+}
+
+.aboutus-ending-copy {
+  margin: 0;
+  color: #f8fffd;
+  font-size: clamp(1.45rem, 3vw, 2.5rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  text-shadow: 0 12px 24px rgba(8, 20, 20, 0.24);
+  opacity: 0;
+  animation: aboutus-ending-copy-rise calc(var(--aboutus-ending-duration, 3400ms) - 880ms) ease forwards;
+  animation-delay: 260ms;
+}
+
+.aboutus-ending-subcopy {
+  margin: 0;
+  color: rgba(248, 255, 253, 0.82);
+  font-size: clamp(0.95rem, 1.5vw, 1.08rem);
+  letter-spacing: 0.02em;
+  text-shadow: 0 10px 22px rgba(8, 20, 20, 0.22);
+  opacity: 0;
+  animation: aboutus-ending-copy-rise calc(var(--aboutus-ending-duration, 3400ms) - 880ms) ease forwards;
+  animation-delay: 390ms;
+}
+
+.aboutus-ending-firework {
+  position: absolute;
+  top: var(--firework-y);
+  left: var(--firework-x);
+  width: var(--firework-size);
+  aspect-ratio: 1;
+  border-radius: 999px;
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(0.2);
+  animation: aboutus-ending-firework-bloom 2s cubic-bezier(0.2, 1, 0.3, 1) forwards;
+  animation-delay: var(--firework-delay, 0ms);
+  mix-blend-mode: screen;
+}
+
+.aboutus-ending-firework::before,
+.aboutus-ending-firework::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+}
+
+.aboutus-ending-firework::before {
+  background:
+    radial-gradient(circle, rgba(255, 255, 255, 0.98) 0 6%, transparent 8%),
+    radial-gradient(circle, transparent 36%, currentColor 37%, transparent 43%),
+    repeating-conic-gradient(from 0deg, currentColor 0deg 9deg, transparent 9deg 21deg);
+  mask: radial-gradient(circle, transparent 0 16%, #000 20% 100%);
+  opacity: 0.92;
+}
+
+.aboutus-ending-firework::after {
+  inset: -8%;
+  background:
+    radial-gradient(circle, rgba(255, 255, 255, 0.88) 0 8%, transparent 12%),
+    radial-gradient(circle, color-mix(in srgb, currentColor 88%, white 12%) 0%, transparent 68%);
+  filter: blur(16px);
+  opacity: 0.72;
+}
+
+.aboutus-ending-firework--gold {
+  color: rgba(255, 206, 107, 0.92);
+}
+
+.aboutus-ending-firework--mint {
+  color: rgba(122, 238, 224, 0.82);
+}
+
+.aboutus-ending-firework--peach {
+  color: rgba(255, 171, 131, 0.86);
+}
+
 .aboutus-cta-panel {
   border-radius: 38px;
   padding: clamp(30px, 4vw, 44px);
@@ -961,6 +1110,97 @@
   }
   to {
     stroke-dashoffset: -48;
+  }
+}
+
+@keyframes aboutus-ending-overlay-fade {
+  0%,
+  86% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes aboutus-ending-hero-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.28);
+  }
+  18% {
+    opacity: 1;
+    transform: scale(1.1);
+  }
+  34% {
+    transform: scale(0.96);
+  }
+  76% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.84);
+  }
+}
+
+@keyframes aboutus-ending-orbiter-burst {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.18) rotate(0deg);
+  }
+  16% {
+    opacity: 1;
+  }
+  44% {
+    opacity: 1;
+    transform: translate(calc(-50% + var(--emoji-x)), calc(-50% + var(--emoji-y)))
+      scale(var(--emoji-scale)) rotate(var(--emoji-rotate));
+  }
+  82% {
+    opacity: 0.96;
+    transform: translate(calc(-50% + var(--emoji-x)), calc(-50% + var(--emoji-y)))
+      scale(calc(var(--emoji-scale) * 0.94)) rotate(calc(var(--emoji-rotate) * 1.08));
+  }
+  100% {
+    opacity: 0;
+    transform: translate(calc(-50% + var(--emoji-x)), calc(-50% + var(--emoji-y)))
+      scale(calc(var(--emoji-scale) * 0.82)) rotate(calc(var(--emoji-rotate) * 1.18));
+  }
+}
+
+@keyframes aboutus-ending-firework-bloom {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.08);
+  }
+  18% {
+    opacity: 1;
+  }
+  54% {
+    opacity: 0.98;
+    transform: translate(-50%, -50%) scale(1.02);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1.42);
+  }
+}
+
+@keyframes aboutus-ending-copy-rise {
+  0% {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  16%,
+  82% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-10px);
   }
 }
 
@@ -1029,6 +1269,10 @@
   .aboutus-cta-panel {
     border-radius: 26px;
   }
+
+  .aboutus-ending-emoji--orbiter {
+    width: clamp(62px, 17vw, 96px);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1059,5 +1303,24 @@
 
   .aboutus-module-card {
     transform: none !important;
+  }
+
+  .aboutus-ending-celebration,
+  .aboutus-ending-emoji--hero,
+  .aboutus-ending-emoji--orbiter,
+  .aboutus-ending-copy,
+  .aboutus-ending-subcopy,
+  .aboutus-ending-firework {
+    animation-duration: 1.6s !important;
+    animation-timing-function: ease !important;
+  }
+
+  .aboutus-ending-celebration__veil {
+    backdrop-filter: blur(4px);
+  }
+
+  .aboutus-ending-emoji--orbiter,
+  .aboutus-ending-firework {
+    opacity: 0.5;
   }
 }
