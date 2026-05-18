@@ -350,7 +350,13 @@ export default function AppTopNav({
               {showOverlayVisual ? (
                 <div className="app-top-nav__landing-overlay-visual" aria-hidden="true">
                   <div className="app-top-nav__landing-overlay-visual-shell">
-                    <img src={landingOverlayVisual} alt="" className="app-top-nav__landing-overlay-visual-image" />
+                    <img
+                      src={landingOverlayVisual}
+                      alt=""
+                      className="app-top-nav__landing-overlay-visual-image"
+                      loading="lazy"
+                      decoding="async"
+                    />
                     <div className="app-top-nav__landing-overlay-visual-wash"></div>
                     <div className="app-top-nav__landing-overlay-orbit app-top-nav__landing-overlay-orbit--outer"></div>
                     <div className="app-top-nav__landing-overlay-orbit app-top-nav__landing-overlay-orbit--inner"></div>

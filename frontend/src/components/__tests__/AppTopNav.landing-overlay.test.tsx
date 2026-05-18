@@ -195,6 +195,57 @@ describe("AppTopNav landing overlay", () => {
     view.unmount();
   });
 
+  test("keeps the original overlay image source on larger screens", () => {
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn().mockImplementation((query: string) => ({
+        matches: false,
+        media: query,
+        onchange: null,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      }))
+    );
+
+    const view = render(
+      <MemoryRouter initialEntries={["/map"]}>
+        <Routes>
+          <Route
+            path="/map"
+            element={
+              <AppTopNav
+                variant="landing"
+                landingMode="compact"
+                landingTransitionProgress={1}
+              />
+            }
+          />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    const openButton = view.container.querySelector(
+      ".app-top-nav__compact-trigger"
+    ) as HTMLButtonElement | null;
+
+    act(() => {
+      openButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    const overlayImage = view.container.querySelector(
+      ".app-top-nav__landing-overlay-visual-image"
+    ) as HTMLImageElement | null;
+
+    expect(overlayImage).not.toBeNull();
+    expect(overlayImage?.getAttribute("src")).toContain("2.png");
+    expect(overlayImage?.getAttribute("srcset")).toBeNull();
+
+    view.unmount();
+  });
+
   test("scales the mobile landing overlay down on shorter phone viewports", () => {
     vi.stubGlobal(
       "matchMedia",
