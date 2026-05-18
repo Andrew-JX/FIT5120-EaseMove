@@ -1,3 +1,5 @@
+import { useEffect, useRef } from "react";
+import { animate, utils } from "animejs";
 import { ArrowLeft, MapPin, Tag, TrendingUp, Navigation, Bike, Footprints, Route } from "lucide-react";
 import {
   getAreaComfortRouteItems,
@@ -19,15 +21,32 @@ export default function AreaDetailPage({
   onRecommendationClick,
   onComfortRouteClick,
 }: AreaDetailPageProps) {
+  const pageRef = useRef<HTMLDivElement | null>(null);
   const homeSecondSectionBackground =
     "linear-gradient(180deg, #122d2b 0%, #eef8f5 25%, #f7fbfa 75%, #122d2b 100%)";
   const mapButtonGradient = "linear-gradient(180deg, #122d2b 0%, #17413f 100%)";
   const recommendations = getAreaRecommendationItems(area);
   const comfortRoutes = getAreaComfortRouteItems(area);
 
+  useEffect(() => {
+    const root = pageRef.current;
+    if (!root) return;
+    const nodes = Array.from(root.querySelectorAll<HTMLElement>("[data-area-reveal]"));
+    if (nodes.length === 0) return;
+    utils.remove(nodes);
+    animate(nodes, { opacity: 0, translateY: 18, duration: 0 });
+    animate(nodes, {
+      opacity: [0, 1],
+      translateY: [18, 0],
+      delay: utils.stagger(160),
+      duration: 520,
+      ease: "out(3)",
+    });
+  }, [area.id]);
+
   return (
-    <div className="min-h-screen text-[#2a2a2a]" style={{ background: homeSecondSectionBackground }}>
-      <div className="px-4 py-4 text-white">
+    <div ref={pageRef} className="min-h-screen text-[#2a2a2a]" style={{ background: homeSecondSectionBackground }}>
+      <div data-area-reveal className="px-4 py-4 text-white">
         <button
           type="button"
           onClick={onBack}
@@ -42,7 +61,7 @@ export default function AreaDetailPage({
         </button>
       </div>
 
-      <div className="relative mb-8 px-4 pb-2 pt-10 sm:pt-12">
+      <div data-area-reveal className="relative mb-8 px-4 pb-2 pt-10 sm:pt-12">
         <div className="mx-auto w-full max-w-6xl">
             <div className="mb-3 flex items-center gap-2">
               <MapPin className="h-6 w-6 text-[#17413f]" />
@@ -54,7 +73,7 @@ export default function AreaDetailPage({
         </div>
       
 
-      <div className="max-w-6xl mx-auto px-4 pb-12 space-y-8">
+      <div data-area-reveal className="max-w-6xl mx-auto px-4 pb-12 space-y-8">
         <div className="grid lg:grid-cols-2 gap-8">
           <div className="space-y-6">
             <div>
