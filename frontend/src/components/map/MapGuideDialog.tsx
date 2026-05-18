@@ -13,6 +13,10 @@ import tips3Image from "../../assets/tips3.png";
 import comfortTipsImage from "../../assets/Comfort_tips.png";
 import streetTipsImage from "../../assets/Street_tips.png";
 import naturalTipsImage from "../../assets/Natural_tips.png";
+import tips41Image from "../../assets/tips_41.png";
+import tips42Image from "../../assets/tips_42.png";
+import tips43Image from "../../assets/tips_43.png";
+import tips44Image from "../../assets/tips_44.png";
 
 type MapGuideDialogProps = {
   open: boolean;
@@ -66,6 +70,13 @@ const FILTER_TIPS_IMAGES = [
   { src: naturalTipsImage, alt: "Natural places tips preview" },
 ] as const;
 
+const EXPLORE_TIPS_IMAGES = [
+  { src: tips41Image, alt: "Explore tips step 4 - view details", objectPosition: "50% 52%" },
+  { src: tips42Image, alt: "Explore tips step 4 - compare selection", objectPosition: "50% 52%" },
+  { src: tips43Image, alt: "Explore tips step 4 - map interaction flow", objectPosition: "50% 50%" },
+  { src: tips44Image, alt: "Explore tips step 4 - summary interaction", objectPosition: "50% 50%" },
+] as const;
+
 export default function MapGuideDialog({
   open,
   onOpenChange,
@@ -75,6 +86,7 @@ export default function MapGuideDialog({
 }: MapGuideDialogProps) {
   const [stepIndex, setStepIndex] = useState(0);
   const [filterImageIndex, setFilterImageIndex] = useState(0);
+  const [exploreImageIndex, setExploreImageIndex] = useState(0);
   const [mounted, setMounted] = useState(open);
   const backdropRef = useRef<HTMLDivElement | null>(null);
   const panelRef = useRef<HTMLElement | null>(null);
@@ -95,6 +107,11 @@ export default function MapGuideDialog({
   useEffect(() => {
     if (GUIDE_STEPS[stepIndex]?.id !== "filters") return;
     setFilterImageIndex(0);
+  }, [stepIndex]);
+
+  useEffect(() => {
+    if (GUIDE_STEPS[stepIndex]?.id !== "explore") return;
+    setExploreImageIndex(0);
   }, [stepIndex]);
 
   useEffect(() => {
@@ -212,13 +229,13 @@ export default function MapGuideDialog({
 
       <section
         ref={panelRef}
-        className="pointer-events-auto absolute left-1/2 top-1/2 w-[min(640px,calc(100vw-1.5rem))] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-[28px] border border-[#d9e5e2] shadow-[0_28px_80px_rgba(10,24,23,0.2)]"
+        className="pointer-events-auto absolute left-1/2 top-1/2 w-[min(640px,calc(100vw-1rem))] max-h-[calc(100vh-1rem)] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-[24px] border border-[#d9e5e2] shadow-[0_28px_80px_rgba(10,24,23,0.2)] sm:w-[min(640px,calc(100vw-1.5rem))] sm:max-h-[calc(100vh-2rem)] sm:rounded-[28px]"
         style={{
           opacity: 0,
           background: "linear-gradient(180deg, #122d2b 0%, #eef8f5 25%, #f7fbfa 75%, #122d2b 100%)",
         }}
       >
-        <div className="flex items-center justify-between border-b border-white/25 px-5 py-4 sm:px-6">
+        <div className="flex items-center justify-between border-b border-white/25 px-4 py-3 sm:px-6 sm:py-4">
           <div className="flex items-center gap-2 text-white">
             <MapPinned className="h-5 w-5" />
             <span className="text-sm font-semibold tracking-[0.14em] uppercase">Tips Guide</span>
@@ -233,7 +250,7 @@ export default function MapGuideDialog({
           </button>
         </div>
 
-        <div className="px-5 pb-5 pt-4 sm:px-6 sm:pb-6">
+        <div className="max-h-[calc(100vh-7.25rem)] overflow-y-auto px-4 pb-4 pt-3 sm:max-h-[calc(100vh-10rem)] sm:px-6 sm:pb-6 sm:pt-4">
           <div
             ref={imageRef}
             className={`mb-4 ${
@@ -247,7 +264,7 @@ export default function MapGuideDialog({
               <img
                 src={tips3Image}
                 alt="Legend guide preview"
-                className="h-40 w-full rounded-2xl object-cover sm:h-48"
+                className="h-[clamp(130px,28vh,190px)] w-full rounded-2xl object-cover sm:h-48"
               />
             ) : currentStep.id === "filters" ? (
               <div>
@@ -255,15 +272,15 @@ export default function MapGuideDialog({
                   <img
                     src={FILTER_TIPS_IMAGES[filterImageIndex].src}
                     alt={FILTER_TIPS_IMAGES[filterImageIndex].alt}
-                    className="h-56 w-full rounded-2xl bg-[#eef3ef] object-cover object-bottom sm:h-64"
+                    className="h-[clamp(170px,34vh,260px)] w-full rounded-2xl bg-[#eef3ef] object-cover object-bottom"
                   />
                 </div>
-                <div className="mt-3 flex items-center justify-between gap-3">
+                <div className="mt-3 flex items-center justify-between gap-2 sm:gap-3">
                   <button
                     type="button"
                     onClick={() => setFilterImageIndex((value) => Math.max(value - 1, 0))}
                     disabled={filterImageIndex === 0}
-                    className={`rounded-md border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] shadow-[0_6px_14px_rgba(10,24,23,0.2)] transition ${
+                    className={`rounded-md border px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.07em] shadow-[0_6px_14px_rgba(10,24,23,0.2)] transition sm:px-2.5 sm:text-[11px] ${
                       filterImageIndex === 0
                         ? "cursor-not-allowed border-[#c9d8d4] bg-[#dde8e5] text-[#7a918d]"
                         : "border-white/30 bg-gradient-to-b from-[#122d2b] to-[#17413f] text-white hover:brightness-110"
@@ -285,7 +302,7 @@ export default function MapGuideDialog({
                       setFilterImageIndex((value) => Math.min(value + 1, FILTER_TIPS_IMAGES.length - 1))
                     }
                     disabled={filterImageIndex === FILTER_TIPS_IMAGES.length - 1}
-                    className={`rounded-md border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] shadow-[0_6px_14px_rgba(10,24,23,0.2)] transition ${
+                    className={`rounded-md border px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.07em] shadow-[0_6px_14px_rgba(10,24,23,0.2)] transition sm:px-2.5 sm:text-[11px] ${
                       filterImageIndex === FILTER_TIPS_IMAGES.length - 1
                         ? "cursor-not-allowed border-[#c9d8d4] bg-[#dde8e5] text-[#7a918d]"
                         : "border-white/30 bg-gradient-to-b from-[#122d2b] to-[#17413f] text-white hover:brightness-110"
@@ -295,8 +312,55 @@ export default function MapGuideDialog({
                   </button>
                 </div>
               </div>
+            ) : currentStep.id === "explore" ? (
+              <div>
+                <div className="relative">
+                  <img
+                    src={EXPLORE_TIPS_IMAGES[exploreImageIndex].src}
+                    alt={EXPLORE_TIPS_IMAGES[exploreImageIndex].alt}
+                    className="h-[clamp(170px,34vh,260px)] w-full rounded-2xl bg-[#eef3ef] object-cover object-bottom"
+                    style={{ objectPosition: EXPLORE_TIPS_IMAGES[exploreImageIndex].objectPosition }}
+                  />
+                </div>
+                <div className="mt-3 flex items-center justify-between gap-2 sm:gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setExploreImageIndex((value) => Math.max(value - 1, 0))}
+                    disabled={exploreImageIndex === 0}
+                    className={`rounded-md border px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.07em] shadow-[0_6px_14px_rgba(10,24,23,0.2)] transition sm:px-2.5 sm:text-[11px] ${
+                      exploreImageIndex === 0
+                        ? "cursor-not-allowed border-[#c9d8d4] bg-[#dde8e5] text-[#7a918d]"
+                        : "border-white/30 bg-gradient-to-b from-[#122d2b] to-[#17413f] text-white hover:brightness-110"
+                    }`}
+                  >
+                    Previous
+                  </button>
+                  <div className="flex items-center gap-2">
+                    {EXPLORE_TIPS_IMAGES.map((image, index) => (
+                      <span
+                        key={image.alt}
+                        className={`h-2 w-2 rounded-full ${index === exploreImageIndex ? "bg-[#17413f]" : "bg-[#b7cbc7]"}`}
+                      />
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setExploreImageIndex((value) => Math.min(value + 1, EXPLORE_TIPS_IMAGES.length - 1))
+                    }
+                    disabled={exploreImageIndex === EXPLORE_TIPS_IMAGES.length - 1}
+                    className={`rounded-md border px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.07em] shadow-[0_6px_14px_rgba(10,24,23,0.2)] transition sm:px-2.5 sm:text-[11px] ${
+                      exploreImageIndex === EXPLORE_TIPS_IMAGES.length - 1
+                        ? "cursor-not-allowed border-[#c9d8d4] bg-[#dde8e5] text-[#7a918d]"
+                        : "border-white/30 bg-gradient-to-b from-[#122d2b] to-[#17413f] text-white hover:brightness-110"
+                    }`}
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
             ) : (
-              currentStep.id === "top-five" || currentStep.id === "explore" ? (
+              currentStep.id === "top-five" ? (
                 <div className="min-w-0">
                   <h3 className="text-xl font-bold text-[#10201f] sm:text-2xl">{currentStep.title}</h3>
                 </div>
@@ -318,7 +382,7 @@ export default function MapGuideDialog({
 
           <div
             ref={bodyRef}
-            className="mb-5 min-h-[142px] rounded-2xl border border-[#d9d1c6] bg-[#f5f0e8]/95 p-4 text-sm leading-7 text-[#3f5f5b] shadow-[0_8px_18px_rgba(10,24,23,0.05)] sm:p-5"
+            className="mb-4 min-h-[120px] rounded-2xl border border-[#d9d1c6] bg-[#f5f0e8]/95 p-3 text-[13px] leading-6 text-[#3f5f5b] shadow-[0_8px_18px_rgba(10,24,23,0.05)] sm:mb-5 sm:min-h-[142px] sm:p-5 sm:text-sm sm:leading-7"
             style={{ opacity: 0 }}
           >
             <p>{currentStep.description}</p>
@@ -354,7 +418,7 @@ export default function MapGuideDialog({
             ) : null}
           </div>
 
-          <div ref={footerRef} className="flex items-center justify-between gap-3" style={{ opacity: 0 }}>
+          <div ref={footerRef} className="flex items-center justify-between gap-2 sm:gap-3" style={{ opacity: 0 }}>
             <div className="flex items-center gap-2">
               {GUIDE_STEPS.map((step, index) => (
                 <span
@@ -371,7 +435,7 @@ export default function MapGuideDialog({
                 type="button"
                 onClick={() => setStepIndex((value) => Math.max(value - 1, 0))}
                 disabled={stepIndex === 0}
-                className={`rounded-md border px-4 py-2 text-sm font-semibold uppercase tracking-[0.08em] shadow-[0_10px_20px_rgba(10,24,23,0.2)] transition ${
+                className={`rounded-md border px-3 py-1.5 text-[12px] font-semibold uppercase tracking-[0.08em] shadow-[0_10px_20px_rgba(10,24,23,0.2)] transition sm:px-4 sm:py-2 sm:text-sm ${
                   stepIndex === 0
                     ? "cursor-not-allowed border-[#c9d8d4] bg-[#dde8e5] text-[#7a918d]"
                     : "border-white/30 bg-gradient-to-b from-[#122d2b] to-[#17413f] text-white hover:brightness-110"
@@ -384,7 +448,7 @@ export default function MapGuideDialog({
                 <button
                   type="button"
                   onClick={() => setStepIndex((value) => Math.min(value + 1, GUIDE_STEPS.length - 1))}
-                  className="rounded-md border border-white/30 bg-gradient-to-b from-[#122d2b] to-[#17413f] px-5 py-2 text-sm font-semibold uppercase tracking-[0.08em] text-white shadow-[0_10px_20px_rgba(10,24,23,0.2)] transition hover:brightness-110"
+                  className="rounded-md border border-white/30 bg-gradient-to-b from-[#122d2b] to-[#17413f] px-4 py-1.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-white shadow-[0_10px_20px_rgba(10,24,23,0.2)] transition hover:brightness-110 sm:px-5 sm:py-2 sm:text-sm"
                 >
                   Next
                 </button>
@@ -392,7 +456,7 @@ export default function MapGuideDialog({
                 <button
                   type="button"
                   onClick={() => onOpenChange(false)}
-                  className="rounded-md border border-white/30 bg-gradient-to-b from-[#122d2b] to-[#17413f] px-5 py-2 text-sm font-semibold uppercase tracking-[0.08em] text-white shadow-[0_10px_20px_rgba(10,24,23,0.2)] transition hover:brightness-110"
+                  className="rounded-md border border-white/30 bg-gradient-to-b from-[#122d2b] to-[#17413f] px-4 py-1.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-white shadow-[0_10px_20px_rgba(10,24,23,0.2)] transition hover:brightness-110 sm:px-5 sm:py-2 sm:text-sm"
                 >
                   Done
                 </button>

@@ -1024,6 +1024,63 @@
   pointer-events: none;
 }
 
+.app-top-nav--map-overlay .app-top-nav__compact-trigger {
+  top: 14px;
+  right: clamp(12px, 2.8vw, 24px);
+  min-height: 34px;
+  padding: 0 12px;
+  gap: 7px;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 4px;
+  background: linear-gradient(180deg, #122d2b 0%, #17413f 100%);
+  color: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 12px 28px rgba(4, 14, 14, 0.24);
+  transform: none;
+  pointer-events: auto !important;
+  transition:
+    opacity 0.26s ease,
+    transform 0.24s ease,
+    box-shadow 0.24s ease,
+    filter 0.24s ease;
+}
+
+.app-top-nav--map-overlay .app-top-nav__compact-trigger:hover,
+.app-top-nav--map-overlay .app-top-nav__compact-trigger:focus-visible {
+  transform: translateY(-1px);
+  box-shadow: 0 16px 34px rgba(4, 14, 14, 0.28);
+  filter: brightness(1.04);
+}
+
+.app-top-nav--map-overlay .app-top-nav__compact-trigger:active {
+  transform: translateY(0);
+}
+
+@media (max-width: 640px) {
+  .app-top-nav--map-overlay .app-top-nav__compact-trigger {
+    top: 12px;
+    right: 10px;
+    min-height: 30px;
+    padding: 0 9px;
+    gap: 5px;
+    border-radius: 4px;
+  }
+
+  .app-top-nav--map-overlay .app-top-nav__compact-label {
+    font-size: 0.78rem;
+    letter-spacing: 0.08em;
+  }
+
+  .app-top-nav--map-overlay .app-top-nav__compact-icon-slot {
+    width: 10px;
+    height: 14px;
+  }
+
+  .app-top-nav--map-overlay .app-top-nav__compact-bars span {
+    width: 15px;
+    height: 2px;
+  }
+}
+
 .app-top-nav--route-page .app-top-nav__compact-trigger {
   position: static;
   top: auto;

@@ -320,13 +320,18 @@ function MapSidebarControls({
   onZoomIn,
   onZoomOut,
   hidden = false,
+  topOffset,
 }: {
   onZoomIn: () => void;
   onZoomOut: () => void;
   hidden?: boolean;
+  topOffset?: number;
 }) {
   return (
-    <div className={`map-sidebar-controls ${hidden ? "opacity-0 pointer-events-none translate-y-2" : "opacity-100 translate-y-0"}`}>
+    <div
+      className={`map-sidebar-controls ${hidden ? "opacity-0 pointer-events-none translate-y-2" : "opacity-100 translate-y-0"}`}
+      style={topOffset !== undefined ? { top: `${topOffset}px` } : undefined}
+    >
       <button className="map-ctrl-btn" title="Zoom in" onClick={onZoomIn}>
         <Plus size={18} />
       </button>
@@ -494,6 +499,7 @@ export default function App() {
   const [compareSelection2, setCompareSelection2] = useState<string | null>(null);
   const [panelOpen, setPanelOpen] = useState(false);
   const [landingMenuOpen, setLandingMenuOpen] = useState(false);
+  const [menuUiSuppressed, setMenuUiSuppressed] = useState(false);
   const [activeView, setActiveView] = useState<"view" | "compare">("view");
   const [currentPageLabel, setCurrentPageLabel] = useState("Map");
   const [exploreOpen, setExploreOpen] = useState(false);
@@ -508,13 +514,23 @@ export default function App() {
   const recommendationPageRef = useRef<HTMLDivElement | null>(null);
   const exploreItemRefs = useRef<HTMLButtonElement[]>([]);
   const legendItemRefs = useRef<HTMLElement[]>([]);
-  const floatingUiFadeClass = panelOpen || landingMenuOpen ? "pointer-events-none" : "pointer-events-auto";
-  const sideControlsFadeClass = activeView === "compare"
+  const menuFocusOpen = panelOpen || landingMenuOpen;
+  const controlsSuppressed = menuUiSuppressed || menuFocusOpen;
+  const leftControlsFadeClass = activeView === "compare"
     ? "pointer-events-none opacity-0 -translate-y-40"
-    : `${floatingUiFadeClass} opacity-100 translate-y-0`;
+    : controlsSuppressed
+      ? "pointer-events-none opacity-0 -translate-x-20"
+      : "pointer-events-auto opacity-100 translate-x-0";
+  const rightControlsFadeClass = activeView === "compare"
+    ? "pointer-events-none opacity-0 -translate-y-40"
+    : controlsSuppressed
+      ? "pointer-events-none opacity-0 translate-x-20"
+      : "pointer-events-auto opacity-100 translate-x-0";
   const bottomControlsFadeClass = activeView === "compare"
     ? "pointer-events-none opacity-0 translate-y-28"
-    : `${floatingUiFadeClass} opacity-100 translate-y-0`;
+    : controlsSuppressed
+      ? "pointer-events-none opacity-0 translate-y-20"
+      : "pointer-events-auto opacity-100 translate-y-0";
 
   // Right panel: 'layers' | 'legend' | null — mutually exclusive
   const [openPanel, setOpenPanel] = useState<'layers' | 'legend' | null>(null);
@@ -595,6 +611,12 @@ export default function App() {
   }, [location.pathname]);
 
   useEffect(() => {
+    // Ensure map page never inherits stale menu/overlay state on route entry.
+    setPanelOpen(false);
+    setLandingMenuOpen(false);
+  }, [location.key]);
+
+  useEffect(() => {
     const panel = menuPanelRef.current;
     const items = menuItemRefs.current.filter(Boolean);
     const floating = floatingUiRefs.current.filter(Boolean);
@@ -645,6 +667,26 @@ export default function App() {
       ease: "out(2)",
     });
   }, [panelOpen]);
+
+  useEffect(() => {
+    if (menuFocusOpen) {
+      // Enter clean hidden state when menu opens.
+      setMenuUiSuppressed(true);
+      setExploreOpen(false);
+      setLegendDropdownOpen(false);
+      setShowMapGuide(false);
+      setOpenPanel(null);
+      setEasePlacesPopup(null);
+      setShowCard(null);
+      setSidebarCollapsed(true);
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      // Return controls after menu close animation completes.
+      setMenuUiSuppressed(false);
+    }, 560);
+    return () => window.clearTimeout(timer);
+  }, [menuFocusOpen]);
 
   useEffect(() => {
     const panel = explorePanelRef.current;
@@ -784,7 +826,8 @@ export default function App() {
 
   useEffect(() => {
     const updateLeftPanelLayout = () => {
-      const width = window.innerWidth < 640 ? 154 : 186;
+      // Keep mobile left panel aligned with the existing bottom panel sizing rhythm.
+      const width = window.innerWidth < 640 ? 124 : 186;
       setLeftPanelLayout({ width });
     };
 
@@ -902,6 +945,18 @@ export default function App() {
   }, [mapFilters.comfortArea, precincts]);
 
   const handleTopModeSwitch = useCallback((mode: "view" | "compare") => {
+    if (mode === "compare") {
+      // Enter compare in a clean state; do not inherit expanded UI from view mode.
+      setPanelOpen(false);
+      setLandingMenuOpen(false);
+      setExploreOpen(false);
+      setLegendDropdownOpen(false);
+      setShowMapGuide(false);
+      setOpenPanel(null);
+      setEasePlacesPopup(null);
+      setShowCard(null);
+      setSidebarCollapsed(true);
+    }
     setActiveView(mode);
     const host = legacyScrollRef.current;
     if (!host) return;
@@ -1619,7 +1674,8 @@ export default function App() {
         <section className="snap-start h-[calc(100vh-56px)] w-full sm:h-[calc(100vh-64px)]">
             <div className="relative h-full w-full pointer-events-none">
               <div
-                className={`absolute left-3 top-16 z-40 flex items-start transition-all duration-300 ease-out sm:left-8 sm:top-20 ${sideControlsFadeClass}`}
+                className={`absolute left-3 z-40 flex items-start transition-all duration-[720ms] [transition-timing-function:cubic-bezier(0.22,1,0.36,1)] sm:left-8 ${leftControlsFadeClass}`}
+                style={{ top: "142px" }}
               >
                 <div
                   ref={leftPanelRef}
@@ -1627,7 +1683,7 @@ export default function App() {
                   style={{
                     width: 0,
                     opacity: 0,
-                    maxHeight: "min(172px, calc(100vh - 300px))",
+                    maxHeight: "min(156px, calc(100vh - 420px))",
                   }}
                 >
                   <div data-left-item className="mb-2 px-2.5 pt-2 sm:px-3 sm:pt-2.5">
@@ -1692,11 +1748,12 @@ export default function App() {
 
               </div>
 
-              <div className={`transition-all duration-300 ease-out ${sideControlsFadeClass}`}>
+              <div className={`transition-all duration-[720ms] [transition-timing-function:cubic-bezier(0.22,1,0.36,1)] ${rightControlsFadeClass}`}>
                 <MapSidebarControls
                   onZoomIn={handleZoomIn}
                   onZoomOut={handleZoomOut}
                   hidden={panelOpen || landingMenuOpen}
+                  topOffset={96}
                 />
               </div>
               <button
@@ -1713,9 +1770,9 @@ export default function App() {
                   if (!el) return;
                   floatingUiRefs.current[2] = el;
                 }}
-                className={`absolute left-3 z-40 rounded-xl border border-[#83c5be]/30 bg-gradient-to-b from-[#122d2b] to-[#17413f] p-1.5 text-white shadow-[0_16px_36px_rgba(4,14,14,0.18)] transition-all duration-300 ease-out sm:left-8 sm:rounded-2xl sm:p-2 ${sideControlsFadeClass}`}
+                className={`absolute left-3 z-40 rounded-xl border border-[#83c5be]/30 bg-gradient-to-b from-[#122d2b] to-[#17413f] p-1.5 text-white shadow-[0_16px_36px_rgba(4,14,14,0.18)] transition-all duration-[720ms] [transition-timing-function:cubic-bezier(0.22,1,0.36,1)] sm:left-8 sm:rounded-2xl sm:p-2 ${leftControlsFadeClass}`}
                 style={{
-                  top: "34px",
+                  top: "102px",
                 }}
                 aria-label={sidebarCollapsed ? "Show sidebar" : "Hide sidebar"}
                 title={sidebarCollapsed ? "Show sidebar" : "Hide sidebar"}
@@ -1735,7 +1792,7 @@ export default function App() {
                   if (!el) return;
                   floatingUiRefs.current[1] = el;
                 }}
-                className={`absolute left-3 z-40 rounded-md border px-1.5 py-1 text-[9px] font-semibold leading-tight backdrop-blur-sm whitespace-normal break-words transition-all duration-300 ease-out sm:left-8 sm:px-2 sm:text-[10px] ${sideControlsFadeClass} ${
+                className={`absolute left-3 z-40 rounded-md border px-1.5 py-1 text-[9px] font-semibold leading-tight backdrop-blur-sm whitespace-normal break-words transition-all duration-[720ms] [transition-timing-function:cubic-bezier(0.22,1,0.36,1)] sm:left-8 sm:px-2 sm:text-[10px] ${leftControlsFadeClass} ${
                   loading
                     ? "border-amber-300/60 bg-amber-200/55 text-amber-950"
                     : error
@@ -1743,7 +1800,7 @@ export default function App() {
                       : "border-emerald-300/60 bg-emerald-200/55 text-emerald-950"
                 }`}
                 style={{
-                  top: "6px",
+                  top: "64px",
                   width: "clamp(64px, 11vw, 92px)",
                 }}
               >
@@ -1836,7 +1893,7 @@ export default function App() {
         <div className="pointer-events-auto fixed inset-0 z-[560]">
           <div className="absolute inset-0 pt-2 sm:pt-3">
             <div className="relative h-full w-full">
-              <div className="grid h-[64%] grid-cols-2 gap-2 px-2 sm:gap-3 sm:px-3">
+              <div className="grid h-[58%] grid-cols-1 gap-2 px-2 sm:h-[64%] sm:grid-cols-2 sm:gap-3 sm:px-3">
               {([
                 { side: "left", precinct: compareLeftPrecinct, selectedId: compareSelection1, refEl: compareLeftRef },
                 { side: "right", precinct: compareRightPrecinct, selectedId: compareSelection2, refEl: compareRightRef },
@@ -1846,7 +1903,7 @@ export default function App() {
                   <div
                     key={selectedId}
                     ref={refEl}
-                    className={`relative h-full overflow-y-auto rounded-3xl border p-4 shadow-[0_22px_50px_rgba(4,14,14,0.12)] sm:p-6 ${
+                    className={`relative min-w-0 h-full overflow-y-auto rounded-3xl border p-3 shadow-[0_22px_50px_rgba(4,14,14,0.12)] sm:p-6 ${
                       side === "left" ? "bg-[#f4efe4]" : "bg-[#edf4f2]"
                     } ${
                       isBetter ? "border-[#1d9a5f] ring-2 ring-[#1d9a5f]/40" : "border-[#d3ddd9]"
@@ -1858,18 +1915,18 @@ export default function App() {
                         Better
                       </span>
                     )}
-                    <p data-compare-reveal className="text-xs font-semibold uppercase tracking-[0.12em] text-[#4a5c3a]">{side === "left" ? "Point 1" : "Point 2"}</p>
-                    <h3 data-compare-reveal className="mt-2 text-xl font-bold text-[#10201f]">{precinct.name}</h3>
-                    <div data-compare-reveal className="mt-1 flex items-center gap-1.5 text-xs font-medium text-emerald-700">
+                    <p data-compare-reveal className="text-[clamp(10px,1.9vw,12px)] font-semibold uppercase tracking-[0.12em] text-[#4a5c3a]">{side === "left" ? "Point 1" : "Point 2"}</p>
+                    <h3 data-compare-reveal className="mt-1 text-[clamp(17px,3.4vw,28px)] font-bold leading-tight text-[#10201f] break-words">{precinct.name}</h3>
+                    <div data-compare-reveal className="mt-1 min-w-0 flex items-center gap-1.5 text-[clamp(10px,1.9vw,12px)] font-medium text-emerald-700">
                       <CheckCircle2 className="h-3.5 w-3.5" />
-                      <span>{formatDetailSensorStatus(precinct)}</span>
+                      <span className="min-w-0 break-words">{formatDetailSensorStatus(precinct)}</span>
                     </div>
-                    <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
-                      <div data-compare-reveal className="col-span-2 rounded-xl border border-[#d9d1c6] bg-white/85 p-3">
-                        <p className="text-xs font-medium text-[#456765]">Comfort</p>
-                        <p className="text-3xl font-bold tracking-tight text-[#17413f]">
+                    <div className="mt-3 grid min-w-0 grid-cols-2 gap-2 text-sm">
+                      <div data-compare-reveal className="col-span-2 min-w-0 rounded-xl border border-[#d9d1c6] bg-white/85 p-2.5 sm:p-3">
+                        <p className="text-[clamp(10px,1.8vw,12px)] font-medium text-[#456765]">Comfort</p>
+                        <p className="text-[clamp(22px,5.6vw,36px)] font-bold leading-tight tracking-tight text-[#17413f] break-words">
                           {precinct.comfort_score}
-                          <span className="ml-1 text-base font-normal text-[#5f8682]">/100</span>
+                          <span className="ml-1 text-[clamp(12px,2.4vw,16px)] font-normal text-[#5f8682]">/100</span>
                         </p>
                         <div className="mt-2 h-2 overflow-hidden rounded-full bg-[#d9d1c6]">
                           <div
@@ -1880,55 +1937,60 @@ export default function App() {
                           />
                         </div>
                       </div>
-                      <div data-compare-reveal className="rounded-xl border border-[#e7cf9f] bg-gradient-to-br from-amber-50 to-amber-100/60 p-2.5">
-                        <div className="mb-1 flex items-center gap-1.5"><Thermometer className="h-3.5 w-3.5 text-amber-600" /><p className="text-xs font-medium text-amber-700">Temp</p></div>
-                        <p className="font-bold text-[#9a4b22]">{precinct.temperature !== null ? `${precinct.temperature}°C` : "N/A"}</p>
+                      <div data-compare-reveal className="min-w-0 rounded-xl border border-[#e7cf9f] bg-gradient-to-br from-amber-50 to-amber-100/60 p-2">
+                        <div className="mb-1 flex min-w-0 items-center gap-1.5"><Thermometer className="h-3.5 w-3.5 shrink-0 text-amber-600" /><p className="text-[clamp(10px,1.8vw,12px)] font-medium text-amber-700">Temp</p></div>
+                        <p className="text-[clamp(12px,2.6vw,16px)] font-bold leading-tight break-words text-[#9a4b22]">{precinct.temperature !== null ? `${precinct.temperature}°C` : "N/A"}</p>
                       </div>
-                      <div data-compare-reveal className="rounded-xl border border-[#bcd8e6] bg-gradient-to-br from-blue-50 to-blue-100/60 p-2.5">
-                        <div className="mb-1 flex items-center gap-1.5"><Droplets className="h-3.5 w-3.5 text-blue-600" /><p className="text-xs font-medium text-blue-700">Humidity</p></div>
-                        <p className="font-bold text-[#205f86]">{precinct.humidity !== null ? `${precinct.humidity}%` : "N/A"}</p>
+                      <div data-compare-reveal className="min-w-0 rounded-xl border border-[#bcd8e6] bg-gradient-to-br from-blue-50 to-blue-100/60 p-2">
+                        <div className="mb-1 flex min-w-0 items-center gap-1.5"><Droplets className="h-3.5 w-3.5 shrink-0 text-blue-600" /><p className="text-[clamp(10px,1.8vw,12px)] font-medium text-blue-700">Humidity</p></div>
+                        <p className="text-[clamp(12px,2.6vw,16px)] font-bold leading-tight break-words text-[#205f86]">{precinct.humidity !== null ? `${precinct.humidity}%` : "N/A"}</p>
                       </div>
-                      <div data-compare-reveal className="col-span-2 rounded-xl border border-[#d9d1c6] bg-white/80 p-2.5">
-                        <div className="mb-1 flex items-center gap-1.5"><Users className="h-3.5 w-3.5 text-[#5a6c6a]" /><p className="text-xs font-medium text-[#5a6c6a]">Crowd</p></div>
-                        <p className="font-bold text-[#5a3f8c]">{precinct.activity_level}</p>
+                      <div data-compare-reveal className="col-span-2 min-w-0 rounded-xl border border-[#d9d1c6] bg-white/80 p-2">
+                        <div className="mb-1 flex min-w-0 items-center gap-1.5"><Users className="h-3.5 w-3.5 shrink-0 text-[#5a6c6a]" /><p className="text-[clamp(10px,1.8vw,12px)] font-medium text-[#5a6c6a]">Crowd</p></div>
+                        <p className="text-[clamp(12px,2.4vw,16px)] font-bold leading-tight break-words text-[#5a3f8c]">{precinct.activity_level}</p>
                       </div>
                     </div>
                   </div>
                 );
               })}
               </div>
-              <div ref={compareBottomRef} className="h-[36%] overflow-y-auto rounded-t-3xl border-t border-[#d3ddd9] bg-[#f5f0e8] px-4 pb-5 pt-4 shadow-[0_-14px_34px_rgba(4,14,14,0.08)] sm:px-6 sm:pb-6 sm:pt-5" style={{ opacity: 0 }}>
-                <div data-compare-reveal className="mb-2 flex items-center gap-2 text-sm font-bold uppercase tracking-[0.14em] text-[#4a5c3a]">
-                  <TrendingUp className="h-4 w-4 text-emerald-600" />
-                  <span>Recommendation</span>
-                </div>
-                <div data-compare-reveal className="rounded-xl border border-[#d9d1c6] bg-white/85 p-3">
-                  <p className="text-sm text-[#10201f]">{comparisonRecommendation.base}</p>
-                </div>
-                {comparisonRecommendation.nonOptimalNotice && (
-                  <div data-compare-reveal className="mt-2 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3">
-                    <TrendingDown className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
-                    <p className="text-sm font-bold text-amber-700">{comparisonRecommendation.nonOptimalNotice}</p>
-                  </div>
-                )}
-                {comparisonRecommendation.staleWarning && (
-                  <div data-compare-reveal className="mt-2 flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 p-3">
-                    <img src={warningIcon} alt="" className="mt-0.5 h-4 w-4 shrink-0 object-contain" aria-hidden="true" />
-                    <p className="text-sm font-bold text-red-700">{comparisonRecommendation.staleWarning}</p>
-                  </div>
-                )}
-              </div>
-              <div ref={compareCenterRef} className="absolute left-1/2 top-[64%] z-20 -translate-x-1/2 -translate-y-1/2" style={{ opacity: 0 }}>
+              <div
+                ref={compareCenterRef}
+                className="relative z-20 flex justify-center py-3 sm:absolute sm:left-1/2 sm:top-[64%] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:py-0"
+                style={{ opacity: 0 }}
+              >
                 <button
                   type="button"
                   onClick={handleResetCompare}
-                  className={`rounded-2xl bg-gradient-to-r from-[#006d77] to-[#17413f] px-6 py-3 text-sm font-semibold text-white shadow-[0_16px_36px_rgba(4,14,14,0.24)] transition-all ${compareResetVisible ? "opacity-100" : "opacity-0"}`}
+                  className={`max-w-[calc(100vw-1.5rem)] rounded-xl bg-gradient-to-r from-[#006d77] to-[#17413f] px-4 py-2 text-xs font-semibold text-white shadow-[0_16px_36px_rgba(4,14,14,0.24)] transition-all sm:max-w-none sm:rounded-2xl sm:px-6 sm:py-3 sm:text-sm ${compareResetVisible ? "opacity-100" : "opacity-0"}`}
                 >
                   <span className="inline-flex items-center gap-2">
-                    <RefreshCw className="h-4 w-4" />
+                    <RefreshCw className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                     Reselect
                   </span>
                 </button>
+              </div>
+
+              <div ref={compareBottomRef} className="h-[36%] overflow-y-auto rounded-t-3xl border-t border-[#d3ddd9] bg-[#f5f0e8] px-3 pb-4 pt-3 shadow-[0_-14px_34px_rgba(4,14,14,0.08)] sm:h-[36%] sm:px-6 sm:pb-6 sm:pt-5" style={{ opacity: 0 }}>
+                <div data-compare-reveal className="mb-2 flex min-w-0 items-center gap-2 text-[clamp(11px,2vw,14px)] font-bold uppercase tracking-[0.14em] text-[#4a5c3a]">
+                  <TrendingUp className="h-4 w-4 text-emerald-600" />
+                  <span>Recommendation</span>
+                </div>
+                <div data-compare-reveal className="min-w-0 rounded-xl border border-[#d9d1c6] bg-white/85 p-2.5 sm:p-3">
+                  <p className="text-[clamp(12px,2.6vw,14px)] leading-relaxed break-words text-[#10201f]">{comparisonRecommendation.base}</p>
+                </div>
+                {comparisonRecommendation.nonOptimalNotice && (
+                  <div data-compare-reveal className="mt-2 flex min-w-0 items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-2.5 sm:p-3">
+                    <TrendingDown className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+                    <p className="text-[clamp(12px,2.6vw,14px)] font-bold leading-relaxed break-words text-amber-700">{comparisonRecommendation.nonOptimalNotice}</p>
+                  </div>
+                )}
+                {comparisonRecommendation.staleWarning && (
+                  <div data-compare-reveal className="mt-2 flex min-w-0 items-start gap-2 rounded-xl border border-red-200 bg-red-50 p-2.5 sm:p-3">
+                    <img src={warningIcon} alt="" className="mt-0.5 h-4 w-4 shrink-0 object-contain" aria-hidden="true" />
+                    <p className="text-[clamp(12px,2.6vw,14px)] font-bold leading-relaxed break-words text-red-700">{comparisonRecommendation.staleWarning}</p>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -1941,6 +2003,7 @@ export default function App() {
           floatingUiRefs.current[3] = el;
         }}
         className={`map-bottom-actions fixed bottom-4 left-1/2 z-[460] w-[96vw] max-w-[980px] -translate-x-1/2 transition-all duration-300 ease-out sm:bottom-7 sm:w-[92vw] ${bottomControlsFadeClass}`}
+        style={{ transitionDuration: "720ms", transitionTimingFunction: "cubic-bezier(0.22,1,0.36,1)" }}
       >
         <div className="map-bottom-actions-row flex items-stretch justify-center gap-2 sm:gap-3">
           <div className="relative map-explore-wrap flex-1">

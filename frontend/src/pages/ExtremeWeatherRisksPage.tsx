@@ -527,6 +527,7 @@ export default function ExtremeWeatherRisksPage() {
   const [isSmallScreen, setIsSmallScreen] = useState(false);
   const [viewportWidth, setViewportWidth] = useState(1440);
   const [showPanelDetail, setShowPanelDetail] = useState(false);
+  const [isDetailPanelHovered, setIsDetailPanelHovered] = useState(false);
   const [centerVisible, setCenterVisible] = useState(true);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const topSectionRef = useRef<HTMLElement | null>(null);
@@ -534,10 +535,12 @@ export default function ExtremeWeatherRisksPage() {
   const quizIntroRef = useRef<HTMLDivElement | null>(null);
   const wheelLockedRef = useRef(false);
   const [activePanel, setActivePanel] = useState<"ring" | "quiz">("ring");
+  const [legendDropdownOpen, setLegendDropdownOpen] = useState(false);
   const [introAnimated, setIntroAnimated] = useState(false);
   const ringIntroRef = useRef<HTMLDivElement | null>(null);
   const ringTitleRef = useRef<HTMLHeadingElement | null>(null);
   const ringDiskRef = useRef<HTMLDivElement | null>(null);
+  const detailScrollRef = useRef<HTMLDivElement | null>(null);
 
   const segmentAngle = 360 / weatherTypes.length;
   const viewSize = isSmallScreen ? 500 : 780;
@@ -660,6 +663,10 @@ export default function ExtremeWeatherRisksPage() {
   };
 
   const handlePageWheel = (event: WheelEvent<HTMLDivElement>) => {
+    if (showPanelDetail && isDetailPanelHovered) {
+      event.preventDefault();
+      return;
+    }
     if (wheelLockedRef.current) return;
     if (Math.abs(event.deltaY) < 8) return;
 
@@ -710,6 +717,23 @@ export default function ExtremeWeatherRisksPage() {
     ].sort((a, b) => a.d - b.d);
     setActivePanel(distances[0].key as "ring" | "quiz");
   };
+
+  const handleDetailPanelWheel = (event: WheelEvent<HTMLDivElement>) => {
+    // While cursor is inside detail panel, keep wheel interaction here.
+    event.stopPropagation();
+  };
+
+  useEffect(() => {
+    if (activePanel !== "ring" && legendDropdownOpen) {
+      setLegendDropdownOpen(false);
+    }
+  }, [activePanel, legendDropdownOpen]);
+
+  useEffect(() => {
+    if (!showPanelDetail && isDetailPanelHovered) {
+      setIsDetailPanelHovered(false);
+    }
+  }, [showPanelDetail, isDetailPanelHovered]);
 
   const selectedWeatherType = selectedWeather !== null ? weatherTypes[selectedWeather] : null;
   const selectedWeatherCenterSummary =
@@ -859,13 +883,6 @@ export default function ExtremeWeatherRisksPage() {
 
       <section ref={topSectionRef} className="snap-start h-screen pt-12 sm:pt-14">
         <div ref={ringIntroRef} className="relative h-full flex flex-col items-center justify-center px-2 sm:px-4 overflow-hidden">
-          <h2
-            ref={ringTitleRef}
-            className="absolute top-0 sm:top-2 left-1/2 -translate-x-1/2 z-20 text-[#10201f] text-3xl sm:text-5xl lg:text-6xl font-bold tracking-wide text-center pointer-events-none"
-            style={{ opacity: showPanelDetail ? 0 : 1 }}
-          >
-            Extreme Weather Panel
-          </h2>
           <div
             ref={ringDiskRef}
             className="relative z-10"
@@ -873,7 +890,7 @@ export default function ExtremeWeatherRisksPage() {
               opacity: introAnimated ? 1 : 0,
               transform: showPanelDetail
                 ? `translate(${isSmallScreen ? -175 : -560}px, ${isSmallScreen ? 110 : 165}px) scale(${isSmallScreen ? 0.42 : 0.48})`
-                : "translate(0px, 8px) scale(1)",
+                : `translate(0px, ${isSmallScreen ? 30 : 54}px) scale(1)`,
               transition: "transform 520ms cubic-bezier(0.22, 1, 0.36, 1), opacity 360ms ease-out",
             }}
           >
@@ -1093,6 +1110,10 @@ export default function ExtremeWeatherRisksPage() {
                 transition={{ duration: 0.36, ease: "easeOut", delay: 0.42 }}
               >
                 <motion.div
+                  ref={detailScrollRef}
+                  onMouseEnter={() => setIsDetailPanelHovered(true)}
+                  onMouseLeave={() => setIsDetailPanelHovered(false)}
+                  onWheel={handleDetailPanelWheel}
                   className="pointer-events-auto mx-auto w-[min(96vw,64rem)] max-h-[calc(100vh-7rem)] overflow-y-auto rounded-2xl border border-white/30 bg-white/95 shadow-2xl p-4 sm:p-5 lg:p-6"
                   initial={{ opacity: 0, x: 0, y: 0, scale: 0.97 }}
                   animate={{
@@ -1255,10 +1276,46 @@ export default function ExtremeWeatherRisksPage() {
       </section>
 
       {activePanel === "ring" && (
-        <div className="fixed left-4 top-44 sm:top-48 z-30 w-64 rounded-lg border border-white/30 bg-black/70 p-3 text-xs leading-5 text-white backdrop-blur-sm">
-          <p><span className="font-semibold text-red-300">High:</span> May cause fainting or even life-threatening conditions.</p>
-          <p className="mt-1"><span className="font-semibold text-amber-300">Moderate:</span> Affects body condition but can usually be relieved.</p>
-          <p className="mt-1"><span className="font-semibold text-blue-300">Mild:</span> Generally low concern in normal situations.</p>
+        <div className="fixed bottom-4 left-3 sm:bottom-7 sm:left-6 z-30 w-[min(38vw,160px)] sm:w-[160px]">
+          <div className="relative">
+            {legendDropdownOpen && (
+              <div
+                className="fixed bottom-16 left-3 sm:bottom-20 sm:left-6 w-[min(52vw,220px)] sm:w-[220px] overflow-hidden rounded-lg border border-[#4a5c3a]/25 bg-[#f5f0e8] shadow-[0_-8px_40px_rgba(0,0,0,0.2)]"
+              >
+                <div className="border-b border-black/10 px-3 pb-2 pt-3 text-center sm:px-4">
+                  <div className="font-['Montserrat',sans-serif] text-[9px] font-semibold tracking-[0.2em] uppercase text-[#4a5c3a] sm:text-[10px]">
+                    Legend
+                  </div>
+                </div>
+                <div className="legend-dropdown-scroll max-h-[24vh] overflow-y-auto px-3 py-2 text-[11px] text-[#2a2a2a] sm:max-h-[28vh] sm:px-4 sm:text-xs">
+                  <div className="mb-1 flex items-start gap-2">
+                    <span className="mt-[5px] h-2.5 w-2.5 shrink-0 rounded-full bg-red-500" />
+                    <span><span className="font-semibold text-red-700">High:</span> May cause severe health risk.</span>
+                  </div>
+                  <div className="mb-1 flex items-start gap-2">
+                    <span className="mt-[5px] h-2.5 w-2.5 shrink-0 rounded-full bg-amber-500" />
+                    <span><span className="font-semibold text-amber-700">Moderate:</span> Noticeable impact, usually manageable.</span>
+                  </div>
+                  <div className="mb-1 flex items-start gap-2">
+                    <span className="mt-[5px] h-2.5 w-2.5 shrink-0 rounded-full bg-blue-500" />
+                    <span><span className="font-semibold text-blue-700">Mild:</span> Low concern for most people.</span>
+                  </div>
+                </div>
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={() => setLegendDropdownOpen((open) => !open)}
+              className={`map-bottom-action-btn flex w-full items-center justify-center gap-2 rounded-sm bg-gradient-to-b from-[#122d2b] to-[#17413f] px-3 py-2 text-[10px] font-medium tracking-[0.14em] uppercase text-white backdrop-blur sm:gap-3 sm:px-6 sm:py-3 sm:text-[11px] sm:tracking-[0.24em] ${
+                legendDropdownOpen ? "ring-1 ring-white/80" : ""
+              }`}
+              aria-label="Toggle risk legend"
+              title="Legend"
+            >
+              Legend
+              <span className="text-[10px] opacity-60">{legendDropdownOpen ? "▴" : "▾"}</span>
+            </button>
+          </div>
         </div>
       )}
 
