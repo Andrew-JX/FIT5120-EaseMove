@@ -10,6 +10,9 @@ import "./app-top-nav.css";
 export type LandingNavMode = "hero" | "transition" | "compact";
 export type LandingNavTone = "light" | "dark";
 
+const MOBILE_LANDING_OVERLAY_WIDTH_BASELINE = 390;
+const MOBILE_LANDING_OVERLAY_HEIGHT_BASELINE = 844;
+
 type AppTopNavProps = {
   variant: "landing" | "app";
   brand?: ReactNode;
@@ -76,6 +79,7 @@ export default function AppTopNav({
     "closed" | "opening" | "open" | "closing"
   >("closed");
   const [isSmallLandingViewport, setIsSmallLandingViewport] = useState(false);
+  const [landingMobileOverlayScale, setLandingMobileOverlayScale] = useState(1);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const routeOverlayContext = className.includes("app-top-nav--route-page");
   const resolvedLandingOverlayContext =
@@ -170,19 +174,37 @@ export default function AppTopNav({
     if (!isEnhancedLanding) return;
     if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
       setIsSmallLandingViewport(false);
+      setLandingMobileOverlayScale(1);
       return;
     }
 
     const mediaQuery = window.matchMedia("(max-width: 720px)");
     const syncViewport = (event?: MediaQueryListEvent) => {
-      setIsSmallLandingViewport(event ? event.matches : mediaQuery.matches);
+      const matches = event ? event.matches : mediaQuery.matches;
+      setIsSmallLandingViewport(matches);
+
+      if (!matches) {
+        setLandingMobileOverlayScale(1);
+        return;
+      }
+
+      const viewportWidth = window.visualViewport?.width ?? window.innerWidth;
+      const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
+      const widthScale = viewportWidth / MOBILE_LANDING_OVERLAY_WIDTH_BASELINE;
+      const heightScale = viewportHeight / MOBILE_LANDING_OVERLAY_HEIGHT_BASELINE;
+      const nextScale = Math.max(0.72, Math.min(1, Math.min(widthScale, heightScale)));
+      setLandingMobileOverlayScale(Number(nextScale.toFixed(3)));
     };
 
     syncViewport();
     mediaQuery.addEventListener("change", syncViewport);
+    window.addEventListener("resize", syncViewport);
+    window.visualViewport?.addEventListener("resize", syncViewport);
 
     return () => {
       mediaQuery.removeEventListener("change", syncViewport);
+      window.removeEventListener("resize", syncViewport);
+      window.visualViewport?.removeEventListener("resize", syncViewport);
     };
   }, [isEnhancedLanding]);
 
@@ -204,6 +226,7 @@ export default function AppTopNav({
       "--landing-nav-progress": clampedLandingProgress.toString(),
       "--landing-hero-opacity": heroOpacity.toString(),
       "--landing-compact-opacity": compactOpacity.toString(),
+      "--landing-mobile-overlay-scale": landingMobileOverlayScale.toString(),
     } as CSSProperties;
 
     const closeLandingOverlay = () => {

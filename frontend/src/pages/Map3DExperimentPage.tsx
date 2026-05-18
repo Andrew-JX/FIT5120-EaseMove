@@ -35,7 +35,6 @@ const MAPBOX_PUBLIC_TOKEN = (import.meta.env.VITE_MAPBOX_PUBLIC_TOKEN as string 
 const ROUTE_REQUEST_TIMEOUT_MS = 12000;
 const LOW_ACCURACY_THRESHOLD_METERS = 120;
 const MOBILE_PANEL_MEDIA_QUERY = "(max-width: 767px)";
-const MOBILE_TOOLBAR_DESIGN_WIDTH = 560;
 let hasAutoShownRouteGuideThisRuntime = false;
 const liquidGlassPanelStyle: CSSProperties = {
   background:
@@ -263,12 +262,6 @@ function isMobilePanelViewport() {
   return window.matchMedia(MOBILE_PANEL_MEDIA_QUERY).matches;
 }
 
-function getMobileToolbarScale() {
-  if (typeof window === "undefined") return 1;
-  if (window.innerWidth >= 768) return 1;
-  return Math.max(0.74, Math.min(1, (window.innerWidth - 14) / MOBILE_TOOLBAR_DESIGN_WIDTH));
-}
-
 export default function Map3DExperimentPage() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -290,7 +283,6 @@ export default function Map3DExperimentPage() {
   const [isMobileViewport, setIsMobileViewport] = useState(initialIsMobileViewport);
   const [showGuide, setShowGuide] = useState(false);
   const [landingMenuOpen, setLandingMenuOpen] = useState(false);
-  const [mobileToolbarScale, setMobileToolbarScale] = useState(getMobileToolbarScale);
   const [mapViewportControls, setMapViewportControls] = useState<MapViewportControls | null>(null);
   const [isMapPointSelectionEnabled, setIsMapPointSelectionEnabled] = useState(true);
   const [mobileSheetMode, setMobileSheetMode] = useState<"expanded" | "peek">("expanded");
@@ -613,18 +605,6 @@ export default function Map3DExperimentPage() {
   }, []);
 
   useEffect(() => {
-    const updateToolbarScale = () => {
-      setMobileToolbarScale(getMobileToolbarScale());
-    };
-
-    updateToolbarScale();
-    window.addEventListener("resize", updateToolbarScale);
-    return () => {
-      window.removeEventListener("resize", updateToolbarScale);
-    };
-  }, []);
-
-  useEffect(() => {
     if (hasAppliedSearchRef.current) return;
 
     const endFromSearch = parsePointFromSearch(location.search, "end");
@@ -748,12 +728,8 @@ export default function Map3DExperimentPage() {
       >
         <div
           data-testid="route-top-toolbar"
-          style={{
-            ...routeToolbarStyle,
-            transform: `scale(${mobileToolbarScale})`,
-            transformOrigin: "top center",
-          }}
-          className="flex min-h-14 w-[min(92vw,112rem)] flex-nowrap items-center gap-1 rounded-[28px] border border-white/55 px-2 py-2 text-[#17413f] shadow-[inset_0_1px_0_rgba(255,255,255,0.74)] max-sm:min-h-12 max-sm:w-[min(calc(100vw-0.9rem),34rem)] max-sm:justify-between max-sm:gap-0.5 max-sm:overflow-hidden max-sm:rounded-[24px] max-sm:px-1.5 max-sm:py-1.5"
+          style={routeToolbarStyle}
+          className="flex min-h-14 w-[min(94vw,112rem)] flex-nowrap items-center gap-1 rounded-[28px] border border-white/55 px-2 py-2 text-[#17413f] shadow-[inset_0_1px_0_rgba(255,255,255,0.74)] max-sm:min-h-12 max-sm:w-[calc(100vw-0.6rem)] max-sm:justify-between max-sm:gap-0.5 max-sm:overflow-hidden max-sm:rounded-[24px] max-sm:px-1.5 max-sm:py-1.5"
         >
           <div className="flex min-w-0 shrink items-center gap-1 max-sm:flex-1 max-sm:flex-nowrap max-sm:gap-0.5">
             <TopBarActionButton
@@ -799,62 +775,32 @@ export default function Map3DExperimentPage() {
               onToggle={() => setLandingMenuOpen((current) => !current)}
               compactOnMobile
             />
-            <div className="route-page-toolbar-divider max-sm:hidden" aria-hidden="true" />
-            <TopBarActionButton
-              label="Zoom out"
-              icon={<Minus className="h-4 w-4" />}
-              onClick={() => mapViewportControls?.zoomOut()}
-              title="Zoom out"
-              ariaLabel="Zoom out"
-              iconOnly
-              disabled={!mapViewportControls}
-              className="max-sm:hidden"
-            />
-            <TopBarActionButton
-              label="Zoom in"
-              icon={<Plus className="h-4 w-4" />}
-              onClick={() => mapViewportControls?.zoomIn()}
-              title="Zoom in"
-              ariaLabel="Zoom in"
-              iconOnly
-              disabled={!mapViewportControls}
-              className="max-sm:hidden"
-            />
+            {!isMobileViewport ? (
+              <>
+                <div className="route-page-toolbar-divider" aria-hidden="true" />
+                <TopBarActionButton
+                  label="Zoom out"
+                  icon={<Minus className="h-4 w-4" />}
+                  onClick={() => mapViewportControls?.zoomOut()}
+                  title="Zoom out"
+                  ariaLabel="Zoom out"
+                  iconOnly
+                  disabled={!mapViewportControls}
+                />
+                <TopBarActionButton
+                  label="Zoom in"
+                  icon={<Plus className="h-4 w-4" />}
+                  onClick={() => mapViewportControls?.zoomIn()}
+                  title="Zoom in"
+                  ariaLabel="Zoom in"
+                  iconOnly
+                  disabled={!mapViewportControls}
+                />
+              </>
+            ) : null}
           </div>
         </div>
       </motion.div>
-      {isMobileViewport ? (
-        <motion.div
-          data-testid="route-mobile-zoom-rail"
-          className="fixed right-2 top-[calc(max(0.75rem,env(safe-area-inset-top))+7rem)] z-[295] flex flex-col gap-2 sm:hidden"
-          animate={{
-            opacity: landingMenuOpen ? 0 : 1,
-            x: landingMenuOpen ? 10 : 0,
-            scale: landingMenuOpen ? 0.96 : 1,
-          }}
-          transition={{ type: "spring", stiffness: 220, damping: 20, mass: 0.9 }}
-          style={{ pointerEvents: landingMenuOpen ? "none" : "auto" }}
-        >
-          <TopBarActionButton
-            label="Zoom in"
-            icon={<Plus className="h-4 w-4" />}
-            onClick={() => mapViewportControls?.zoomIn()}
-            title="Zoom in"
-            ariaLabel="Zoom in"
-            iconOnly
-            disabled={!mapViewportControls}
-          />
-          <TopBarActionButton
-            label="Zoom out"
-            icon={<Minus className="h-4 w-4" />}
-            onClick={() => mapViewportControls?.zoomOut()}
-            title="Zoom out"
-            ariaLabel="Zoom out"
-            iconOnly
-            disabled={!mapViewportControls}
-          />
-        </motion.div>
-      ) : null}
       <WhiteModelMap
         mapboxToken={MAPBOX_PUBLIC_TOKEN}
         startPoint={startPoint}
@@ -927,10 +873,11 @@ export default function Map3DExperimentPage() {
             <button
               type="button"
               onClick={() => setMobileSheetMode((current) => (current === "expanded" ? "peek" : "expanded"))}
-              className="route-page-sheet-handle"
+              className="route-page-sheet-handle inline-flex min-h-7 min-w-[84px] items-center justify-center rounded-full bg-transparent px-3 py-1.5 transition hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#83c5be]/65"
               aria-label={mobileSheetMode === "expanded" ? "Collapse panel preview" : "Expand panel preview"}
+              data-testid="route-mobile-sheet-handle"
             >
-              <span className="route-page-sheet-handle-bar" />
+              <span className="route-page-sheet-handle-bar block h-1.5 w-14 rounded-full bg-[#6f8f8b]/80 shadow-[inset_0_1px_0_rgba(255,255,255,0.58),0_1px_3px_rgba(23,65,63,0.16)]" />
             </button>
           </div>
         ) : null}
