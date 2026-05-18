@@ -246,7 +246,8 @@
     linear-gradient(180deg, #061212 0%, #0b1b1b 52%, #102423 100%);
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
   transform-origin: top right;
   will-change: transform;
   transform: translate3d(0, -106%, 0) skewY(-5deg);
@@ -293,9 +294,10 @@
 
 .app-top-nav__landing-overlay-visual {
   position: absolute;
-  left: clamp(58px, 8vw, 136px);
+  left: clamp(32px, 5vw, 92px);
   top: 52%;
-  width: clamp(270px, 35vw, 540px);
+  width: clamp(240px, 30vw, 460px);
+  max-width: calc(100vw - 560px);
   pointer-events: none;
   opacity: 0.92;
   transform: translate3d(0, -50%, 0) rotate(0deg) scale(1);
@@ -393,8 +395,10 @@
 .app-top-nav__landing-overlay-nav-wrap {
   position: absolute;
   top: 50%;
-  right: clamp(52px, 7vw, 124px);
-  width: min(32vw, 480px);
+  right: clamp(28px, 5vw, 92px);
+  width: min(40vw, 480px);
+  min-width: min(420px, calc(100vw - 120px));
+  max-width: calc(100vw - 120px);
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -431,14 +435,16 @@
   overflow: hidden;
   display: flex;
   justify-content: flex-start;
+  width: 100%;
 }
 
 .app-top-nav__landing-overlay-link {
   position: relative;
-  display: inline-flex;
+  display: flex;
   flex-direction: column;
   justify-content: flex-start;
-  align-self: flex-start;
+  align-self: stretch;
+  width: 100%;
   color: #f5efe3;
   text-decoration: none;
   font-size: clamp(2.95rem, 5vw, 4.7rem);
@@ -475,6 +481,7 @@
 
 .app-top-nav__landing-overlay-link-main {
   display: block;
+  pointer-events: none;
 }
 
 .app-top-nav__landing-overlay-link-meta {
@@ -485,6 +492,7 @@
   line-height: 1.45;
   letter-spacing: 0;
   max-width: 28ch;
+  pointer-events: none;
   transition: color 0.24s ease, transform 0.24s ease;
 }
 
@@ -1155,6 +1163,7 @@
     font-size: 0.88rem;
     letter-spacing: 0.08em;
     padding: 0 8px;
+    flex-shrink: 0;
   }
 
   .route-page-toolbar-button--icon {
@@ -1164,6 +1173,7 @@
 
   .route-page-toolbar-divider {
     margin: 2px 2px;
+    flex-shrink: 0;
   }
 
   .route-3d-map .mapboxgl-ctrl-top-right {
@@ -1183,50 +1193,57 @@
   }
 
   .app-top-nav__landing-overlay-visual {
-    left: 34px;
-    top: 24%;
-    width: min(48vw, 214px);
-    border-radius: 24px;
-    opacity: 0.54;
-    transform: translate3d(0, -50%, 0) rotate(0deg) scale(1);
-  }
-
-  .app-top-nav__landing-overlay-visual-shell,
-  .app-top-nav__landing-overlay-visual-image {
-    border-radius: 24px;
+    display: none;
   }
 
   .app-top-nav__landing-overlay-nav-wrap {
-    left: 20px;
-    right: 20px;
+    position: relative;
+    left: auto;
+    right: auto;
     width: auto;
+    min-width: 0;
+    max-width: none;
     top: auto;
-    bottom: 24%;
+    bottom: auto;
+    margin-top: max(88px, calc(64px + env(safe-area-inset-top)));
     transform: none;
     align-items: flex-start;
     text-align: left;
+    padding-right: 0;
   }
 
   .app-top-nav__landing-overlay-link {
     justify-content: flex-start;
-    font-size: clamp(2.5rem, 11vw, 3.7rem);
+    align-self: stretch;
+    width: 100%;
+    font-size: clamp(2.15rem, 9vw, 3.2rem);
   }
 
   .app-top-nav__landing-overlay-link-meta {
     margin-top: 0.35rem;
-    max-width: 24ch;
+    max-width: 30ch;
   }
 
   .app-top-nav__landing-shortcut-row {
-    left: 20px;
-    right: 20px;
-    bottom: max(22px, calc(16px + env(safe-area-inset-bottom)));
+    position: relative;
+    left: auto;
+    right: auto;
+    bottom: auto;
+    margin-top: 20px;
     gap: 12px;
+    flex-direction: column;
   }
 
   .app-top-nav__landing-shortcut {
-    flex: 1 1 0;
+    flex: 1 1 auto;
     padding: 0 0 0.18rem;
+    align-items: flex-start;
+    text-align: left;
+  }
+
+  .app-top-nav__landing-shortcut--map {
+    align-items: flex-start;
+    text-align: left;
   }
 
   .app-top-nav__inner {
