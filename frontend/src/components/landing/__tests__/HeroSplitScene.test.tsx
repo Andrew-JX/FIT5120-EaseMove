@@ -88,4 +88,33 @@ describe("HeroSplitScene", () => {
 
     view.unmount();
   });
+
+  test("shows the loading poster before the video is ready", () => {
+    const view = render(<HeroSplitScene />);
+
+    expect(view.container.querySelector(".landing-video-placeholder")).not.toBeNull();
+
+    const poster = view.container.querySelector(".landing-video-poster") as HTMLImageElement | null;
+    expect(poster).not.toBeNull();
+    expect(poster?.className).not.toContain("is-ready");
+
+    act(() => {
+      poster?.dispatchEvent(new Event("load"));
+    });
+
+    expect(view.container.querySelector(".landing-video-placeholder")).toBeNull();
+    expect(poster?.className).toContain("is-ready");
+
+    const video = view.container.querySelector(".landing-video") as HTMLVideoElement | null;
+    expect(video).not.toBeNull();
+    expect(video?.className).not.toContain("is-ready");
+
+    act(() => {
+      video?.dispatchEvent(new Event("canplay"));
+    });
+
+    expect(video?.className).toContain("is-ready");
+
+    view.unmount();
+  });
 });
