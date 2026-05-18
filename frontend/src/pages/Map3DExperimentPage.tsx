@@ -729,9 +729,9 @@ export default function Map3DExperimentPage() {
         <div
           data-testid="route-top-toolbar"
           style={routeToolbarStyle}
-          className="flex min-h-14 w-[min(92vw,112rem)] items-center gap-1 rounded-[28px] border border-white/55 px-2 py-2 text-[#17413f] shadow-[inset_0_1px_0_rgba(255,255,255,0.74)] max-sm:flex-wrap max-sm:justify-between max-sm:gap-y-2 max-sm:rounded-[24px]"
+          className="flex min-h-14 w-[min(92vw,112rem)] items-center gap-1 rounded-[28px] border border-white/55 px-2 py-2 text-[#17413f] shadow-[inset_0_1px_0_rgba(255,255,255,0.74)] max-sm:min-h-12 max-sm:w-[min(calc(100vw-0.9rem),34rem)] max-sm:justify-between max-sm:gap-0.5 max-sm:overflow-hidden max-sm:rounded-[24px] max-sm:px-1.5 max-sm:py-1.5"
         >
-          <div className="flex min-w-0 items-center gap-1 max-sm:w-full max-sm:justify-between">
+          <div className="flex min-w-0 items-center gap-1 max-sm:flex-1 max-sm:flex-nowrap max-sm:gap-0.5">
             <TopBarActionButton
               label="Back"
               icon={<ArrowLeft className="h-4 w-4" />}
@@ -742,7 +742,7 @@ export default function Map3DExperimentPage() {
             />
             <div className="route-page-toolbar-divider" aria-hidden="true" />
             <LayoutGroup id="route-page-bar-panels">
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1 max-sm:min-w-0 max-sm:gap-0.5">
                 <TopBarActionButton
                   label="Route"
                   icon={<Navigation className="h-4 w-4" />}
@@ -761,7 +761,7 @@ export default function Map3DExperimentPage() {
           <div className="min-w-6 flex-1 max-sm:hidden" />
           <div
             data-testid="route-top-toolbar-right"
-            className="flex min-w-0 items-center justify-end gap-1 max-sm:w-full max-sm:justify-between"
+            className="flex min-w-0 items-center justify-end gap-1 max-sm:flex-nowrap max-sm:gap-0.5"
           >
             <TopBarActionButton
               label="Tips"
@@ -770,8 +770,12 @@ export default function Map3DExperimentPage() {
               title="Open quick guide"
               ariaLabel="Open quick guide"
             />
-            <RoutePageMenuTrigger open={landingMenuOpen} onToggle={() => setLandingMenuOpen((current) => !current)} />
-            <div className="route-page-toolbar-divider" aria-hidden="true" />
+            <RoutePageMenuTrigger
+              open={landingMenuOpen}
+              onToggle={() => setLandingMenuOpen((current) => !current)}
+              compactOnMobile
+            />
+            <div className="route-page-toolbar-divider max-sm:hidden" aria-hidden="true" />
             <TopBarActionButton
               label="Zoom out"
               icon={<Minus className="h-4 w-4" />}
@@ -780,6 +784,7 @@ export default function Map3DExperimentPage() {
               ariaLabel="Zoom out"
               iconOnly
               disabled={!mapViewportControls}
+              className="max-sm:hidden"
             />
             <TopBarActionButton
               label="Zoom in"
@@ -789,10 +794,43 @@ export default function Map3DExperimentPage() {
               ariaLabel="Zoom in"
               iconOnly
               disabled={!mapViewportControls}
+              className="max-sm:hidden"
             />
           </div>
         </div>
       </motion.div>
+      {isMobileViewport ? (
+        <motion.div
+          data-testid="route-mobile-zoom-rail"
+          className="fixed right-2 top-[calc(max(0.75rem,env(safe-area-inset-top))+7rem)] z-[295] flex flex-col gap-2 sm:hidden"
+          animate={{
+            opacity: landingMenuOpen ? 0 : 1,
+            x: landingMenuOpen ? 10 : 0,
+            scale: landingMenuOpen ? 0.96 : 1,
+          }}
+          transition={{ type: "spring", stiffness: 220, damping: 20, mass: 0.9 }}
+          style={{ pointerEvents: landingMenuOpen ? "none" : "auto" }}
+        >
+          <TopBarActionButton
+            label="Zoom in"
+            icon={<Plus className="h-4 w-4" />}
+            onClick={() => mapViewportControls?.zoomIn()}
+            title="Zoom in"
+            ariaLabel="Zoom in"
+            iconOnly
+            disabled={!mapViewportControls}
+          />
+          <TopBarActionButton
+            label="Zoom out"
+            icon={<Minus className="h-4 w-4" />}
+            onClick={() => mapViewportControls?.zoomOut()}
+            title="Zoom out"
+            ariaLabel="Zoom out"
+            iconOnly
+            disabled={!mapViewportControls}
+          />
+        </motion.div>
+      ) : null}
       <WhiteModelMap
         mapboxToken={MAPBOX_PUBLIC_TOKEN}
         startPoint={startPoint}
@@ -1446,6 +1484,7 @@ function TopBarActionButton({
   disabled = false,
   iconOnly = false,
   compactOnMobile = false,
+  className = "",
 }: {
   active?: boolean;
   icon?: ReactNode;
@@ -1456,6 +1495,7 @@ function TopBarActionButton({
   disabled?: boolean;
   iconOnly?: boolean;
   compactOnMobile?: boolean;
+  className?: string;
 }) {
   return (
     <motion.button
@@ -1466,7 +1506,7 @@ function TopBarActionButton({
       disabled={disabled}
       className={`route-page-toolbar-button ${iconOnly ? "route-page-toolbar-button--icon" : "route-page-toolbar-button--text"} ${
         compactOnMobile ? "route-page-toolbar-button--compact-mobile" : ""
-      }`}
+      } ${className}`.trim()}
       animate={{
         scale: active ? 1.03 : 1,
       }}
@@ -1631,10 +1671,20 @@ function RouteGuideDialog({
   );
 }
 
-function RoutePageMenuTrigger({ open, onToggle }: { open: boolean; onToggle: () => void }) {
+function RoutePageMenuTrigger({
+  open,
+  onToggle,
+  compactOnMobile = false,
+}: {
+  open: boolean;
+  onToggle: () => void;
+  compactOnMobile?: boolean;
+}) {
   return (
     <motion.div
-      className="app-top-nav app-top-nav--route-page app-top-nav--tone-dark"
+      className={`app-top-nav app-top-nav--route-page app-top-nav--tone-dark${
+        compactOnMobile ? " route-page-menu-trigger--compact-mobile" : ""
+      }`}
       animate={{ scale: open ? 1.04 : 1 }}
       transition={{ type: "spring", stiffness: 240, damping: 18, mass: 0.82 }}
     >

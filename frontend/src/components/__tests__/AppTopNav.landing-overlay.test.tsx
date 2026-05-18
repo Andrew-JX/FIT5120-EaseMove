@@ -33,6 +33,7 @@ function LocationProbe() {
 afterEach(() => {
   vi.useRealTimers();
   document.body.innerHTML = "";
+  vi.unstubAllGlobals();
 });
 
 describe("AppTopNav landing overlay", () => {
@@ -142,6 +143,54 @@ describe("AppTopNav landing overlay", () => {
     expect(view.container.querySelector("[data-testid='location-probe']")?.textContent).toBe(
       "/map/3d-route"
     );
+
+    view.unmount();
+  });
+
+  test("omits the overlay visual on small screens so navigation content stays reachable", () => {
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn().mockImplementation((query: string) => ({
+        matches: query === "(max-width: 720px)",
+        media: query,
+        onchange: null,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      }))
+    );
+
+    const view = render(
+      <MemoryRouter initialEntries={["/map"]}>
+        <Routes>
+          <Route
+            path="/map"
+            element={
+              <AppTopNav
+                variant="landing"
+                landingMode="compact"
+                landingTransitionProgress={1}
+              />
+            }
+          />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    const openButton = view.container.querySelector(
+      ".app-top-nav__compact-trigger"
+    ) as HTMLButtonElement | null;
+
+    act(() => {
+      openButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(view.container.querySelector(".app-top-nav__landing-overlay-visual")).toBeNull();
+    expect(view.container.textContent).toContain("Navigation");
+    expect(view.container.textContent).toContain("About us");
+    expect(view.container.textContent).toContain("Open map");
 
     view.unmount();
   });

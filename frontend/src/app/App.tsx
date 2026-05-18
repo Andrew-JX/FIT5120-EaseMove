@@ -493,6 +493,7 @@ export default function App() {
   const [compareSelection1, setCompareSelection1] = useState<string | null>(null);
   const [compareSelection2, setCompareSelection2] = useState<string | null>(null);
   const [panelOpen, setPanelOpen] = useState(false);
+  const [landingMenuOpen, setLandingMenuOpen] = useState(false);
   const [activeView, setActiveView] = useState<"view" | "compare">("view");
   const [currentPageLabel, setCurrentPageLabel] = useState("Map");
   const [exploreOpen, setExploreOpen] = useState(false);
@@ -507,7 +508,7 @@ export default function App() {
   const recommendationPageRef = useRef<HTMLDivElement | null>(null);
   const exploreItemRefs = useRef<HTMLButtonElement[]>([]);
   const legendItemRefs = useRef<HTMLElement[]>([]);
-  const floatingUiFadeClass = panelOpen ? "pointer-events-none" : "pointer-events-auto";
+  const floatingUiFadeClass = panelOpen || landingMenuOpen ? "pointer-events-none" : "pointer-events-auto";
   const sideControlsFadeClass = activeView === "compare"
     ? "pointer-events-none opacity-0 -translate-y-40"
     : `${floatingUiFadeClass} opacity-100 translate-y-0`;
@@ -1574,13 +1575,17 @@ export default function App() {
           <img src={logoTransparent} alt="Move Comfortly" className="mx-auto mt-6 h-45 w-auto object-contain sm:mt-14" />
         </div>
 
-        <button
-          type="button"
-          onClick={() => setPanelOpen((open) => !open)}
-          className="flex items-center gap-1.5 rounded-sm border border-white/25 bg-gradient-to-b from-[#122d2b] to-[#17413f] px-2.5 py-1.5 text-[9px] font-medium tracking-[0.14em] uppercase text-white/90 backdrop-blur sm:gap-2 sm:px-4 sm:py-2 sm:text-[11px] sm:tracking-[0.24em]"
-        >
-          Menu
-        </button>
+        <div className="pointer-events-auto">
+          <AppTopNav
+            variant="landing"
+            landingMode="compact"
+            landingTone="dark"
+            landingTransitionProgress={1}
+            landingOverlayOpen={landingMenuOpen}
+            onLandingOverlayOpenChange={setLandingMenuOpen}
+            landingOverlayContext="map"
+          />
+        </div>
       </header>
 
       <MapGuideDialog
@@ -1690,7 +1695,7 @@ export default function App() {
                 <MapSidebarControls
                   onZoomIn={handleZoomIn}
                   onZoomOut={handleZoomOut}
-                  hidden={panelOpen}
+                  hidden={panelOpen || landingMenuOpen}
                 />
               </div>
               <button
