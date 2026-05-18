@@ -1,4 +1,5 @@
 import { animate, createScope, createTimeline, stagger } from "animejs";
+import confetti from "canvas-confetti";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import {
@@ -13,9 +14,10 @@ import {
   Waves,
   Wind,
 } from "lucide-react";
-import { useEffect, useLayoutEffect, useRef, type CSSProperties } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { useNavigate } from "react-router";
 import { APP_ROUTES } from "../lib/navigation";
+import aboutUsEndingEasterEggGif from "../assets/aboutus/aboutus-ending-easter-egg.gif";
 import "./aboutus.css";
 
 const PORTFOLIO_URL =
@@ -139,11 +141,137 @@ const signalMarquee = [
   "Journey timing",
 ] as const;
 
+const ABOUTUS_ENDING_EASTER_EGG_DELAY_MS = 2000;
+const ABOUTUS_ENDING_EASTER_EGG_VISIBLE_MS = 3400;
+
+const endingOrbiters = [
+  { x: "-38vw", y: "-18vh", rotate: -26, scale: 0.74, delayMs: 90 },
+  { x: "-24vw", y: "-28vh", rotate: -14, scale: 0.62, delayMs: 150 },
+  { x: "-8vw", y: "-32vh", rotate: 8, scale: 0.68, delayMs: 0 },
+  { x: "13vw", y: "-30vh", rotate: 14, scale: 0.64, delayMs: 180 },
+  { x: "32vw", y: "-18vh", rotate: 22, scale: 0.7, delayMs: 120 },
+  { x: "-34vw", y: "12vh", rotate: -12, scale: 0.6, delayMs: 210 },
+  { x: "-18vw", y: "22vh", rotate: -6, scale: 0.56, delayMs: 260 },
+  { x: "19vw", y: "24vh", rotate: 10, scale: 0.58, delayMs: 230 },
+  { x: "36vw", y: "10vh", rotate: 18, scale: 0.64, delayMs: 300 },
+] as const;
+
+const endingFireworks = [
+  { x: "12%", y: "26%", size: "clamp(108px, 16vw, 220px)", hue: "gold", delayMs: 60 },
+  { x: "82%", y: "22%", size: "clamp(120px, 18vw, 250px)", hue: "mint", delayMs: 180 },
+  { x: "22%", y: "72%", size: "clamp(92px, 14vw, 188px)", hue: "peach", delayMs: 310 },
+  { x: "76%", y: "70%", size: "clamp(108px, 15vw, 220px)", hue: "gold", delayMs: 430 },
+  { x: "50%", y: "14%", size: "clamp(84px, 12vw, 168px)", hue: "mint", delayMs: 250 },
+] as const;
+
+function launchEndingFireworks(canvas: HTMLCanvasElement) {
+  const runBurst = confetti.create(canvas, {
+    resize: true,
+    useWorker: false,
+  });
+
+  const bursts = [
+    {
+      delayMs: 0,
+      options: {
+        particleCount: 96,
+        startVelocity: 45,
+        spread: 76,
+        ticks: 220,
+        gravity: 0.94,
+        scalar: 1.1,
+        origin: { x: 0.18, y: 0.34 },
+        colors: ["#ffd166", "#ffe29a", "#ffb36b", "#f9f3e9"],
+      },
+    },
+    {
+      delayMs: 160,
+      options: {
+        particleCount: 102,
+        startVelocity: 52,
+        spread: 86,
+        ticks: 240,
+        gravity: 0.92,
+        scalar: 1.18,
+        origin: { x: 0.84, y: 0.26 },
+        colors: ["#7ef0e1", "#bdf7ef", "#d8fff8", "#f2fffd"],
+      },
+    },
+    {
+      delayMs: 300,
+      options: {
+        particleCount: 90,
+        startVelocity: 40,
+        spread: 74,
+        ticks: 230,
+        gravity: 0.98,
+        scalar: 0.98,
+        origin: { x: 0.26, y: 0.74 },
+        colors: ["#ffb38a", "#ffd2ba", "#fff0e8", "#ffe08c"],
+      },
+    },
+    {
+      delayMs: 430,
+      options: {
+        particleCount: 108,
+        startVelocity: 55,
+        spread: 92,
+        ticks: 260,
+        gravity: 0.9,
+        scalar: 1.24,
+        origin: { x: 0.74, y: 0.68 },
+        colors: ["#ffd166", "#ffe7a6", "#8ef4e6", "#ffffff"],
+      },
+    },
+    {
+      delayMs: 620,
+      options: {
+        particleCount: 68,
+        startVelocity: 34,
+        spread: 60,
+        ticks: 200,
+        gravity: 1.02,
+        scalar: 0.82,
+        origin: { x: 0.5, y: 0.18 },
+        colors: ["#ffffff", "#d8fff8", "#ffe9bf"],
+      },
+    },
+  ] as const;
+
+  const timeoutIds = bursts.map(({ delayMs, options }) =>
+    window.setTimeout(() => {
+      runBurst({
+        ...options,
+        shapes: ["circle"],
+      });
+      runBurst({
+        ...options,
+        particleCount: Math.round(options.particleCount * 0.36),
+        startVelocity: options.startVelocity + 8,
+        decay: 0.92,
+        scalar: options.scalar * 0.78,
+        shapes: ["star"],
+      });
+    }, delayMs)
+  );
+
+  return () => {
+    timeoutIds.forEach((timeoutId) => window.clearTimeout(timeoutId));
+  };
+}
+
 function AboutUsPage() {
   const navigate = useNavigate();
   const pageRef = useRef<HTMLDivElement | null>(null);
   const routePathRef = useRef<SVGPathElement | null>(null);
   const modulesRailRef = useRef<HTMLDivElement | null>(null);
+  const endingTriggerRef = useRef<HTMLDivElement | null>(null);
+  const endingFireworksCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const endingHoldTimerRef = useRef<number | null>(null);
+  const endingHideTimerRef = useRef<number | null>(null);
+  const [showEndingEasterEgg, setShowEndingEasterEgg] = useState(false);
+  const [hasPlayedEndingEasterEgg, setHasPlayedEndingEasterEgg] = useState(false);
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
 
   const handleBack = () => {
     const historyState = window.history.state as { idx?: number } | null;
@@ -166,6 +294,87 @@ function AboutUsPage() {
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "auto" });
   }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
+
+    const mediaQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const syncPreference = (event?: MediaQueryListEvent) => {
+      setPrefersReducedMotion(event ? event.matches : mediaQuery.matches);
+    };
+
+    syncPreference();
+    mediaQuery.addEventListener("change", syncPreference);
+    return () => {
+      mediaQuery.removeEventListener("change", syncPreference);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (hasPlayedEndingEasterEgg) return;
+
+    const clearHoldTimer = () => {
+      if (endingHoldTimerRef.current !== null) {
+        window.clearTimeout(endingHoldTimerRef.current);
+        endingHoldTimerRef.current = null;
+      }
+    };
+
+    const scheduleEndingEasterEgg = () => {
+      const trigger = endingTriggerRef.current;
+      if (!trigger || hasPlayedEndingEasterEgg) return;
+
+      const rect = trigger.getBoundingClientRect();
+      const isAtBottom = rect.top <= window.innerHeight - 24 && rect.bottom >= 0;
+
+      if (!isAtBottom) {
+        clearHoldTimer();
+        return;
+      }
+
+      if (endingHoldTimerRef.current !== null) return;
+
+      endingHoldTimerRef.current = window.setTimeout(() => {
+        endingHoldTimerRef.current = null;
+        setHasPlayedEndingEasterEgg(true);
+        setShowEndingEasterEgg(true);
+        endingHideTimerRef.current = window.setTimeout(() => {
+          setShowEndingEasterEgg(false);
+          endingHideTimerRef.current = null;
+        }, prefersReducedMotion ? 1800 : ABOUTUS_ENDING_EASTER_EGG_VISIBLE_MS);
+      }, ABOUTUS_ENDING_EASTER_EGG_DELAY_MS);
+    };
+
+    scheduleEndingEasterEgg();
+    window.addEventListener("scroll", scheduleEndingEasterEgg, { passive: true });
+    window.addEventListener("resize", scheduleEndingEasterEgg);
+
+    return () => {
+      clearHoldTimer();
+      window.removeEventListener("scroll", scheduleEndingEasterEgg);
+      window.removeEventListener("resize", scheduleEndingEasterEgg);
+    };
+  }, [hasPlayedEndingEasterEgg, prefersReducedMotion]);
+
+  useEffect(() => {
+    return () => {
+      if (endingHoldTimerRef.current !== null) {
+        window.clearTimeout(endingHoldTimerRef.current);
+      }
+      if (endingHideTimerRef.current !== null) {
+        window.clearTimeout(endingHideTimerRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!showEndingEasterEgg || prefersReducedMotion) return;
+
+    const canvas = endingFireworksCanvasRef.current;
+    if (!canvas) return;
+
+    return launchEndingFireworks(canvas);
+  }, [prefersReducedMotion, showEndingEasterEgg]);
 
   useLayoutEffect(() => {
     const root = pageRef.current;
@@ -573,6 +782,65 @@ function AboutUsPage() {
 
   return (
     <div ref={pageRef} className="aboutus-page">
+      {showEndingEasterEgg ? (
+        <div
+          className={`aboutus-ending-celebration${prefersReducedMotion ? " aboutus-ending-celebration--reduced" : ""}`}
+          data-testid="aboutus-ending-easter-egg"
+          aria-live="polite"
+          style={{ ["--aboutus-ending-duration" as string]: `${prefersReducedMotion ? 2400 : ABOUTUS_ENDING_EASTER_EGG_VISIBLE_MS}ms` }}
+        >
+          <div className="aboutus-ending-celebration__veil" aria-hidden="true" />
+          <canvas ref={endingFireworksCanvasRef} className="aboutus-ending-fireworks-canvas" aria-hidden="true" />
+          <div className="aboutus-ending-celebration__stage">
+            {endingFireworks.map((firework, index) => (
+              <span
+                key={`firework-${index}`}
+                className={`aboutus-ending-firework aboutus-ending-firework--${firework.hue}`}
+                style={
+                  {
+                    "--firework-x": firework.x,
+                    "--firework-y": firework.y,
+                    "--firework-size": firework.size,
+                    "--firework-delay": `${firework.delayMs}ms`,
+                  } as CSSProperties
+                }
+                aria-hidden="true"
+              />
+            ))}
+
+            <div className="aboutus-ending-burst" aria-hidden="true">
+              {endingOrbiters.map((orbiter, index) => (
+                <img
+                  key={`orbiter-${index}`}
+                  src={aboutUsEndingEasterEggGif}
+                  alt=""
+                  className="aboutus-ending-emoji aboutus-ending-emoji--orbiter"
+                  style={
+                    {
+                      "--emoji-x": orbiter.x,
+                      "--emoji-y": orbiter.y,
+                      "--emoji-rotate": `${orbiter.rotate}deg`,
+                      "--emoji-scale": orbiter.scale,
+                      "--emoji-delay": `${orbiter.delayMs}ms`,
+                    } as CSSProperties
+                  }
+                />
+              ))}
+            </div>
+
+            <div className="aboutus-ending-centerpiece">
+              <img
+                src={aboutUsEndingEasterEggGif}
+                alt="Celebration sticker"
+                className="aboutus-ending-emoji aboutus-ending-emoji--hero"
+              />
+              <p className="aboutus-ending-copy">You made it all the way.</p>
+              <p className="aboutus-ending-subcopy">That kind of curiosity deserves fireworks.</p>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       <section className="aboutus-hero">
         <div className="aboutus-hero-noise" aria-hidden="true" />
         <div className="aboutus-hero-glow aboutus-parallax-layer aboutus-float-node" aria-hidden="true" />
@@ -888,6 +1156,7 @@ function AboutUsPage() {
             </div>
           </div>
         </div>
+        <div ref={endingTriggerRef} className="aboutus-ending-trigger" data-testid="aboutus-easter-egg-trigger" aria-hidden="true" />
       </section>
     </div>
   );

@@ -4,10 +4,10 @@ import { useLocation, useNavigate } from "react-router";
 import { LANDING_CHOREO_EASE, LANDING_REVEAL_DURATIONS } from "./landingMotion";
 
 const screenshotUrls = [
-  new URL("../../assets/landing/5.png", import.meta.url).href,
-  new URL("../../assets/landing/6.png", import.meta.url).href,
-  new URL("../../assets/landing/7.png", import.meta.url).href,
-  new URL("../../assets/landing/8.png", import.meta.url).href,
+  new URL("../../assets/landing/5-optimized.jpg", import.meta.url).href,
+  new URL("../../assets/landing/6-optimized.jpg", import.meta.url).href,
+  new URL("../../assets/landing/7-optimized.jpg", import.meta.url).href,
+  new URL("../../assets/landing/8-optimized.jpg", import.meta.url).href,
 ] as const;
 
 function HowActionButton({
@@ -355,6 +355,8 @@ export default function HowToUseScene() {
                     <img
                       src={activeScreenshotUrl}
                       alt="MoveComfortly map interface with places and comfort data"
+                      loading="lazy"
+                      decoding="async"
                       onLoad={(event) => {
                         const { naturalWidth, naturalHeight } = event.currentTarget;
                         setImageAspectRatio(naturalWidth / Math.max(1, naturalHeight));

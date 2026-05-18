@@ -11,7 +11,7 @@ import {
 } from "./landingSceneController";
 
 const melVideoUrl = new URL("../../assets/landing/Mel.mp4", import.meta.url).href;
-const loadingPosterUrl = new URL("../../assets/landing/loading.png", import.meta.url).href;
+const loadingPosterUrl = new URL("../../assets/landing/loading-optimized.jpg", import.meta.url).href;
 const WHEEL_PROGRESS_FACTOR = 0.001;
 const TOUCH_PROGRESS_FACTOR = 0.003;
 const KEY_PROGRESS_STEP = 0.1;
@@ -450,6 +450,8 @@ export default function HeroSplitScene() {
             src={loadingPosterUrl}
             alt=""
             aria-hidden="true"
+            decoding="async"
+            fetchPriority="high"
             onLoad={() => setIsPosterReady(true)}
             onError={() => setIsPosterReady(false)}
           />
