@@ -265,7 +265,13 @@ function GalleryImage({
       className="landing-mission-gallery-card"
       style={{ x, y, rotate, opacity, scale, filter, zIndex: 10 + index }}
     >
-      <img src={image.src} alt={image.alt} draggable="false" />
+      <img
+        src={image.src}
+        alt={image.alt}
+        draggable="false"
+        loading="lazy"
+        decoding="async"
+      />
     </motion.figure>
   );
 }

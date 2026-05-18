@@ -127,4 +127,22 @@ describe("HowToUseScene", () => {
     view.unmount();
   });
 
+  test("serves responsive screenshot sources for the active card", () => {
+    const view = render(
+      <MemoryRouter>
+        <HowToUseScene />
+      </MemoryRouter>
+    );
+
+    const screenshot = view.container.querySelector(
+      ".landing-how-screenshot img"
+    ) as HTMLImageElement | null;
+
+    expect(screenshot).not.toBeNull();
+    expect(screenshot?.getAttribute("src")).toContain("5-optimized.jpg");
+    expect(screenshot?.getAttribute("srcset")).toBeNull();
+    expect(screenshot?.getAttribute("sizes")).toBeNull();
+
+    view.unmount();
+  });
 });
