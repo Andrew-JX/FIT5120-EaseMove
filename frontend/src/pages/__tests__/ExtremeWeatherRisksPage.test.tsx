@@ -57,10 +57,9 @@ function render(element: React.ReactNode) {
 }
 
 function getCircleSegmentPaths(container: HTMLDivElement) {
-  const sections = Array.from(container.querySelectorAll("section"));
-  const ringSection = sections[0];
-  expect(ringSection).toBeTruthy();
-  return Array.from(ringSection.querySelectorAll("svg path"));
+  const ringSvg = container.querySelector('[data-testid="weather-ring"]');
+  expect(ringSvg).toBeTruthy();
+  return Array.from(ringSvg!.querySelectorAll("path"));
 }
 
 beforeEach(() => {
@@ -90,6 +89,39 @@ describe("ExtremeWeatherRisksPage - Epic 4", () => {
     view.unmount();
   });
 
+  test("uses the landing-style compact menu and opens the shared overlay navigation", async () => {
+    const view = render(
+      <MemoryRouter initialEntries={["/extreme-weather-risks"]}>
+        <Routes>
+          <Route path="/extreme-weather-risks" element={<ExtremeWeatherRisksPage />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    const openButton = view.container.querySelector(
+      'button[aria-label="Open landing navigation menu"]'
+    ) as HTMLButtonElement | null;
+
+    expect(openButton).toBeTruthy();
+
+    act(() => {
+      openButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    await act(async () => {
+      vi.advanceTimersByTime(800);
+    });
+
+    expect(view.container.querySelector(".app-top-nav__landing-overlay")).not.toBeNull();
+    expect(view.container.textContent).toContain("Landing Page");
+    expect(view.container.textContent).toContain("Map");
+    expect(view.container.textContent).toContain("3D Route");
+    expect(view.container.textContent).toContain("Risks");
+    expect(view.container.textContent).toContain("About us");
+
+    view.unmount();
+  });
+
   test("clicking a weather segment shows the selected risk summary and severity legend", () => {
     const view = render(
       <MemoryRouter initialEntries={["/extreme-weather-risks"]}>
@@ -105,23 +137,21 @@ describe("ExtremeWeatherRisksPage - Epic 4", () => {
     act(() => {
       svgPaths[0].dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
+    act(() => {
+      vi.advanceTimersByTime(200);
+    });
 
-    expect(view.container.textContent).toContain("Heat");
+    expect(view.container.textContent).toContain("HEAT");
     expect(view.container.textContent).not.toContain("Select a weather type");
-    expect(view.container.textContent).toContain("Heat Stroke");
-    expect(view.container.textContent).toContain("Smoke Exposure");
-    expect(view.container.textContent).toContain("Impact on Human Body:");
-    expect(view.container.textContent).toContain("Severity: High");
+    expect(view.container.textContent).toContain("Outdoor movement may feel exhausting");
+    expect(view.container.textContent).toContain("Severity:");
+    expect(view.container.textContent).toContain("HIGH");
     expect(view.container.textContent).toContain("Explore Impacts");
 
     view.unmount();
   });
 
-  test("clicking Learn More scrolls to the risk detail section for the selected weather type", async () => {
-    const scrollIntoViewMock = vi.fn();
-    const originalScrollIntoView = HTMLElement.prototype.scrollIntoView;
-    HTMLElement.prototype.scrollIntoView = scrollIntoViewMock;
-
+  test("clicking Learn More opens the selected weather detail panel", async () => {
     const view = render(
       <MemoryRouter initialEntries={["/extreme-weather-risks"]}>
         <Routes>
@@ -134,6 +164,9 @@ describe("ExtremeWeatherRisksPage - Epic 4", () => {
 
     act(() => {
       svgPaths[0].dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    act(() => {
+      vi.advanceTimersByTime(200);
     });
 
     const learnMoreButton = Array.from(view.container.querySelectorAll("button")).find((button) =>
@@ -148,11 +181,9 @@ describe("ExtremeWeatherRisksPage - Epic 4", () => {
       vi.advanceTimersByTime(450);
     });
 
-    expect(scrollIntoViewMock).toHaveBeenCalled();
-    expect(view.container.textContent).toContain("Why it happens");
-    expect(view.container.textContent).toContain("What you can do");
-
-    HTMLElement.prototype.scrollIntoView = originalScrollIntoView;
+    expect(view.container.textContent).toContain("Environmental changes");
+    expect(view.container.textContent).toContain("Movement experience");
+    expect(view.container.textContent).toContain("Outdoor impact tags");
     view.unmount();
   });
 
