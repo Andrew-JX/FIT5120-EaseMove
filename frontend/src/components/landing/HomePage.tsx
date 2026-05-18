@@ -151,7 +151,7 @@ export default function HomePage() {
 
   return (
     <main className={`landing-home${landingOverlayOpen ? " is-nav-overlay-open" : ""}`} aria-label="EaseMove home">
-      <div className="landing-global-nav-shell">
+      <div className={`landing-global-nav-shell${landingOverlayOpen ? " is-nav-overlay-open" : ""}`}>
         <AppTopNav
           variant="landing"
           landingMode={landingMode}

@@ -114,6 +114,8 @@ describe("App map guide", () => {
         variant: "landing",
         landingMode: "compact",
         landingTone: "dark",
+        landingOverlayContext: "map",
+        className: "app-top-nav--map-overlay",
       })
     );
   });

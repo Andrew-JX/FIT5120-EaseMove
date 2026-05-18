@@ -32,6 +32,7 @@
 .app-top-nav--landing-enhanced {
   position: relative;
   isolation: isolate;
+  --landing-mobile-overlay-scale: 1;
 }
 
 .app-top-nav__landing-hero-layer {
@@ -1016,6 +1017,13 @@
   pointer-events: none;
 }
 
+.app-top-nav--map-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 620;
+  pointer-events: none;
+}
+
 .app-top-nav--route-page .app-top-nav__compact-trigger {
   position: static;
   top: auto;
@@ -1109,16 +1117,31 @@
 }
 
 .route-3d-map .mapboxgl-ctrl-group {
+  border: 1px solid rgba(255, 255, 255, 0.55);
   border-radius: 18px;
   overflow: hidden;
+  background:
+    radial-gradient(circle at 18% 0%, rgba(255, 255, 255, 0.72), transparent 42%),
+    linear-gradient(145deg, rgba(255, 255, 255, 0.94), rgba(236, 245, 248, 0.86) 56%, rgba(245, 240, 232, 0.8));
   box-shadow:
     0 14px 32px rgba(4, 14, 14, 0.18),
-    inset 0 1px 0 rgba(255, 255, 255, 0.72);
+    inset 0 1px 0 rgba(255, 255, 255, 0.78);
 }
 
 .route-3d-map .mapboxgl-ctrl-group button {
   width: 36px;
   height: 36px;
+  background: transparent;
+  color: #173f3d;
+}
+
+.route-3d-map .mapboxgl-ctrl-group button + button {
+  border-top: 1px solid rgba(23, 65, 63, 0.12);
+}
+
+.route-3d-map .mapboxgl-ctrl-group button:hover,
+.route-3d-map .mapboxgl-ctrl-group button:focus-visible {
+  background: rgba(255, 255, 255, 0.46);
 }
 
 .route-3d-map .mapboxgl-ctrl-group .mapboxgl-ctrl-zoom-in,
@@ -1167,7 +1190,9 @@
   }
 
   .route-page-toolbar-button--text {
-    padding: 0 10px;
+    padding: 0 9px;
+    font-size: 0.82rem;
+    letter-spacing: 0.06em;
   }
 
   .route-page-toolbar-button--compact-mobile {
@@ -1199,8 +1224,22 @@
   }
 
   .route-3d-map .mapboxgl-ctrl-top-right {
-    top: 5rem;
-    right: 0.75rem;
+    top: calc(max(0.75rem, env(safe-area-inset-top)) + 4.4rem);
+    right: 0.6rem;
+  }
+
+  .route-3d-map .mapboxgl-ctrl-group {
+    border-radius: 20px;
+  }
+
+  .route-3d-map .mapboxgl-ctrl-group button {
+    width: 38px;
+    height: 38px;
+  }
+
+  .route-3d-map .mapboxgl-ctrl-group .mapboxgl-ctrl-zoom-in,
+  .route-3d-map .mapboxgl-ctrl-group .mapboxgl-ctrl-zoom-out {
+    display: block;
   }
 
 
@@ -1214,7 +1253,7 @@
     position: static;
     top: auto;
     left: auto;
-    max-width: 148px;
+    max-width: calc(148px * var(--landing-mobile-overlay-scale));
     margin-right: auto;
   }
 
@@ -1225,14 +1264,14 @@
   .app-top-nav__landing-overlay-inner {
     display: flex;
     flex-direction: column;
-    gap: 28px;
+    gap: calc(28px * var(--landing-mobile-overlay-scale));
     justify-content: flex-start;
     overflow-x: hidden;
     overflow-y: auto;
     padding:
-      max(28px, calc(20px + env(safe-area-inset-top)))
+      max(calc(20px * var(--landing-mobile-overlay-scale)), calc(14px + env(safe-area-inset-top)))
       20px
-      max(24px, calc(18px + env(safe-area-inset-bottom)));
+      max(calc(18px * var(--landing-mobile-overlay-scale)), calc(12px + env(safe-area-inset-bottom)));
   }
 
   .app-top-nav__landing-overlay-nav-wrap {
@@ -1244,7 +1283,7 @@
     width: 100%;
     min-width: 0;
     max-width: none;
-    margin-top: max(88px, calc(64px + env(safe-area-inset-top)));
+    margin-top: max(calc(52px * var(--landing-mobile-overlay-scale)), calc(36px + env(safe-area-inset-top)));
     transform: none;
     align-items: flex-start;
     text-align: left;
@@ -1255,12 +1294,18 @@
     justify-content: flex-start;
     align-self: stretch;
     width: 100%;
-    font-size: clamp(2.15rem, 9vw, 3.2rem);
+    font-size: clamp(
+      calc(1.82rem * var(--landing-mobile-overlay-scale)),
+      calc(7.4vw * var(--landing-mobile-overlay-scale)),
+      calc(3rem * var(--landing-mobile-overlay-scale))
+    );
   }
 
   .app-top-nav__landing-overlay-link-meta {
-    margin-top: 0.35rem;
+    margin-top: calc(0.3rem * var(--landing-mobile-overlay-scale));
     max-width: 30ch;
+    font-size: calc(0.76rem * var(--landing-mobile-overlay-scale));
+    line-height: calc(1.35 / max(var(--landing-mobile-overlay-scale), 0.72));
   }
 
   .app-top-nav__landing-shortcut-row {
@@ -1269,17 +1314,29 @@
     right: auto;
     bottom: auto;
     margin-top: auto;
-    padding-top: 8px;
-    gap: 12px;
+    padding-top: calc(6px * var(--landing-mobile-overlay-scale));
+    gap: calc(10px * var(--landing-mobile-overlay-scale));
     flex-wrap: wrap;
   }
 
   .app-top-nav__landing-shortcut {
     flex: 1 1 180px;
     min-width: min(180px, 100%);
-    padding: 0 0 0.18rem;
+    padding: 0 0 calc(0.16rem * var(--landing-mobile-overlay-scale));
     align-items: flex-start;
     text-align: left;
+  }
+
+  .app-top-nav__landing-shortcut-label {
+    font-size: clamp(
+      calc(0.88rem * var(--landing-mobile-overlay-scale)),
+      calc(3.8vw * var(--landing-mobile-overlay-scale)),
+      calc(1.08rem * var(--landing-mobile-overlay-scale))
+    );
+  }
+
+  .app-top-nav__landing-shortcut-copy {
+    font-size: calc(0.7rem * var(--landing-mobile-overlay-scale));
   }
 
   .app-top-nav__landing-shortcut--map {
