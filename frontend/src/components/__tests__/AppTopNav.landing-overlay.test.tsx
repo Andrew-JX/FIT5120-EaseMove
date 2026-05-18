@@ -246,6 +246,79 @@ describe("AppTopNav landing overlay", () => {
     view.unmount();
   });
 
+  test("lets the desktop poster area briefly switch into a do-not-touch easter egg", () => {
+    vi.useFakeTimers();
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn().mockImplementation((query: string) => ({
+        matches: false,
+        media: query,
+        onchange: null,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      }))
+    );
+
+    const view = render(
+      <MemoryRouter initialEntries={["/map"]}>
+        <Routes>
+          <Route
+            path="/map"
+            element={
+              <AppTopNav
+                variant="landing"
+                landingMode="compact"
+                landingTransitionProgress={1}
+              />
+            }
+          />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    const openButton = view.container.querySelector(
+      ".app-top-nav__compact-trigger"
+    ) as HTMLButtonElement | null;
+
+    act(() => {
+      openButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    const posterButton = view.container.querySelector(
+      ".app-top-nav__landing-overlay-visual-shell"
+    ) as HTMLButtonElement | null;
+
+    expect(posterButton?.tagName).toBe("BUTTON");
+
+    act(() => {
+      posterButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    const easterEgg = view.container.querySelector(
+      '[data-testid="landing-overlay-poster-easter-egg"]'
+    ) as HTMLElement | null;
+    const easterEggImage = view.container.querySelector(
+      ".app-top-nav__landing-overlay-easter-egg-image"
+    ) as HTMLImageElement | null;
+
+    expect(easterEgg).not.toBeNull();
+    expect(easterEggImage?.getAttribute("src")).toContain("menu-poster-no-touch.jpeg");
+    expect(view.container.textContent).toContain("Do not click");
+
+    act(() => {
+      vi.advanceTimersByTime(1700);
+    });
+
+    expect(
+      view.container.querySelector('[data-testid="landing-overlay-poster-easter-egg"]')
+    ).toBeNull();
+
+    view.unmount();
+  });
+
   test("scales the mobile landing overlay down on shorter phone viewports", () => {
     vi.stubGlobal(
       "matchMedia",

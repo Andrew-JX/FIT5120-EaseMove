@@ -4,6 +4,7 @@ import { NavLink } from "react-router";
 import { useLocation, useNavigate } from "react-router";
 import landingLogo from "../assets/logo-transparent.png";
 import landingOverlayVisual from "../assets/landing/2.png";
+import menuPosterNoTouchVisual from "../assets/menu/menu-poster-no-touch.jpeg";
 import { APP_ROUTES } from "../lib/navigation";
 import "./app-top-nav.css";
 
@@ -12,6 +13,7 @@ export type LandingNavTone = "light" | "dark";
 
 const MOBILE_LANDING_OVERLAY_WIDTH_BASELINE = 390;
 const MOBILE_LANDING_OVERLAY_HEIGHT_BASELINE = 844;
+const LANDING_OVERLAY_POSTER_EASTER_EGG_MS = 1600;
 
 type AppTopNavProps = {
   variant: "landing" | "app";
@@ -78,9 +80,11 @@ export default function AppTopNav({
   const [landingOverlayMotionState, setLandingOverlayMotionState] = useState<
     "closed" | "opening" | "open" | "closing"
   >("closed");
+  const [landingOverlayPosterEasterEggActive, setLandingOverlayPosterEasterEggActive] = useState(false);
   const [isSmallLandingViewport, setIsSmallLandingViewport] = useState(false);
   const [landingMobileOverlayScale, setLandingMobileOverlayScale] = useState(1);
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const landingOverlayPosterEasterEggTimerRef = useRef<number | null>(null);
   const routeOverlayContext = className.includes("app-top-nav--route-page");
   const resolvedLandingOverlayContext =
     landingOverlayContext ?? (routeOverlayContext ? "route" : "landing");
@@ -103,7 +107,16 @@ export default function AppTopNav({
   useEffect(() => {
     setMobileOpen(false);
     setLandingOverlayOpen(false);
+    setLandingOverlayPosterEasterEggActive(false);
   }, [location.pathname, location.search]);
+
+  useEffect(() => {
+    return () => {
+      if (landingOverlayPosterEasterEggTimerRef.current !== null) {
+        window.clearTimeout(landingOverlayPosterEasterEggTimerRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (!isEnhancedLanding) return;
@@ -252,6 +265,18 @@ export default function AppTopNav({
       navigate(path);
     };
 
+    const handlePosterEasterEgg = () => {
+      if (landingOverlayPosterEasterEggTimerRef.current !== null) {
+        window.clearTimeout(landingOverlayPosterEasterEggTimerRef.current);
+      }
+
+      setLandingOverlayPosterEasterEggActive(true);
+      landingOverlayPosterEasterEggTimerRef.current = window.setTimeout(() => {
+        setLandingOverlayPosterEasterEggActive(false);
+        landingOverlayPosterEasterEggTimerRef.current = null;
+      }, LANDING_OVERLAY_POSTER_EASTER_EGG_MS);
+    };
+
     return (
       <div
         ref={rootRef}
@@ -349,7 +374,14 @@ export default function AppTopNav({
 
               {showOverlayVisual ? (
                 <div className="app-top-nav__landing-overlay-visual" aria-hidden="true">
-                  <div className="app-top-nav__landing-overlay-visual-shell">
+                  <button
+                    type="button"
+                    className={`app-top-nav__landing-overlay-visual-shell${
+                      landingOverlayPosterEasterEggActive ? " is-poster-easter-egg-active" : ""
+                    }`}
+                    onClick={handlePosterEasterEgg}
+                    aria-label="Poster area surprise"
+                  >
                     <img
                       src={landingOverlayVisual}
                       alt=""
@@ -380,10 +412,26 @@ export default function AppTopNav({
                           ? "Jump between the map, route rehearsal, and supporting pages without losing the journey context."
                           : resolvedLandingOverlayContext === "map"
                             ? "Jump between comfort planning, route rehearsal, and the supporting story without leaving the map workflow."
-                            : "Open the story, compare comfort, preview the route, or step into the project background."}
+                          : "Open the story, compare comfort, preview the route, or step into the project background."}
                       </p>
                     </div>
-                  </div>
+                    {landingOverlayPosterEasterEggActive ? (
+                      <div
+                        className="app-top-nav__landing-overlay-easter-egg"
+                        data-testid="landing-overlay-poster-easter-egg"
+                      >
+                        <div className="app-top-nav__landing-overlay-easter-egg-backdrop"></div>
+                        <img
+                          src={menuPosterNoTouchVisual}
+                          alt=""
+                          className="app-top-nav__landing-overlay-easter-egg-image"
+                          loading="lazy"
+                          decoding="async"
+                        />
+                        <p className="app-top-nav__landing-overlay-easter-egg-copy">Do not click</p>
+                      </div>
+                    ) : null}
+                  </button>
                 </div>
               ) : null}
 
