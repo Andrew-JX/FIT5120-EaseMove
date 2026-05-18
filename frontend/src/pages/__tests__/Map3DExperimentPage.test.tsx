@@ -968,8 +968,21 @@ describe("Map3DExperimentPage - Epic 5", () => {
     expect(view.container.querySelector('[data-testid="collapsed-panel-actions"]')).toBeNull();
     expect(view.container.textContent).toContain("Route");
     expect(view.container.textContent).toContain("Layers");
-    expect(view.container.querySelector('[data-testid="route-top-toolbar"]')?.className).toContain("max-sm:flex-wrap");
-    expect(view.container.querySelector('[data-testid="route-top-toolbar-right"]')?.className).toContain("max-sm:w-full");
+    expect(view.container.querySelector('[data-testid="route-top-toolbar"]')?.className).not.toContain("max-sm:flex-wrap");
+    expect(view.container.querySelector('[data-testid="route-mobile-zoom-rail"]')).toBeNull();
+    expect(view.container.querySelector('button[aria-label="Zoom in"]')).toBeNull();
+    expect(view.container.querySelector('button[aria-label="Zoom out"]')).toBeNull();
+
+    const routeButton = Array.from(view.container.querySelectorAll("button")).find(
+      (button) => button.textContent?.trim() === "Route"
+    );
+    expect(routeButton).toBeDefined();
+
+    await act(async () => {
+      routeButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(view.container.querySelector('[data-testid="route-mobile-sheet-handle"]')).not.toBeNull();
 
     view.unmount();
   });

@@ -169,6 +169,9 @@ describe("HomePage landing nav state", () => {
     expect(document.body.style.overflow).toBe("");
     expect(document.body.style.position).toBe("");
     expect(document.body.dataset.landingLockedScrollY).toBe("760");
+    expect(view.container.querySelector(".landing-global-nav-shell")?.className).toContain(
+      "is-nav-overlay-open"
+    );
 
     act(() => {
       window.scrollY = 0;
@@ -178,6 +181,9 @@ describe("HomePage landing nav state", () => {
     expect(window.scrollTo).toHaveBeenLastCalledWith({ top: 760, left: 0, behavior: "auto" });
     expect(document.documentElement.style.overflow).toBe("");
     expect(document.body.style.overflow).toBe("");
+    expect(view.container.querySelector(".landing-global-nav-shell")?.className).not.toContain(
+      "is-nav-overlay-open"
+    );
 
     view.unmount();
   });
