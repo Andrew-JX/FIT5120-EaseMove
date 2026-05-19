@@ -1273,7 +1273,7 @@ export default function Map3DExperimentPage() {
           </div>
         </div>
 
-        <div className={`relative min-h-0 ${panelHasDenseContent ? "flex-1 overflow-y-auto" : ""} px-4 py-4 sm:px-5`}>
+        <div className="relative min-h-0 flex-1 overflow-y-scroll [scrollbar-gutter:stable] px-4 py-4 sm:px-5">
           {activePanel === "route" ? (
             <>
               <div className={`mb-4 rounded-2xl p-4 text-sm text-[#456765] ${liquidGlassInteractiveClass}`} tabIndex={0}>
@@ -1725,7 +1725,7 @@ function ActiveLayerLegends({ filters }: { filters: LayerLegendFilters }) {
   return (
     <div
       data-testid="active-layer-legends"
-      className={`mt-4 max-h-[min(38vh,18rem)] overflow-y-auto rounded-2xl p-4 pr-3 ${liquidGlassCardClass}`}
+      className={`mt-4 max-h-[min(38vh,18rem)] overflow-y-scroll [scrollbar-gutter:stable] rounded-2xl p-4 pr-3 ${liquidGlassCardClass}`}
     >
       <div className="flex items-start gap-3">
         <Layers3 className="mt-0.5 h-4 w-4 shrink-0 text-[#17413f]" />
