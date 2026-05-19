@@ -801,7 +801,7 @@ describe("Map3DExperimentPage - Epic 5", () => {
 
     const legendPanel = view.container.querySelector('[data-testid="active-layer-legends"]');
     expect(legendPanel).toBeTruthy();
-    expect(legendPanel?.className).toContain("overflow-y-auto");
+    expect(legendPanel?.className).toContain("overflow-y-scroll");
 
     clickByText(view.container, "Natural Places");
     expect(latestMapProps?.showNaturalPlaces).toBe(false);
