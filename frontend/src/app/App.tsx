@@ -41,7 +41,7 @@ let hasAutoShownMapGuideThisRuntime = false;
 let suppressNextAutoMapGuide = false;
 
 const MAP_LAYOUT_NAV_ITEMS = [
-  { label: "Landing Page", to: APP_ROUTES.home },
+  { label: "Home", to: APP_ROUTES.home },
   { label: "Map", to: APP_ROUTES.map },
   { label: "3D Route", to: APP_ROUTES.map3dRoute },
   { label: "Risks", to: APP_ROUTES.risks },
@@ -1105,6 +1105,7 @@ export default function App() {
       endLng: String(precinct.lng),
       endName: precinct.name,
       autoLocateStart: "1",
+      skipTips: "1",
     });
     setShowMapGuide(false);
     navigate(`${APP_ROUTES.map3dRoute}?${params.toString()}`);
@@ -1116,6 +1117,7 @@ export default function App() {
       endLng: String(route.end.lng),
       endName: route.end.name,
       routeName: route.title,
+      skipTips: "1",
     });
 
     if (route.start) {

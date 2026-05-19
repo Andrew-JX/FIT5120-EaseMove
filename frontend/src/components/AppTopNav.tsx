@@ -30,7 +30,7 @@ type AppTopNavProps = {
 };
 
 const navItems = [
-  { to: APP_ROUTES.home, label: "Landing Page" },
+  { to: APP_ROUTES.home, label: "Home" },
   { to: APP_ROUTES.map, label: "Map" },
   { to: APP_ROUTES.map3dRoute, label: "3D Route" },
   { to: APP_ROUTES.risks, label: "Risks" },
@@ -448,7 +448,7 @@ export default function AppTopNav({
                     className="app-top-nav__landing-overlay-link app-top-nav__landing-overlay-link--button"
                     onClick={handleLandingPageAction}
                   >
-                    <span className="app-top-nav__landing-overlay-link-main">Landing Page</span>
+                    <span className="app-top-nav__landing-overlay-link-main">Home</span>
                     <span className="app-top-nav__landing-overlay-link-meta">
                       {overlayCopyByRoute[APP_ROUTES.home]}
                     </span>

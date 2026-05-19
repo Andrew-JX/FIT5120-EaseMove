@@ -1,11 +1,11 @@
 import { createScope, createTimeline, stagger } from "animejs";
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type RefObject } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
 import { useNavigate } from "react-router";
+import LandingSpiderCatGuide from "./LandingSpiderCatGuide";
 import { LANDING_CHOREO_EASE, LANDING_REVEAL_DURATIONS } from "./landingMotion";
 
 const bGifUrl = new URL("../../assets/B.gif", import.meta.url).href;
 const wGifUrl = new URL("../../assets/W.gif", import.meta.url).href;
-const spiderCatGifUrl = new URL("../../assets/landing/cat-spider.gif", import.meta.url).href;
 
 const SPIDER_CAT_PATROL_POINTS = [
   { x: 28, y: 24 },
@@ -24,14 +24,6 @@ const SPIDER_CAT_PATROL_POINTS = [
   { x: 23, y: 34 },
 ] as const;
 
-const SPIDER_CAT_TIPS = [
-  "You look lost. Map first?",
-  "Big plans? 3D Route is over there.",
-  "Need the backstory? About us exists.",
-  "No destination yet? Wander first.",
-  "Still deciding? I crawl. You choose.",
-] as const;
-
 function buildMobileCurvePath(side: "left" | "right") {
   if (side === "left") {
     return "M220 2 C 220 16, 228 24, 244 30 C 266 38, 286 42, 304 48 C 318 52, 328 58, 336 70";
@@ -47,210 +39,6 @@ function renderTitleWords(value: string) {
       {index < words.length - 1 ? "\u00A0" : ""}
     </span>
   ));
-}
-
-function SpiderCatGuide({ sceneRef }: { sceneRef: RefObject<HTMLElement | null> }) {
-  const [isDesktop, setIsDesktop] = useState(false);
-  const [position, setPosition] = useState({ x: SPIDER_CAT_PATROL_POINTS[0].x, y: SPIDER_CAT_PATROL_POINTS[0].y });
-  const [activeTip, setActiveTip] = useState<string | null>(null);
-  const [isDragging, setIsDragging] = useState(false);
-  const [isHovering, setIsHovering] = useState(false);
-  const [spiderState, setSpiderState] = useState<"moving" | "thinking" | "dragging">("moving");
-  const patrolIndexRef = useRef(1);
-  const tipIndexRef = useRef(0);
-  const dragOffsetRef = useRef({ x: 0, y: 0 });
-  const positionRef = useRef(position);
-  const stageTimeoutRef = useRef<number | null>(null);
-  const moveIntervalRef = useRef<number | null>(null);
-
-  const clearScheduledMotion = () => {
-    if (stageTimeoutRef.current !== null) {
-      window.clearTimeout(stageTimeoutRef.current);
-      stageTimeoutRef.current = null;
-    }
-    if (moveIntervalRef.current !== null) {
-      window.clearInterval(moveIntervalRef.current);
-      moveIntervalRef.current = null;
-    }
-  };
-
-  const showNextTip = () => {
-    const nextTip = SPIDER_CAT_TIPS[tipIndexRef.current % SPIDER_CAT_TIPS.length];
-    tipIndexRef.current += 1;
-    setSpiderState("thinking");
-    setActiveTip(nextTip);
-  };
-
-  useEffect(() => {
-    positionRef.current = position;
-  }, [position]);
-
-  useEffect(() => {
-    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
-
-    const desktopQuery = window.matchMedia("(pointer: fine)");
-    const mobileQuery = window.matchMedia("(max-width: 820px)");
-    const syncDesktop = () => {
-      setIsDesktop(desktopQuery.matches && !mobileQuery.matches);
-    };
-
-    syncDesktop();
-    desktopQuery.addEventListener("change", syncDesktop);
-    mobileQuery.addEventListener("change", syncDesktop);
-
-    return () => {
-      desktopQuery.removeEventListener("change", syncDesktop);
-      mobileQuery.removeEventListener("change", syncDesktop);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!isDesktop || isDragging || isHovering) return;
-
-    const queueNextMove = (delayMs: number) => {
-      clearScheduledMotion();
-      stageTimeoutRef.current = window.setTimeout(() => {
-        const nextPatrolIndex = patrolIndexRef.current % SPIDER_CAT_PATROL_POINTS.length;
-        const nextPoint = SPIDER_CAT_PATROL_POINTS[nextPatrolIndex];
-        const startPoint = positionRef.current;
-        const moveDurationMs = 1380;
-        const moveStartedAt = Date.now();
-
-        setSpiderState("moving");
-        setActiveTip(null);
-
-        moveIntervalRef.current = window.setInterval(() => {
-          const elapsedMs = Date.now() - moveStartedAt;
-          const progress = Math.min(1, elapsedMs / moveDurationMs);
-          const nextX = startPoint.x + (nextPoint.x - startPoint.x) * progress;
-          const nextY = startPoint.y + (nextPoint.y - startPoint.y) * progress;
-          const nextPosition = { x: nextX, y: nextY };
-          positionRef.current = nextPosition;
-          setPosition(nextPosition);
-
-          if (progress < 1) return;
-
-          if (moveIntervalRef.current !== null) {
-            window.clearInterval(moveIntervalRef.current);
-            moveIntervalRef.current = null;
-          }
-
-          patrolIndexRef.current += 1;
-          const shouldPauseForTip = patrolIndexRef.current % 4 === 0;
-          if (shouldPauseForTip) {
-            showNextTip();
-            stageTimeoutRef.current = window.setTimeout(() => {
-              setActiveTip(null);
-              queueNextMove(760);
-            }, 2300);
-            return;
-          }
-
-          queueNextMove(220);
-        }, 16);
-      }, delayMs);
-    };
-
-    queueNextMove(180);
-
-    return () => {
-      clearScheduledMotion();
-    };
-  }, [isDesktop, isDragging, isHovering]);
-
-  useEffect(() => {
-    if (!isDesktop || isDragging) return;
-
-    if (isHovering) {
-      clearScheduledMotion();
-      if (!activeTip || spiderState !== "thinking") {
-        showNextTip();
-      }
-    }
-  }, [activeTip, isDesktop, isDragging, isHovering, spiderState]);
-
-  useEffect(() => {
-    if (!isDesktop || !isDragging) return;
-
-    const updateDragPosition = (clientX: number, clientY: number) => {
-      const scene = sceneRef.current;
-      if (!scene) return;
-      const rect = scene.getBoundingClientRect();
-      const normalizedX = ((clientX - rect.left - dragOffsetRef.current.x) / rect.width) * 100;
-      const normalizedY = ((clientY - rect.top - dragOffsetRef.current.y) / rect.height) * 100;
-      const nextX = Math.max(12, Math.min(88, normalizedX));
-      const nextY = Math.max(18, Math.min(82, normalizedY));
-      setPosition({ x: nextX, y: nextY });
-    };
-
-    const handlePointerMove = (event: PointerEvent) => {
-      event.preventDefault();
-      updateDragPosition(event.clientX, event.clientY);
-    };
-
-    const handlePointerUp = () => {
-      setIsDragging(false);
-    };
-
-    window.addEventListener("pointermove", handlePointerMove);
-    window.addEventListener("pointerup", handlePointerUp);
-
-    return () => {
-      window.removeEventListener("pointermove", handlePointerMove);
-      window.removeEventListener("pointerup", handlePointerUp);
-    };
-  }, [isDesktop, isDragging, sceneRef]);
-
-  if (!isDesktop) return null;
-
-  return (
-    <div
-      className={`landing-spider-cat${isDragging ? " is-dragging" : ""}${activeTip ? " is-thinking" : ""}`}
-      data-testid="landing-spider-cat"
-      data-spider-state={isDragging ? "dragging" : spiderState}
-      onMouseEnter={() => {
-        if (!isDragging) {
-          setIsHovering(true);
-        }
-      }}
-      onMouseLeave={() => {
-        setActiveTip(null);
-        setSpiderState("moving");
-        setIsHovering(false);
-      }}
-      style={
-        {
-          "--landing-spider-cat-x": `${position.x}%`,
-          "--landing-spider-cat-y": `${position.y}%`,
-        } as CSSProperties
-      }
-    >
-      {activeTip ? (
-        <div className="landing-spider-cat-tip" data-testid="landing-spider-cat-tip" aria-live="polite">
-          {activeTip}
-        </div>
-      ) : null}
-      <button
-        type="button"
-        className="landing-spider-cat-button"
-        aria-label="Drag the spider cat guide"
-        onPointerDown={(event) => {
-          clearScheduledMotion();
-          const bounds = event.currentTarget.getBoundingClientRect();
-          dragOffsetRef.current = {
-            x: event.clientX - bounds.left - bounds.width / 2,
-            y: event.clientY - bounds.top - bounds.height / 2,
-          };
-          setActiveTip(null);
-          setIsHovering(false);
-          setSpiderState("dragging");
-          setIsDragging(true);
-        }}
-      >
-        <img src={spiderCatGifUrl} alt="" aria-hidden="true" className="landing-spider-cat-image" />
-      </button>
-    </div>
-  );
 }
 
 function AnimatedLandingButton({
@@ -386,7 +174,17 @@ function AnimatedLandingButton({
   );
 }
 
-export default function StartUsingScene() {
+type StartUsingSceneProps = {
+  sectionRef?: RefObject<HTMLElement | null>;
+  spiderJourneyAnchorRef?: RefObject<HTMLDivElement | null>;
+  showSpiderCatGuide?: boolean;
+};
+
+export default function StartUsingScene({
+  sectionRef,
+  spiderJourneyAnchorRef,
+  showSpiderCatGuide = true,
+}: StartUsingSceneProps) {
   const navigate = useNavigate();
   const sceneRef = useRef<HTMLElement | null>(null);
   const titleShellRef = useRef<HTMLDivElement | null>(null);
@@ -600,7 +398,12 @@ export default function StartUsingScene() {
 
   return (
     <section
-      ref={sceneRef}
+      ref={(node) => {
+        sceneRef.current = node;
+        if (sectionRef) {
+          sectionRef.current = node;
+        }
+      }}
       className={`landing-start-scene${isTitleRevealed ? " is-title-revealed" : ""}${
         isChoreoActive ? " is-choreo-active" : ""
       }`}
@@ -608,9 +411,19 @@ export default function StartUsingScene() {
       data-choreo-seq={choreoSeq}
       aria-label="Start using EaseMove"
     >
-      <SpiderCatGuide sceneRef={sceneRef} />
+      {showSpiderCatGuide ? (
+        <LandingSpiderCatGuide sceneRef={sceneRef} patrolPoints={SPIDER_CAT_PATROL_POINTS} />
+      ) : null}
       <div className="landing-start-inner">
-        <div ref={titleShellRef} className="landing-start-title-shell">
+        <div
+          ref={(node) => {
+            titleShellRef.current = node;
+            if (spiderJourneyAnchorRef) {
+              spiderJourneyAnchorRef.current = node;
+            }
+          }}
+          className="landing-start-title-shell"
+        >
           <p className="landing-start-title-tag">Choose your next step</p>
           <h2 className="landing-start-title">
             <span className="landing-start-title-main back-in-left" aria-label="Pick your path">

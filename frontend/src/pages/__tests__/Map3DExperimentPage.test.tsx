@@ -314,7 +314,7 @@ describe("Map3DExperimentPage - Epic 5", () => {
     expect(view.container.textContent).toContain("3D Route Preview");
     expect(view.container.textContent).toContain("Mock 3D city view");
     expect(view.container.textContent).toContain("Drag to pan, scroll to zoom, and right-drag");
-    expect(view.container.textContent).toContain("Tap Start to lock or re-arm map picking");
+    expect(view.container.textContent).toContain("Tap Map picking to lock or re-arm point selection");
     expect(
       view.container.querySelector('button[aria-label="Open landing navigation menu"]')
     ).toBeTruthy();
@@ -344,7 +344,7 @@ describe("Map3DExperimentPage - Epic 5", () => {
     expect(
       view.container.querySelector('button[aria-label="Close landing navigation menu"]')
     ).toBeTruthy();
-    expect(view.container.textContent).toContain("Landing Page");
+    expect(view.container.textContent).toContain("Home");
     expect(view.container.textContent).toContain("3D Route");
 
     view.unmount();
@@ -492,7 +492,7 @@ describe("Map3DExperimentPage - Epic 5", () => {
     view.unmount();
   });
 
-  test("the Start card can also lock and unlock map point selection with a highlighted status", async () => {
+  test("the dedicated map picking card can lock and unlock map point selection with a highlighted status", async () => {
     const Map3DExperimentPage = await loadPageWithToken();
     const view = render(
       <MemoryRouter initialEntries={["/map/3d-route"]}>
@@ -503,25 +503,58 @@ describe("Map3DExperimentPage - Epic 5", () => {
     );
 
     expect(view.container.textContent).toContain("Map picking ON");
-    expect(view.container.textContent).toContain("Tap Start to lock or re-arm map picking");
+    expect(view.container.textContent).toContain("Tap Map picking to lock or re-arm point selection");
+    expect(view.container.textContent).toContain("Start");
 
-    const startToggle = view.container.querySelector('button[aria-label="Disable map point selection from Start card"]');
-    expect(startToggle).toBeTruthy();
+    const mapPickingToggle = view.container.querySelector('button[aria-label="Disable map point selection from Map picking card"]');
+    expect(mapPickingToggle).toBeTruthy();
 
     act(() => {
-      startToggle!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      mapPickingToggle!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
 
     expect(view.container.textContent).toContain("Map picking LOCKED");
 
-    const startUnlock = view.container.querySelector('button[aria-label="Enable map point selection from Start card"]');
-    expect(startUnlock).toBeTruthy();
+    const mapPickingUnlock = view.container.querySelector('button[aria-label="Enable map point selection from Map picking card"]');
+    expect(mapPickingUnlock).toBeTruthy();
 
     act(() => {
-      startUnlock!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      mapPickingUnlock!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
 
     expect(view.container.textContent).toContain("Map picking ON");
+
+    view.unmount();
+  });
+
+  test("instruction cards disappear once any route point is selected and return only when no points are selected", async () => {
+    const Map3DExperimentPage = await loadPageWithToken();
+    const view = render(
+      <MemoryRouter initialEntries={["/map/3d-route"]}>
+        <Routes>
+          <Route path="/map/3d-route" element={<Map3DExperimentPage />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    expect(view.container.textContent).toContain("Drag to pan, scroll to zoom, and right-drag");
+    expect(view.container.textContent).toContain("Click the map once to set a start point.");
+
+    clickByText(view.container, "Map click start");
+    await view.flush();
+
+    expect(view.container.textContent).not.toContain("Drag to pan, scroll to zoom, and right-drag");
+    expect(view.container.textContent).not.toContain("Click the map once to set a start point.");
+
+    const deleteStartButton = view.container.querySelector('button[aria-label="Delete Start point"]');
+    expect(deleteStartButton).toBeTruthy();
+
+    act(() => {
+      deleteStartButton!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(view.container.textContent).toContain("Drag to pan, scroll to zoom, and right-drag");
+    expect(view.container.textContent).toContain("Click the map once to set a start point.");
 
     view.unmount();
   });
@@ -788,6 +821,7 @@ describe("Map3DExperimentPage - Epic 5", () => {
 
     expect(latestMapProps?.showNaturalPlaces).toBe(true);
     expect(view.container.querySelector('[data-testid="mock-route-profile"]')?.textContent).toBe("walking");
+    expect(view.container.textContent).toContain("Current layer data points are only available within the Melbourne CBD area.");
     expect(view.container.textContent).toContain("Layer legend");
     expect(view.container.textContent).toContain("Waterbody");
 
@@ -917,7 +951,7 @@ describe("Map3DExperimentPage - Epic 5", () => {
     const view = render(
       <MemoryRouter
         initialEntries={[
-          "/map/3d-route?endLat=-37.82230&endLng=144.95220&endName=Docklands&autoLocateStart=1",
+          "/map/3d-route?endLat=-37.82230&endLng=144.95220&endName=Docklands&autoLocateStart=1&skipTips=1",
         ]}
       >
         <Routes>
@@ -928,11 +962,25 @@ describe("Map3DExperimentPage - Epic 5", () => {
 
     await view.flush();
 
+    expect(view.container.textContent).not.toContain("Tips Guide");
+    expect(view.container.querySelector('[data-testid="spotlight-guide-overlay"]')).toBeNull();
     expect(geolocationMock).toHaveBeenCalledTimes(1);
     expect(view.container.textContent).not.toContain("0.00000, 0.00000");
     expect(view.container.textContent).toContain("-37.81360, 144.96310");
     expect(view.container.textContent).toContain("-37.82230, 144.95220");
     expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    const tipsButton = Array.from(view.container.querySelectorAll("button")).find(
+      (button) => button.textContent?.trim() === "Tips"
+    );
+    expect(tipsButton).toBeTruthy();
+
+    act(() => {
+      tipsButton!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(view.container.textContent).toContain("Tips Guide");
+    expect(view.container.querySelector('[data-testid="spotlight-guide-overlay"]')).toBeTruthy();
 
     view.unmount();
   });
@@ -1289,20 +1337,10 @@ describe("Map3DExperimentPage - Epic 5", () => {
     );
 
     expect(firstView.container.textContent).toContain("Tips Guide");
-    expect(firstView.container.textContent).toContain("Step 1 of 4");
-    expect(firstView.container.textContent).toContain("Choose your route points");
-    expect(firstView.container.querySelector('[data-testid="route-guide-overlay"]')?.className).toContain(
-      "overflow-hidden"
-    );
-    expect(firstView.container.querySelector('[data-testid="route-guide-step-card"]')?.className).toContain(
-      "route-guide-glass-card"
-    );
-    expect(firstView.container.querySelector('[data-testid="route-guide-body-card"]')?.className).toContain(
-      "route-guide-glass-panel"
-    );
-    expect(firstView.container.querySelector('[data-testid="route-guide-next-button"]')?.className).toContain(
-      "route-guide-glass-button"
-    );
+    expect(firstView.container.textContent).toContain("Pick your two points");
+    expect(firstView.container.querySelector('[data-testid="spotlight-guide-overlay"]')).toBeTruthy();
+    expect(firstView.container.querySelector('[data-testid="spotlight-guide-highlight"]')).toBeTruthy();
+    expect(firstView.container.querySelector('[data-testid="spotlight-guide-card"]')).toBeTruthy();
     firstView.unmount();
 
     const secondView = render(
@@ -1326,10 +1364,11 @@ describe("Map3DExperimentPage - Epic 5", () => {
     );
 
     expect(reloadedView.container.textContent).toContain("Tips Guide");
+    expect(reloadedView.container.querySelector('[data-testid="spotlight-guide-overlay"]')).toBeTruthy();
     reloadedView.unmount();
   });
 
-  test("3D route guide explains live tracking, pet movement, reroute prompt, and autoplay resume", async () => {
+  test("3D route guide advances inline with Next and closes with Skip", async () => {
     const Map3DExperimentPage = await loadPageWithToken();
     const view = render(
       <MemoryRouter initialEntries={["/map/3d-route"]}>
@@ -1340,31 +1379,87 @@ describe("Map3DExperimentPage - Epic 5", () => {
     );
 
     const nextButton = () => view.container.querySelector('[data-testid="route-guide-next-button"]');
+    const skipButton = () => view.container.querySelector('[data-testid="route-guide-skip-button"]');
 
-    expect(view.container.textContent).toContain("Choose your route points");
-
-    act(() => {
-      nextButton()!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    });
-    expect(view.container.textContent).toContain("Read the route summary quickly");
+    expect(view.container.textContent).toContain("Pick your two points");
+    expect(view.container.textContent).toContain("Map picking");
+    expect(view.container.querySelector('[data-testid="spotlight-guide-target-points"]')).toBeTruthy();
 
     act(() => {
       nextButton()!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
-    expect(view.container.textContent).toContain("Use map controls without losing context");
+    expect(view.container.textContent).toContain("Your route info will show here");
+    expect(view.container.textContent).toContain("This is the route results area.");
+    expect(view.container.querySelector('[data-testid="spotlight-guide-target-results"]')).toBeTruthy();
+
+    act(() => {
+      nextButton()!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    expect(view.container.textContent).toContain("Use the top bar");
+    expect(view.container.querySelector('[data-testid="spotlight-guide-target-toolbar"]')).toBeTruthy();
 
     act(() => {
       nextButton()!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
 
-    expect(view.container.textContent).toContain("Refine the route when needed");
-    expect(view.container.textContent).toContain("Track live route progress");
-    expect(view.container.textContent).toContain("pet");
+    expect(view.container.textContent).toContain("More controls are here");
+    expect(view.container.textContent).toContain("track live route progress");
+    expect(view.container.textContent).toContain("Map picking");
     expect(view.container.textContent).toContain("current location");
-    expect(view.container.textContent).toContain("selected start point");
-    expect(view.container.textContent).toContain("re-route");
-    expect(view.container.textContent).toContain("same destination");
-    expect(view.container.textContent).toContain("Auto playback");
+    expect(view.container.textContent).toContain("live route progress");
+    expect(view.container.querySelector('[data-testid="spotlight-guide-target-controls"]')).toBeTruthy();
+
+    act(() => {
+      skipButton()!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(view.container.textContent).not.toContain("Tips Guide");
+    expect(view.container.querySelector('[data-testid="spotlight-guide-overlay"]')).toBeNull();
+
+    view.unmount();
+  });
+
+  test("the route guide opens the mobile sheet before highlighting lower panel content", async () => {
+    Object.defineProperty(window, "matchMedia", {
+      writable: true,
+      value: vi.fn().mockImplementation(() => ({
+        matches: true,
+        media: "(max-width: 767px)",
+        onchange: null,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      })),
+    });
+
+    const Map3DExperimentPage = await loadPageWithToken();
+    const view = render(
+      <MemoryRouter initialEntries={["/map/3d-route"]}>
+        <Routes>
+          <Route path="/map/3d-route" element={<Map3DExperimentPage />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    const handleButton = view.container.querySelector('[data-testid="route-mobile-sheet-handle"]');
+    expect(handleButton?.getAttribute("aria-label")).toBe("Collapse panel preview");
+
+    act(() => {
+      handleButton!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(handleButton?.getAttribute("aria-label")).toBe("Expand panel preview");
+
+    const nextButton = () => view.container.querySelector('[data-testid="route-guide-next-button"]');
+
+    act(() => {
+      nextButton()!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(handleButton?.getAttribute("aria-label")).toBe("Collapse panel preview");
+    expect(view.container.querySelector('[data-testid="spotlight-guide-target-results"]')).toBeTruthy();
 
     view.unmount();
   });
@@ -1426,7 +1521,7 @@ describe("Map3DExperimentPage - Epic 5", () => {
     const view = render(
       <MemoryRouter
         initialEntries={[
-          "/map/3d-route?startLat=-37.81140&startLng=144.95420&endLat=-37.80760&endLng=144.95680&routeName=Flagstaff%20Gardens%20to%20Queen%20Victoria%20Market",
+          "/map/3d-route?startLat=-37.81140&startLng=144.95420&endLat=-37.80760&endLng=144.95680&routeName=Flagstaff%20Gardens%20to%20Queen%20Victoria%20Market&skipTips=1",
         ]}
       >
         <Routes>
@@ -1437,6 +1532,8 @@ describe("Map3DExperimentPage - Epic 5", () => {
 
     await view.flush();
 
+    expect(view.container.textContent).not.toContain("Tips Guide");
+    expect(view.container.querySelector('[data-testid="spotlight-guide-overlay"]')).toBeNull();
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(String(fetchMock.mock.calls[0]?.[0])).toContain("144.9542,-37.8114;144.9568,-37.8076");
     expect(view.container.textContent).toContain("-37.81140, 144.95420");

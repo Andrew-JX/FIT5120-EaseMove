@@ -132,6 +132,14 @@ class MockMap {
     return this;
   }
 
+  off(event: string, handler: Listener) {
+    const handlers = this.handlers.get(event) ?? [];
+    this.handlers.set(event, handlers.filter((candidate) => candidate !== handler));
+    const onceHandlers = this.onceHandlers.get(event) ?? [];
+    this.onceHandlers.set(event, onceHandlers.filter((candidate) => candidate !== handler));
+    return this;
+  }
+
   trigger(event: string, ...args: any[]) {
     for (const handler of this.handlers.get(event) ?? []) handler(...args);
     const once = this.onceHandlers.get(event) ?? [];
@@ -162,6 +170,11 @@ function render(element: React.ReactNode) {
 
   return {
     container,
+    rerender(nextElement: React.ReactNode) {
+      act(() => {
+        root.render(nextElement);
+      });
+    },
     unmount() {
       act(() => {
         root.unmount();
@@ -480,6 +493,88 @@ describe("WhiteModelMap", () => {
     act(() => {
       view.unmount();
     });
+  });
+
+  test("pauses pet marker updates during direct map interactions and catches up afterwards", async () => {
+    const module = await import("../WhiteModelMap");
+    const WhiteModelMap = module.default;
+
+    const route = {
+      distanceMeters: 1200,
+      durationSeconds: 780,
+      steps: [],
+      profile: "walking" as const,
+      geometry: {
+        type: "LineString" as const,
+        coordinates: [
+          [144.9542, -37.8114],
+          [144.9552, -37.8108],
+          [144.9568, -37.8076],
+        ],
+      },
+    };
+
+    const view = render(
+      <WhiteModelMap
+        mapboxToken="token"
+        startPoint={{ lng: 144.9542, lat: -37.8114 }}
+        endPoint={{ lng: 144.9568, lat: -37.8076 }}
+        route={route}
+        routeProgress={0.2}
+        routePlaybackMode="autoplay"
+        followPet={false}
+        focusedStep={null}
+        showEasePlaces={false}
+        showNaturalPlaces={false}
+        showStreetFacilities={false}
+        onMapClick={vi.fn()}
+        onMapError={vi.fn()}
+      />
+    );
+
+    const map = mapInstances[0];
+    expect(map).toBeTruthy();
+
+    act(() => {
+      map.trigger("style.load");
+      map.trigger("idle");
+    });
+
+    const petMarker = markerInstances.find((marker) => marker.options.element.getAttribute("data-testid") === "route-pet-marker");
+    expect(petMarker?.lngLat).toBeTruthy();
+    const initialLngLat = petMarker?.lngLat ? [...petMarker.lngLat] : null;
+
+    act(() => {
+      map.trigger("movestart");
+    });
+
+    view.rerender(
+      <WhiteModelMap
+        mapboxToken="token"
+        startPoint={{ lng: 144.9542, lat: -37.8114 }}
+        endPoint={{ lng: 144.9568, lat: -37.8076 }}
+        route={route}
+        routeProgress={0.7}
+        routePlaybackMode="autoplay"
+        followPet={false}
+        focusedStep={null}
+        showEasePlaces={false}
+        showNaturalPlaces={false}
+        showStreetFacilities={false}
+        onMapClick={vi.fn()}
+        onMapError={vi.fn()}
+      />
+    );
+
+    expect(petMarker?.lngLat).toEqual(initialLngLat);
+
+    act(() => {
+      map.trigger("moveend");
+    });
+
+    expect(petMarker?.lngLat).not.toEqual(initialLngLat);
+
+    view.unmount();
   });
 
 });

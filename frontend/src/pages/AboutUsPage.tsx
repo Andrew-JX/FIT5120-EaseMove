@@ -16,6 +16,8 @@ import {
 } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { useNavigate } from "react-router";
+import AppTopNav, { type LandingNavMode, type LandingNavTone } from "../components/AppTopNav";
+import FloatingBackToTop from "../components/FloatingBackToTop";
 import { APP_ROUTES } from "../lib/navigation";
 import aboutUsEndingEasterEggGif from "../assets/aboutus/aboutus-ending-easter-egg.gif";
 import "./aboutus.css";
@@ -140,6 +142,11 @@ const signalMarquee = [
   "Street-level reassurance",
   "Journey timing",
 ] as const;
+
+const ABOUT_NAV_COMPACT_SCROLL_Y = 140;
+const ABOUT_NAV_MOBILE_QUERY = "(max-width: 720px)";
+const ABOUT_NAV_TONE_PROBE_Y = 96;
+const ABOUT_DARK_SECTION_SELECTORS = [".aboutus-hero", ".aboutus-evidence"] as const;
 
 const ABOUTUS_ENDING_EASTER_EGG_DELAY_MS = 2000;
 const ABOUTUS_ENDING_EASTER_EGG_VISIBLE_MS = 3400;
@@ -269,9 +276,15 @@ function AboutUsPage() {
   const endingFireworksCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const endingHoldTimerRef = useRef<number | null>(null);
   const endingHideTimerRef = useRef<number | null>(null);
+  const aboutOverlayScrollYRef = useRef(0);
   const [showEndingEasterEgg, setShowEndingEasterEgg] = useState(false);
   const [hasPlayedEndingEasterEgg, setHasPlayedEndingEasterEgg] = useState(false);
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
+  const [landingMode, setLandingMode] = useState<LandingNavMode>("hero");
+  const [landingTone, setLandingTone] = useState<LandingNavTone>("light");
+  const [landingTransitionProgress, setLandingTransitionProgress] = useState(0);
+  const [landingOverlayOpen, setLandingOverlayOpen] = useState(false);
+  const [backToTopProgress, setBackToTopProgress] = useState(0);
 
   const handleBack = () => {
     const historyState = window.history.state as { idx?: number } | null;
@@ -294,6 +307,90 @@ function AboutUsPage() {
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "auto" });
   }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
+      setLandingTransitionProgress(0);
+      setLandingMode("hero");
+      return;
+    }
+
+    const mediaQuery = window.matchMedia(ABOUT_NAV_MOBILE_QUERY);
+    const computeLandingMode = (event?: MediaQueryListEvent) => {
+      const isMobile = event ? event.matches : mediaQuery.matches;
+      const isProbeOnDarkSection = ABOUT_DARK_SECTION_SELECTORS.some((selector) => {
+        const element = document.querySelector<HTMLElement>(selector);
+        if (!element) return false;
+        const rect = element.getBoundingClientRect();
+        return rect.top <= ABOUT_NAV_TONE_PROBE_Y && rect.bottom >= ABOUT_NAV_TONE_PROBE_Y;
+      });
+      setLandingTone(isProbeOnDarkSection ? "light" : "dark");
+      setBackToTopProgress(Math.min(1, Math.max(0, window.scrollY / ABOUT_NAV_COMPACT_SCROLL_Y)));
+
+      if (isMobile) {
+        setLandingTransitionProgress(1);
+        setLandingMode("compact");
+        return;
+      }
+
+      const progress = Math.min(1, Math.max(0, window.scrollY / ABOUT_NAV_COMPACT_SCROLL_Y));
+      setLandingTransitionProgress(progress);
+      setLandingMode(progress <= 0.001 ? "hero" : progress >= 0.999 ? "compact" : "transition");
+    };
+
+    computeLandingMode();
+    window.addEventListener("scroll", computeLandingMode, { passive: true });
+    window.addEventListener("resize", computeLandingMode);
+    mediaQuery.addEventListener("change", computeLandingMode);
+
+    return () => {
+      window.removeEventListener("scroll", computeLandingMode);
+      window.removeEventListener("resize", computeLandingMode);
+      mediaQuery.removeEventListener("change", computeLandingMode);
+    };
+  }, []);
+
+  useEffect(() => {
+    const restoreScroll = () => {
+      const lockedScrollY = aboutOverlayScrollYRef.current;
+      delete document.body.dataset.landingLockedScrollY;
+
+      if (lockedScrollY > 0 && Math.abs(window.scrollY - lockedScrollY) > 1) {
+        window.scrollTo({ top: lockedScrollY, left: 0, behavior: "auto" });
+      }
+    };
+
+    if (!landingOverlayOpen) {
+      restoreScroll();
+      return;
+    }
+
+    const lockedScrollY = aboutOverlayScrollYRef.current;
+    document.body.dataset.landingLockedScrollY = String(lockedScrollY);
+
+    const restoreLockedPosition = () => {
+      if (Math.abs(window.scrollY - lockedScrollY) > 1) {
+        window.scrollTo({ top: lockedScrollY, left: 0, behavior: "auto" });
+      }
+    };
+
+    if (typeof window.requestAnimationFrame === "function") {
+      window.requestAnimationFrame(restoreLockedPosition);
+    } else {
+      restoreLockedPosition();
+    }
+
+    return restoreScroll;
+  }, [landingOverlayOpen]);
+
+  const handleLandingOverlayOpenChange = (open: boolean) => {
+    if (open) {
+      aboutOverlayScrollYRef.current = window.scrollY;
+      document.body.dataset.landingLockedScrollY = String(window.scrollY);
+    }
+
+    setLandingOverlayOpen(open);
+  };
 
   useEffect(() => {
     if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
@@ -782,6 +879,21 @@ function AboutUsPage() {
 
   return (
     <div ref={pageRef} className="aboutus-page">
+      <div className={`landing-global-nav-shell${landingOverlayOpen ? " is-nav-overlay-open" : ""}`}>
+        <AppTopNav
+          variant="landing"
+          landingMode={landingMode}
+          landingTone={landingTone}
+          landingTransitionProgress={landingTransitionProgress}
+          landingOverlayOpen={landingOverlayOpen}
+          onLandingOverlayOpenChange={handleLandingOverlayOpenChange}
+        />
+      </div>
+      <FloatingBackToTop
+        progress={backToTopProgress}
+        tone={landingTone}
+      />
+
       {showEndingEasterEgg ? (
         <div
           className={`aboutus-ending-celebration${prefersReducedMotion ? " aboutus-ending-celebration--reduced" : ""}`}

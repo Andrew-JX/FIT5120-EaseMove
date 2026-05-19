@@ -490,6 +490,7 @@ export default function WhiteModelMap({
   const petMarkerElementRef = useRef<HTMLElement | null>(null);
   const petMarkerStateRef = useRef<{ point: RoutePoint; progress: number | null } | null>(null);
   const petMarkerAttachedRef = useRef(false);
+  const pauseAutoplayPetUpdatesRef = useRef(false);
   const focusedStepMarkerRef = useRef<mapboxgl.Marker | null>(null);
   const naturalPopupRef = useRef<mapboxgl.Popup | null>(null);
   const easePlacesPopupRef = useRef<mapboxgl.Popup | null>(null);
@@ -507,6 +508,7 @@ export default function WhiteModelMap({
   const routeGeometryRef = useRef<GeoJSON.LineString | null>(null);
   const hasFocusedInitialRouteRef = useRef(false);
   const followPetRef = useRef(followPet);
+  const liveTrackedPointRef = useRef<RoutePoint | null>(liveTrackedPoint);
   const showEasePlacesRef = useRef(showEasePlaces);
   const showNaturalPlacesRef = useRef(showNaturalPlaces);
   const showStreetFacilitiesRef = useRef(showStreetFacilities);
@@ -622,6 +624,65 @@ export default function WhiteModelMap({
     }
 
     return split.point;
+  };
+
+  const syncPetMarker = (
+    nextRoute: RouteSummary | null = routeRef.current,
+    nextProgress: number | null = routeProgressRef.current,
+    nextPlaybackMode: RoutePlaybackMode = routePlaybackModeRef.current,
+    nextLiveTrackedPoint: RoutePoint | null = liveTrackedPointRef.current
+  ) => {
+    const map = mapRef.current;
+    if (!map || !nextRoute) {
+      petMarkerRef.current?.remove();
+      petMarkerRef.current = null;
+      petMarkerAttachedRef.current = false;
+      petMarkerStateRef.current = null;
+      return;
+    }
+
+    if (pauseAutoplayPetUpdatesRef.current && nextPlaybackMode === "autoplay") {
+      return;
+    }
+
+    const activePoint = drawRoute(nextRoute.geometry, nextProgress);
+    const markerPoint = nextPlaybackMode === "live" && nextLiveTrackedPoint ? nextLiveTrackedPoint : activePoint;
+    if (!markerPoint || typeof nextProgress !== "number") {
+      petMarkerRef.current?.remove();
+      petMarkerRef.current = null;
+      petMarkerAttachedRef.current = false;
+      petMarkerStateRef.current = null;
+      return;
+    }
+
+    if (!petMarkerRef.current) {
+      petMarkerElementRef.current = createPetMarkerElement();
+      petMarkerRef.current = new mapboxgl.Marker({
+        element: petMarkerElementRef.current,
+        anchor: "center",
+      });
+    }
+
+    const direction = resolvePetDirection(nextRoute.geometry, nextProgress);
+    const previousState = petMarkerStateRef.current;
+    const deltaProgress = previousState?.progress === null || previousState?.progress === undefined
+      ? Math.abs(nextProgress)
+      : Math.abs(nextProgress - previousState.progress);
+    const deltaDistance =
+      previousState
+        ? Math.hypot(markerPoint.lng - previousState.point.lng, markerPoint.lat - previousState.point.lat)
+        : Number.POSITIVE_INFINITY;
+    const isMoving = deltaProgress > 0.0005 || deltaDistance > 0.00001;
+    if (petMarkerElementRef.current) {
+      updatePetMarkerPresentation(petMarkerElementRef.current, nextPlaybackMode, direction, isMoving);
+    }
+    petMarkerRef.current.setLngLat([markerPoint.lng, markerPoint.lat]);
+    if (!petMarkerAttachedRef.current) {
+      petMarkerRef.current.addTo(map);
+      petMarkerAttachedRef.current = true;
+    }
+    petMarkerStateRef.current = { point: markerPoint, progress: nextProgress };
+    maybeFollowPet(markerPoint);
   };
 
   const fitRoute = (geometry: GeoJSON.LineString) => {
@@ -1096,6 +1157,10 @@ export default function WhiteModelMap({
   }, [routePlaybackMode]);
 
   useEffect(() => {
+    liveTrackedPointRef.current = liveTrackedPoint;
+  }, [liveTrackedPoint]);
+
+  useEffect(() => {
     if (!route) {
       hasFocusedInitialRouteRef.current = false;
     }
@@ -1285,7 +1350,22 @@ export default function WhiteModelMap({
       onMapClickRef.current({ lng: event.lngLat.lng, lat: event.lngLat.lat });
     });
 
+    const pauseAutoplayPetUpdates = () => {
+      pauseAutoplayPetUpdatesRef.current = true;
+    };
+
+    const resumeAutoplayPetUpdates = () => {
+      pauseAutoplayPetUpdatesRef.current = false;
+      syncPetMarker();
+    };
+
+    map.on("movestart", pauseAutoplayPetUpdates);
+    map.on("moveend", resumeAutoplayPetUpdates);
+
     return () => {
+      pauseAutoplayPetUpdatesRef.current = false;
+      map.off?.("movestart", pauseAutoplayPetUpdates);
+      map.off?.("moveend", resumeAutoplayPetUpdates);
       onViewportControlsReadyRef.current?.(null);
       startMarkerRef.current?.remove();
       endMarkerRef.current?.remove();
@@ -1432,52 +1512,7 @@ export default function WhiteModelMap({
   }, [route, startPoint, endPoint]);
 
   useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !route) {
-      petMarkerRef.current?.remove();
-      petMarkerRef.current = null;
-      petMarkerAttachedRef.current = false;
-      return;
-    }
-
-    const activePoint = drawRoute(route.geometry, routeProgress);
-    const markerPoint = routePlaybackMode === "live" && liveTrackedPoint ? liveTrackedPoint : activePoint;
-    if (!markerPoint || typeof routeProgress !== "number") {
-      petMarkerRef.current?.remove();
-      petMarkerRef.current = null;
-      petMarkerAttachedRef.current = false;
-      petMarkerStateRef.current = null;
-      return;
-    }
-
-    if (!petMarkerRef.current) {
-      petMarkerElementRef.current = createPetMarkerElement();
-      petMarkerRef.current = new mapboxgl.Marker({
-        element: petMarkerElementRef.current,
-        anchor: "center",
-      });
-    }
-
-    const direction = resolvePetDirection(route.geometry, routeProgress);
-    const previousState = petMarkerStateRef.current;
-    const deltaProgress = previousState?.progress === null || previousState?.progress === undefined
-      ? Math.abs(routeProgress)
-      : Math.abs(routeProgress - previousState.progress);
-    const deltaDistance =
-      previousState
-        ? Math.hypot(markerPoint.lng - previousState.point.lng, markerPoint.lat - previousState.point.lat)
-        : Number.POSITIVE_INFINITY;
-    const isMoving = deltaProgress > 0.0005 || deltaDistance > 0.00001;
-    if (petMarkerElementRef.current) {
-      updatePetMarkerPresentation(petMarkerElementRef.current, routePlaybackMode, direction, isMoving);
-    }
-    petMarkerRef.current.setLngLat([markerPoint.lng, markerPoint.lat]);
-    if (!petMarkerAttachedRef.current) {
-      petMarkerRef.current.addTo(map);
-      petMarkerAttachedRef.current = true;
-    }
-    petMarkerStateRef.current = { point: markerPoint, progress: routeProgress };
-    maybeFollowPet(markerPoint);
+    syncPetMarker(route, routeProgress, routePlaybackMode, liveTrackedPoint);
   }, [route, routeProgress, routePlaybackMode, followPet, liveTrackedPoint]);
 
   useEffect(() => {

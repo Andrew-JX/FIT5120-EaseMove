@@ -113,7 +113,7 @@ describe("ExtremeWeatherRisksPage - Epic 4", () => {
     });
 
     expect(view.container.querySelector(".app-top-nav__landing-overlay")).not.toBeNull();
-    expect(view.container.textContent).toContain("Landing Page");
+    expect(view.container.textContent).toContain("Home");
     expect(view.container.textContent).toContain("Map");
     expect(view.container.textContent).toContain("3D Route");
     expect(view.container.textContent).toContain("Risks");
