@@ -25,7 +25,7 @@ vi.mock("../HowToUseScene", () => ({
 }));
 
 vi.mock("../StartUsingScene", () => ({
-  default: () => <section>Start</section>,
+  default: () => <section className="landing-start-scene">Start</section>,
 }));
 
 vi.mock("../MissionGalleryScene", () => ({
@@ -33,7 +33,7 @@ vi.mock("../MissionGalleryScene", () => ({
 }));
 
 vi.mock("../FooterScene", () => ({
-  default: () => <footer>Footer</footer>,
+  default: () => <footer className="landing-footer-scene">Footer</footer>,
 }));
 
 vi.mock("../landingSceneController", () => ({
@@ -92,6 +92,34 @@ describe("HomePage landing nav state", () => {
         } as DOMRect;
       }
 
+      if ((this as HTMLElement).classList.contains("landing-start-scene")) {
+        return {
+          x: 0,
+          y: 2400 - window.scrollY,
+          width: 800,
+          height: 600,
+          top: 2400 - window.scrollY,
+          right: 800,
+          bottom: 3000 - window.scrollY,
+          left: 0,
+          toJSON: () => ({}),
+        } as DOMRect;
+      }
+
+      if ((this as HTMLElement).classList.contains("landing-footer-scene")) {
+        return {
+          x: 0,
+          y: 4200 - window.scrollY,
+          width: 800,
+          height: 400,
+          top: 4200 - window.scrollY,
+          right: 800,
+          bottom: 4600 - window.scrollY,
+          left: 0,
+          toJSON: () => ({}),
+        } as DOMRect;
+      }
+
       return {
         x: 0,
         y: 0,
@@ -127,7 +155,12 @@ describe("HomePage landing nav state", () => {
       variant: "landing",
       landingMode: "hero",
       landingTransitionProgress: 0,
+      landingTone: "light",
     });
+
+    const backToTopButton = view.container.querySelector('[data-testid="floating-back-to-top"]') as HTMLButtonElement | null;
+    expect(backToTopButton).not.toBeNull();
+    expect(backToTopButton?.style.opacity).toBe("0");
 
     act(() => {
       window.scrollY = 420;
@@ -136,9 +169,11 @@ describe("HomePage landing nav state", () => {
 
     expect(capturedNavProps.at(-1)).toMatchObject({
       landingMode: "transition",
+      landingTone: "light",
     });
     expect((capturedNavProps.at(-1)?.landingTransitionProgress as number) > 0).toBe(true);
     expect((capturedNavProps.at(-1)?.landingTransitionProgress as number) < 1).toBe(true);
+    expect(Number(backToTopButton?.style.opacity ?? 0)).toBeGreaterThan(0);
 
     act(() => {
       window.scrollY = 760;
@@ -148,6 +183,17 @@ describe("HomePage landing nav state", () => {
     expect(capturedNavProps.at(-1)).toMatchObject({
       landingMode: "compact",
       landingTransitionProgress: 1,
+      landingTone: "light",
+    });
+    expect(backToTopButton?.style.opacity).toBe("1");
+
+    act(() => {
+      window.scrollY = 1120;
+      window.dispatchEvent(new Event("scroll"));
+    });
+
+    expect(capturedNavProps.at(-1)).toMatchObject({
+      landingTone: "dark",
     });
 
     view.unmount();
