@@ -1,3 +1,5 @@
+# iteration3
+
 # EaseMove Frontend
 
 React 18 + Vite frontend for EaseMove Melbourne / MoveComfortly.
@@ -18,31 +20,31 @@ VITE_MAPBOX_PUBLIC_TOKEN=<optional but needed for full 3D route directions>
 
 ## Main Frontend Routes
 
-| Route | Purpose |
-| --- | --- |
-| `/` | Landing page |
-| `/map` | Main comfort map |
-| `/map/compare` | Precinct comparison |
-| `/map/3d-route` | 3D route planner |
-| `/map/3d-experiment` | Legacy alias to the same 3D route page |
-| `/aboutus` | About page |
-| `/extreme-weather-risks` | Extreme weather overview |
-| `/extreme-weather-risks-detail` | Risk detail page |
-| `/extreme-weather-risks-quiz` | Risk quiz page |
+| Route                           | Purpose                                |
+| ------------------------------- | -------------------------------------- |
+| `/`                             | Landing page                           |
+| `/map`                          | Main comfort map                       |
+| `/map/compare`                  | Precinct comparison                    |
+| `/map/3d-route`                 | 3D route planner                       |
+| `/map/3d-experiment`            | Legacy alias to the same 3D route page |
+| `/aboutus`                      | About page                             |
+| `/extreme-weather-risks`        | Extreme weather overview               |
+| `/extreme-weather-risks-detail` | Risk detail page                       |
+| `/extreme-weather-risks-quiz`   | Risk quiz page                         |
 
 ## Key Files
 
-| File | Purpose |
-| --- | --- |
-| `src/main.tsx` | Router and route registration |
-| `src/app/App.tsx` | Main map experience, detail panels, compare mode, and comfort preferences |
-| `src/components/LeafletMap.tsx` | 2D precinct map and overlay layers |
-| `src/components/WhiteModelMap.tsx` | Mapbox Standard 3D route rendering, bounds control, and map interactions |
-| `src/pages/Map3DExperimentPage.tsx` | 3D route planner page |
-| `src/components/landing/` | Landing page scenes |
-| `src/hooks/usePrecincts.ts` | Backend polling and precinct state loading |
-| `src/lib/api.ts` | Backend API client and comfort weight localStorage helpers |
-| `src/lib/navigation.ts` | Shared route constants |
+| File                                | Purpose                                                                   |
+| ----------------------------------- | ------------------------------------------------------------------------- |
+| `src/main.tsx`                      | Router and route registration                                             |
+| `src/app/App.tsx`                   | Main map experience, detail panels, compare mode, and comfort preferences |
+| `src/components/LeafletMap.tsx`     | 2D precinct map and overlay layers                                        |
+| `src/components/WhiteModelMap.tsx`  | Mapbox Standard 3D route rendering, bounds control, and map interactions  |
+| `src/pages/Map3DExperimentPage.tsx` | 3D route planner page                                                     |
+| `src/components/landing/`           | Landing page scenes                                                       |
+| `src/hooks/usePrecincts.ts`         | Backend polling and precinct state loading                                |
+| `src/lib/api.ts`                    | Backend API client and comfort weight localStorage helpers                |
+| `src/lib/navigation.ts`             | Shared route constants                                                    |
 
 ## Notes
 
