@@ -16,9 +16,10 @@
   XCircle,
 } from "lucide-react";
 import { AnimatePresence, LayoutGroup, motion } from "motion/react";
-import { type ComponentType, type CSSProperties, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type CSSProperties, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
 import AppTopNav from "../components/AppTopNav";
+import SpotlightGuide, { type SpotlightGuideStep } from "../components/SpotlightGuide";
 import WhiteModelMap, {
   type MapViewportControls,
   type RoutePoint,
@@ -63,15 +64,6 @@ const liquidGlassCardClass =
 
 const liquidGlassInteractiveClass =
   `${liquidGlassCardClass} transition duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-0.5 hover:border-white/72 hover:bg-[linear-gradient(145deg,rgba(255,255,255,0.48),rgba(237,246,249,0.24))] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.78),0_18px_42px_rgba(4,14,14,0.12)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#83c5be]/70`;
-
-const routeGuideGlassCardClass =
-  "route-guide-glass-card border border-white/55 bg-[radial-gradient(circle_at_16%_0%,rgba(255,255,255,0.52),transparent_38%),linear-gradient(145deg,rgba(255,255,255,0.46),rgba(237,246,249,0.24)_56%,rgba(255,248,232,0.22))] shadow-[inset_0_1px_0_rgba(255,255,255,0.78),inset_0_-14px_26px_rgba(23,65,63,0.08),0_16px_34px_rgba(4,14,14,0.1)] backdrop-blur-md";
-
-const routeGuideGlassPanelClass =
-  "route-guide-glass-panel border border-[#d9d1c6]/70 bg-[radial-gradient(circle_at_14%_0%,rgba(255,255,255,0.58),transparent_36%),linear-gradient(145deg,rgba(255,250,244,0.94),rgba(245,240,232,0.88)_62%,rgba(236,245,242,0.72))] shadow-[inset_0_1px_0_rgba(255,255,255,0.82),inset_0_-12px_24px_rgba(23,65,63,0.05),0_14px_28px_rgba(10,24,23,0.08)] backdrop-blur-md";
-
-const routeGuideGlassButtonClass =
-  "route-guide-glass-button border border-white/40 bg-[radial-gradient(circle_at_18%_0%,rgba(255,255,255,0.24),transparent_42%),linear-gradient(180deg,#163634_0%,#17413f_100%)] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.24),0_12px_24px_rgba(10,24,23,0.22)] transition duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-0.5 hover:brightness-110 active:translate-y-[1px] active:scale-[0.985] active:shadow-[inset_0_2px_6px_rgba(5,14,14,0.22),0_8px_16px_rgba(10,24,23,0.18)]";
 
 const floatingChromeButtonClass =
   "inline-flex items-center justify-center gap-2 rounded-full border border-white/42 bg-white/72 text-sm font-semibold text-[#17413f] shadow-[inset_0_1px_0_rgba(255,255,255,0.82),0_10px_24px_rgba(23,65,63,0.14)] backdrop-blur-md transition hover:bg-white active:scale-[0.98]";
@@ -163,49 +155,15 @@ function shouldAutoLocateStart(search: string): boolean {
   return new URLSearchParams(search).get("autoLocateStart") === "1";
 }
 
+function shouldSkipAutoGuide(search: string): boolean {
+  return new URLSearchParams(search).get("skipTips") === "1";
+}
+
 type LayerLegendFilters = {
   easePlaces: boolean;
   naturalPlaces: boolean;
   streetFacilities: boolean;
 };
-
-type RouteGuideStep = {
-  id: string;
-  title: string;
-  description: string;
-  icon: ComponentType<{ className?: string }>;
-};
-
-const ROUTE_GUIDE_STEPS: RouteGuideStep[] = [
-  {
-    id: "points",
-    title: "Choose your route points",
-    description:
-      "Tap or click the map once to choose a start point, then pick the destination next. On mobile, the route panel can sit lower, but the guide stays centered so it remains easy to read on small screens.",
-    icon: MapPinned,
-  },
-  {
-    id: "results",
-    title: "Read the route summary quickly",
-    description:
-      "When both points are set, the route panel expands with distance, travel time, and step-by-step directions. Switch between Walking and Cycling to compare the default route without reloading the page.",
-    icon: Navigation,
-  },
-  {
-    id: "controls",
-    title: "Use map controls without losing context",
-    description:
-      "Use the top toolbar for Route, Layers, Tips, Menu, and zoom controls. On smaller screens the toolbar stays on one row and scales down to fit cleanly inside the screen.",
-    icon: Layers3,
-  },
-  {
-    id: "refine",
-    title: "Refine the route when needed",
-    description:
-      "Use the pin button or the Start card to lock point picking, use current location when available, and reopen Tips any time from the toolbar. After both start and destination are selected, Track live route progress uses your current location, places the pet on that live position along the route, and follows your progress. If your live position is far from the selected start point, a prompt lets you keep the current route or re-route from your location while keeping the same destination. Tap Track live route progress again to stop live tracking and resume Auto playback. Turn on Natural Places, Ease Places, or Public Facilities to add more context to the 3D map.",
-    icon: LocateFixed,
-  },
-];
 
 function buildRouteUrl(profile: RouteProfile, startPoint: RoutePoint, endPoint: RoutePoint) {
   const start = `${startPoint.lng},${startPoint.lat}`;
@@ -376,6 +334,7 @@ export default function Map3DExperimentPage() {
   const [activePanel, setActivePanel] = useState<PanelView>(initialIsMobileViewport ? null : "route");
   const [isMobileViewport, setIsMobileViewport] = useState(initialIsMobileViewport);
   const [showGuide, setShowGuide] = useState(false);
+  const [guideStepIndex, setGuideStepIndex] = useState(0);
   const [landingMenuOpen, setLandingMenuOpen] = useState(false);
   const [mapViewportControls, setMapViewportControls] = useState<MapViewportControls | null>(null);
   const [isMapPointSelectionEnabled, setIsMapPointSelectionEnabled] = useState(true);
@@ -407,6 +366,10 @@ export default function Map3DExperimentPage() {
   const requestIdRef = useRef(0);
   const hasAppliedSearchRef = useRef(false);
   const sheetRef = useRef<HTMLDivElement | null>(null);
+  const toolbarRef = useRef<HTMLDivElement | null>(null);
+  const routePointsRef = useRef<HTMLDivElement | null>(null);
+  const routeResultsRef = useRef<HTMLDivElement | null>(null);
+  const routeHeaderControlsRef = useRef<HTMLDivElement | null>(null);
   const autoplayFrameRef = useRef<number | null>(null);
   const liveWatchIdRef = useRef<number | null>(null);
   const routeRef = useRef<RouteSummary | null>(route);
@@ -800,6 +763,7 @@ export default function Map3DExperimentPage() {
     return "Reselect points or switch travel mode to try again.";
   }, [canUseRouteApi, endPoint, isMapPointSelectionEnabled, isRouteLoading, profile, routePlaybackMode, routeReady, startPoint]);
 
+  const showEmptyStateHelperCards = !startPoint && !endPoint;
   const panelHasDenseContent = Boolean(route || routeError || isRouteLoading);
   const activeLayerCount =
     Number(areaLayers.easePlaces) + Number(areaLayers.naturalPlaces) + Number(areaLayers.streetFacilities);
@@ -843,6 +807,77 @@ export default function Map3DExperimentPage() {
     setActivePanel(null);
   }, []);
 
+  const ensureRoutePanelExpanded = useCallback(() => {
+    setActivePanel("route");
+    if (isMobileViewport) {
+      setMobileSheetMode("expanded");
+    }
+  }, [isMobileViewport]);
+
+  const routeGuideSteps = useMemo<SpotlightGuideStep[]>(
+    () => [
+      {
+        id: "points",
+        title: "Pick your two points",
+        description:
+          "Start here. Turn Map picking on if needed, lock it when you do not want to change points, then pick a start point first and a destination second.",
+        targetRef: routePointsRef,
+      },
+      {
+        id: "results",
+        title: "Your route info will show here",
+        description:
+          "This is the route results area. After you choose both points, this is where distance, time, directions, and Walking or Cycling options will appear.",
+        targetRef: routeResultsRef,
+      },
+      {
+        id: "toolbar",
+        title: "Use the top bar",
+        description:
+          "Use this bar to switch panels, reopen Tips, open the menu, and zoom the map.",
+        targetRef: toolbarRef,
+      },
+      {
+        id: "controls",
+        title: "More controls are here",
+        description:
+          "You can turn Map picking on or off, use your current location, and later track live route progress here once a route is ready.",
+        targetRef: routeHeaderControlsRef,
+      },
+    ],
+    []
+  );
+
+  const enterRouteGuideStep = useCallback(
+    (nextStepIndex: number) => {
+      const step = routeGuideSteps[nextStepIndex];
+      if (!step) {
+        setShowGuide(false);
+        return;
+      }
+
+      if (step.id === "points" || step.id === "results" || step.id === "controls") {
+        ensureRoutePanelExpanded();
+      }
+
+      setGuideStepIndex(nextStepIndex);
+    },
+    [ensureRoutePanelExpanded, routeGuideSteps]
+  );
+
+  const handleGuideNext = useCallback(() => {
+    const nextStepIndex = guideStepIndex + 1;
+    if (nextStepIndex >= routeGuideSteps.length) {
+      setShowGuide(false);
+      return;
+    }
+    enterRouteGuideStep(nextStepIndex);
+  }, [enterRouteGuideStep, guideStepIndex, routeGuideSteps.length]);
+
+  const handleGuideSkip = useCallback(() => {
+    setShowGuide(false);
+  }, []);
+
   const handleActivityHourChange = useCallback((_hour: number) => {}, []);
 
   useEffect(() => {
@@ -866,11 +901,17 @@ export default function Map3DExperimentPage() {
   }, [route, routePlaybackMode, startRouteAutoplay, stopRouteAutoplay]);
 
   useEffect(() => {
+    if (shouldSkipAutoGuide(location.search)) return;
     if (!hasAutoShownRouteGuideThisRuntime) {
       hasAutoShownRouteGuideThisRuntime = true;
       setShowGuide(true);
     }
-  }, []);
+  }, [location.search]);
+
+  useEffect(() => {
+    if (!showGuide) return;
+    enterRouteGuideStep(0);
+  }, [enterRouteGuideStep, showGuide]);
 
   useEffect(() => {
     const mediaQuery = window.matchMedia(MOBILE_PANEL_MEDIA_QUERY);
@@ -1010,6 +1051,7 @@ export default function Map3DExperimentPage() {
         style={{ pointerEvents: landingMenuOpen ? "none" : "auto" }}
       >
         <div
+          ref={toolbarRef}
           data-testid="route-top-toolbar"
           style={routeToolbarStyle}
           className="flex min-h-14 w-[min(94vw,112rem)] flex-nowrap items-center gap-1 rounded-[28px] border border-white/55 px-2 py-2 text-[#17413f] shadow-[inset_0_1px_0_rgba(255,255,255,0.74)] max-sm:min-h-12 max-sm:w-[calc(100vw-0.6rem)] max-sm:justify-between max-sm:gap-0.5 max-sm:overflow-hidden max-sm:rounded-[24px] max-sm:px-1.5 max-sm:py-1.5"
@@ -1103,11 +1145,14 @@ export default function Map3DExperimentPage() {
         onViewportControlsReady={setMapViewportControls}
         onEasePlaceSelect={handleEasePlaceSelect}
       />
-      <AnimatePresence>
-        {showGuide ? (
-          <RouteGuideDialog open={showGuide} onOpenChange={setShowGuide} />
-        ) : null}
-      </AnimatePresence>
+      <SpotlightGuide
+        open={showGuide}
+        onOpenChange={setShowGuide}
+        steps={routeGuideSteps}
+        currentStepIndex={guideStepIndex}
+        onNext={handleGuideNext}
+        onSkip={handleGuideSkip}
+      />
       {selectedEasePlace && areaLayers.easePlaces ? (
         <EasePlacesDetailPopup
           feature={selectedEasePlace.feature}
@@ -1217,7 +1262,7 @@ export default function Map3DExperimentPage() {
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#5f8682]">MoveComfortly route</p>
               <h1 className="mt-1 text-xl font-semibold text-[#17413f]">3D Route Preview</h1>
             </div>
-            <div className="flex shrink-0 items-center gap-2 self-start">
+            <div ref={routeHeaderControlsRef} className="flex shrink-0 items-center gap-2 self-start">
               <button
                 type="button"
                 onClick={() => setIsMapPointSelectionEnabled((current) => !current)}
@@ -1276,19 +1321,23 @@ export default function Map3DExperimentPage() {
         <div className="relative min-h-0 flex-1 overflow-y-scroll [scrollbar-gutter:stable] px-4 py-4 sm:px-5">
           {activePanel === "route" ? (
             <>
-              <div className={`mb-4 rounded-2xl p-4 text-sm text-[#456765] ${liquidGlassInteractiveClass}`} tabIndex={0}>
-                <div className="flex items-start gap-3">
-                  <MapPinned className="mt-0.5 h-4 w-4 shrink-0 text-[#17413f]" />
-                  <p>{currentInstruction}</p>
-                </div>
-              </div>
+              {showEmptyStateHelperCards ? (
+                <>
+                  <div className={`mb-4 rounded-2xl p-4 text-sm text-[#456765] ${liquidGlassInteractiveClass}`} tabIndex={0}>
+                    <div className="flex items-start gap-3">
+                      <MapPinned className="mt-0.5 h-4 w-4 shrink-0 text-[#17413f]" />
+                      <p>{currentInstruction}</p>
+                    </div>
+                  </div>
 
-              <div className={`mb-4 rounded-2xl p-4 text-sm text-[#456765] ${liquidGlassInteractiveClass}`} tabIndex={0}>
-                <div className="flex items-start gap-3">
-                  <Navigation className="mt-0.5 h-4 w-4 shrink-0 text-[#17413f]" />
-                  <p>Drag to pan, scroll to zoom, and right-drag or use the compass control to rotate and tilt the 3D city view.</p>
-                </div>
-              </div>
+                  <div className={`mb-4 rounded-2xl p-4 text-sm text-[#456765] ${liquidGlassInteractiveClass}`} tabIndex={0}>
+                    <div className="flex items-start gap-3">
+                      <Navigation className="mt-0.5 h-4 w-4 shrink-0 text-[#17413f]" />
+                      <p>Drag to pan, scroll to zoom, and right-drag or use the compass control to rotate and tilt the 3D city view.</p>
+                    </div>
+                  </div>
+                </>
+              ) : null}
 
               <div className="mb-4 grid grid-cols-2 rounded-full border border-white/32 bg-white/28 p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.55)]">
                 <button
@@ -1337,78 +1386,89 @@ export default function Map3DExperimentPage() {
                 </div>
               ) : null}
 
-              <div className="mb-4 space-y-3">
+              <div ref={routePointsRef} className="mb-4 space-y-3">
+                <MapPickingCard
+                  enabled={isMapPointSelectionEnabled}
+                  onToggle={() => setIsMapPointSelectionEnabled((current) => !current)}
+                />
                 <PointRow
                   label="Start"
                   point={startPoint}
                   badgeClassName="bg-[#0f766e]"
                   onDelete={handleDeleteStart}
-                  onPrimaryAction={() => setIsMapPointSelectionEnabled((current) => !current)}
-                  primaryActionAriaLabel={
-                    isMapPointSelectionEnabled
-                      ? "Disable map point selection from Start card"
-                      : "Enable map point selection from Start card"
-                  }
-                  statusLabel={isMapPointSelectionEnabled ? "Map picking ON" : "Map picking LOCKED"}
-                  helperText="Tap Start to lock or re-arm map picking"
-                  emphasized
                 />
                 <PointRow label="End" point={endPoint} badgeClassName="bg-[#ea580c]" onDelete={handleDeleteEnd} />
               </div>
 
-              {isRouteLoading ? (
-                <div className="mb-4 grid grid-cols-2 gap-3 max-sm:grid-cols-1">
-                  <div className={`h-[86px] animate-pulse rounded-2xl ${liquidGlassCardClass}`} />
-                  <div className={`h-[86px] animate-pulse rounded-2xl ${liquidGlassCardClass}`} />
-                </div>
-              ) : null}
-
-              {route ? (
-                <>
-                  <div className="mb-4 grid grid-cols-2 gap-3 max-sm:grid-cols-1">
-                    <Metric label="Distance" value={formatDistance(route.distanceMeters)} />
-                    <Metric label="Time" value={formatDuration(route.durationSeconds)} />
+              <div ref={routeResultsRef} className="mb-4 space-y-4">
+                {!route && !isRouteLoading ? (
+                  <div className={`rounded-2xl p-4 text-sm text-[#456765] ${liquidGlassInteractiveClass}`} tabIndex={0}>
+                    <div className="flex items-start gap-3">
+                      <Navigation className="mt-0.5 h-4 w-4 shrink-0 text-[#17413f]" />
+                      <div>
+                        <p className="font-semibold text-[#17413f]">Route summary will show here</p>
+                        <p className="mt-1 text-xs text-[#6b8582]">
+                          Pick a start point and a destination to see distance, time, and directions.
+                        </p>
+                      </div>
+                    </div>
                   </div>
+                ) : null}
 
-                  <div className="mb-3 flex items-center gap-2">
-                    <Navigation className="h-4 w-4 text-[#17413f]" />
-                    <h2 className="text-sm font-semibold uppercase tracking-[0.12em] text-[#5f8682]">Directions</h2>
+                {isRouteLoading ? (
+                  <div className="grid grid-cols-2 gap-3 max-sm:grid-cols-1">
+                    <div className={`h-[86px] animate-pulse rounded-2xl ${liquidGlassCardClass}`} />
+                    <div className={`h-[86px] animate-pulse rounded-2xl ${liquidGlassCardClass}`} />
                   </div>
-                  {route.steps.length > 0 ? (
-                    <div className="space-y-3">
-                      {route.steps.map((step, index) => (
-                        <button
-                          key={`${step.instruction}-${index}`}
-                          type="button"
-                          onClick={() => setFocusedStepIndex(index)}
-                          className={`w-full rounded-2xl p-4 text-left ${liquidGlassInteractiveClass} ${
-                            focusedStepIndex === index
-                              ? "border-[#83c5be]/80 bg-[linear-gradient(145deg,rgba(255,255,255,0.52),rgba(186,226,220,0.2))] shadow-[inset_0_1px_0_rgba(255,255,255,0.84),0_20px_42px_rgba(4,14,14,0.14)]"
-                              : ""
-                          }`}
-                        >
-                          <div className="flex items-start justify-between gap-3 max-sm:flex-col">
-                            <div>
-                              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#5f8682]">
-                                {step.modifier ?? step.type}
-                              </p>
-                              <p className="mt-1 text-sm font-semibold text-[#17413f]">{step.instruction}</p>
-                              {step.roadName ? <p className="mt-1 text-xs text-[#6b8582]">{step.roadName}</p> : null}
+                ) : null}
+
+                {route ? (
+                  <>
+                    <div className="grid grid-cols-2 gap-3 max-sm:grid-cols-1">
+                      <Metric label="Distance" value={formatDistance(route.distanceMeters)} />
+                      <Metric label="Time" value={formatDuration(route.durationSeconds)} />
+                    </div>
+
+                    <div className="mb-3 flex items-center gap-2">
+                      <Navigation className="h-4 w-4 text-[#17413f]" />
+                      <h2 className="text-sm font-semibold uppercase tracking-[0.12em] text-[#5f8682]">Directions</h2>
+                    </div>
+                    {route.steps.length > 0 ? (
+                      <div className="space-y-3">
+                        {route.steps.map((step, index) => (
+                          <button
+                            key={`${step.instruction}-${index}`}
+                            type="button"
+                            onClick={() => setFocusedStepIndex(index)}
+                            className={`w-full rounded-2xl p-4 text-left ${liquidGlassInteractiveClass} ${
+                              focusedStepIndex === index
+                                ? "border-[#83c5be]/80 bg-[linear-gradient(145deg,rgba(255,255,255,0.52),rgba(186,226,220,0.2))] shadow-[inset_0_1px_0_rgba(255,255,255,0.84),0_20px_42px_rgba(4,14,14,0.14)]"
+                                : ""
+                            }`}
+                          >
+                            <div className="flex items-start justify-between gap-3 max-sm:flex-col">
+                              <div>
+                                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#5f8682]">
+                                  {step.modifier ?? step.type}
+                                </p>
+                                <p className="mt-1 text-sm font-semibold text-[#17413f]">{step.instruction}</p>
+                                {step.roadName ? <p className="mt-1 text-xs text-[#6b8582]">{step.roadName}</p> : null}
+                              </div>
+                              <span className="shrink-0 rounded-full bg-[#e3f3ef] px-2 py-1 text-xs font-semibold text-[#456765] max-sm:self-start">
+                                {formatDistance(step.distanceMeters)}
+                              </span>
                             </div>
-                            <span className="shrink-0 rounded-full bg-[#e3f3ef] px-2 py-1 text-xs font-semibold text-[#456765] max-sm:self-start">
-                              {formatDistance(step.distanceMeters)}
-                            </span>
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="rounded-2xl border border-white/38 bg-white/34 p-4 text-sm text-[#456765] shadow-[inset_0_1px_0_rgba(255,255,255,0.72)]">
-                      The route was returned without step-by-step instructions.
-                    </div>
-                  )}
-                </>
-              ) : null}
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="rounded-2xl border border-white/38 bg-white/34 p-4 text-sm text-[#456765] shadow-[inset_0_1px_0_rgba(255,255,255,0.72)]">
+                        The route was returned without step-by-step instructions.
+                      </div>
+                    )}
+                  </>
+                ) : null}
+              </div>
             </>
           ) : null}
 
@@ -1421,6 +1481,9 @@ export default function Map3DExperimentPage() {
                     <p className="font-semibold text-[#17413f]">Area layers</p>
                     <p className="mt-1 text-xs text-[#6b8582]">
                       {activeLayerCount === 0 ? "No place-based layers active." : `${activeLayerCount} layer${activeLayerCount > 1 ? "s" : ""} active.`}
+                    </p>
+                    <p className="mt-2 text-[11px] text-[#6b8582]">
+                      Current layer data points are only available within the Melbourne CBD area.
                     </p>
                   </div>
                 </div>
@@ -1648,6 +1711,81 @@ function PointRow({
   );
 }
 
+function MapPickingCard({
+  enabled,
+  onToggle,
+}: {
+  enabled: boolean;
+  onToggle: () => void;
+}) {
+  const statusLabel = enabled ? "Map picking ON" : "Map picking LOCKED";
+  const isLocked = !enabled;
+
+  return (
+    <div
+      className={`flex items-center gap-3 rounded-2xl p-3 ${liquidGlassInteractiveClass} border-[#83c5be]/55 bg-[linear-gradient(145deg,rgba(255,255,255,0.58),rgba(186,226,220,0.18))] shadow-[inset_0_1px_0_rgba(255,255,255,0.84),0_18px_38px_rgba(4,14,14,0.1)]`}
+      tabIndex={0}
+    >
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-[4px] border-white bg-[#17413f] text-white shadow-[0_0_0_6px_rgba(255,255,255,0.26),0_0_0_12px_rgba(255,255,255,0.1),0_14px_28px_rgba(15,23,42,0.22)]">
+        <MapPinned className="h-4 w-4" />
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="text-sm font-semibold text-[#17413f]">Map picking</p>
+          <span className="rounded-full border border-[#83c5be]/45 bg-[#e3f3ef] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#17413f]">
+            {statusLabel}
+          </span>
+        </div>
+        <p className="mt-1 text-xs font-semibold text-[#0f766e]">Tap Map picking to lock or re-arm point selection</p>
+      </div>
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-label={enabled ? "Disable map point selection from Map picking card" : "Enable map point selection from Map picking card"}
+        aria-pressed={isLocked}
+        className="relative inline-flex h-10 w-20 shrink-0 cursor-pointer items-center"
+      >
+        <span
+          className={`absolute inset-0 rounded-full border border-white/55 shadow-[0_10px_22px_rgba(23,65,63,0.14),inset_0_1px_0_rgba(255,255,255,0.55)] outline-none ring-0 transition-all duration-300 ${
+            isLocked ? "bg-[linear-gradient(135deg,#83c5be,#5fa8a1)]" : "bg-[linear-gradient(135deg,#d7e9e5,#b8d7d1)]"
+          }`}
+        />
+        <svg
+          className={`absolute top-1 h-8 w-8 stroke-[#17413f] transition-all duration-300 ${isLocked ? "left-10" : "left-1.5"}`}
+          viewBox="0 0 100 100"
+          xmlns="http://www.w3.org/2000/svg"
+          aria-hidden="true"
+        >
+          <path
+            fillRule="evenodd"
+            clipRule="evenodd"
+            d="M50,18A19.9,19.9,0,0,0,30,38v8a8,8,0,0,0-8,8V74a8,8,0,0,0,8,8H70a8,8,0,0,0,8-8V54a8,8,0,0,0-8-8H38V38a12,12,0,0,1,23.6-3,4,4,0,1,0,7.8-2A20.1,20.1,0,0,0,50,18Z"
+            className="fill-[#17413f]"
+          />
+        </svg>
+        <svg
+          className={`absolute top-1 h-8 w-8 stroke-[#456765] transition-all duration-300 ${isLocked ? "left-1.5" : "left-10"}`}
+          viewBox="0 0 100 100"
+          xmlns="http://www.w3.org/2000/svg"
+          aria-hidden="true"
+        >
+          <path
+            fillRule="evenodd"
+            clipRule="evenodd"
+            d="M30,46V38a20,20,0,0,1,40,0v8a8,8,0,0,1,8,8V74a8,8,0,0,1-8,8H30a8,8,0,0,1-8-8V54A8,8,0,0,1,30,46Zm32-8v8H38V38a12,12,0,0,1,24,0Z"
+            className="fill-[#456765]"
+          />
+        </svg>
+        <span
+          className={`absolute top-1 flex h-8 w-8 items-center justify-center rounded-full bg-[linear-gradient(145deg,#f8fbfa,#ffffff)] shadow-[0_8px_18px_rgba(15,23,42,0.14),inset_0_1px_0_rgba(255,255,255,0.88)] outline-none transition-all duration-300 ${
+            isLocked ? "left-1" : "left-1 translate-x-10"
+          }`}
+        />
+      </button>
+    </div>
+  );
+}
+
 function LayerToggle({
   label,
   description,
@@ -1840,152 +1978,6 @@ function TopBarActionButton({
         <span className="sr-only">{label}</span>
       )}
     </motion.button>
-  );
-}
-
-function RouteGuideDialog({
-  open,
-  onOpenChange,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-}) {
-  const [stepIndex, setStepIndex] = useState(0);
-  const currentStep = ROUTE_GUIDE_STEPS[stepIndex];
-  const StepIcon = currentStep.icon;
-
-  useEffect(() => {
-    if (!open) return;
-    setStepIndex(0);
-  }, [open]);
-
-  return (
-    <motion.div
-      data-testid="route-guide-overlay"
-      className="fixed inset-0 z-[320] flex items-center justify-center overflow-hidden px-2 py-[max(0.75rem,env(safe-area-inset-top))] sm:px-4 sm:py-6"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-    >
-      <button
-        type="button"
-        className="absolute inset-0 bg-[#0c1716]/16 backdrop-blur-[2px]"
-        aria-label="Close 3D route guide"
-        onClick={() => onOpenChange(false)}
-      />
-
-      <motion.div
-        style={{
-          background: "linear-gradient(180deg, #122d2b 0%, #eef8f5 25%, #f7fbfa 75%, #122d2b 100%)",
-        }}
-        className="relative w-[min(640px,calc(100vw-1rem))] overflow-hidden rounded-[28px] border border-[#d9e5e2] text-[#17413f] shadow-[0_28px_80px_rgba(10,24,23,0.2)]"
-        initial={{ opacity: 0, scale: 0.9, y: 28 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.94, y: 18 }}
-        transition={{ type: "spring", stiffness: 220, damping: 20, mass: 0.9 }}
-      >
-        <div className="flex items-center justify-between border-b border-white/25 px-5 py-4 sm:px-6">
-          <div className="flex items-center gap-2 text-white">
-            <MapPinned className="h-5 w-5" />
-            <span className="text-sm font-semibold uppercase tracking-[0.14em]">Tips Guide</span>
-          </div>
-          <button
-            type="button"
-            onClick={() => onOpenChange(false)}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/35 bg-white/12 text-white transition hover:bg-white/20"
-            aria-label="Close 3D route guide"
-          >
-            <XCircle className="h-4 w-4" />
-          </button>
-        </div>
-
-        <div className="px-5 pb-5 pt-4 sm:px-6 sm:pb-6">
-          <motion.div
-            key={`route-guide-step-${currentStep.id}`}
-            data-testid="route-guide-step-card"
-            className={`mb-4 rounded-2xl p-4 ${routeGuideGlassCardClass}`}
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-          >
-            <div className="flex items-center gap-3">
-              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-[#d4e3df] bg-gradient-to-b from-[#122d2b] to-[#17413f] text-white">
-                <StepIcon className="h-6 w-6" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#5f8682]">
-                  Step {stepIndex + 1} of {ROUTE_GUIDE_STEPS.length}
-                </p>
-                <h2 className="mt-1 text-xl font-bold text-[#10201f] sm:text-2xl">{currentStep.title}</h2>
-              </div>
-            </div>
-          </motion.div>
-
-          <motion.div
-            key={`route-guide-copy-${currentStep.id}`}
-            data-testid="route-guide-body-card"
-            className={`mb-5 min-h-[156px] rounded-2xl p-4 text-sm leading-7 text-[#3f5f5b] sm:p-5 ${routeGuideGlassPanelClass}`}
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-          >
-            <p>{currentStep.description}</p>
-            {currentStep.id === "refine" ? (
-              <div className="mt-4 rounded-xl border border-[#d7e4e0] bg-white/80 px-3 py-3 text-xs leading-6 text-[#4c6d69]">
-                This guide appears once after each refresh. Use the toolbar Tips button any time you want to reopen it.
-              </div>
-            ) : null}
-          </motion.div>
-
-          <div className="flex items-center justify-between gap-3 max-sm:flex-wrap">
-            <div className="flex items-center gap-2">
-              {ROUTE_GUIDE_STEPS.map((step, index) => (
-                <span
-                  key={step.id}
-                  className={`h-2.5 w-2.5 rounded-full transition-all duration-250 ${
-                    index === stepIndex ? "bg-[#17413f]" : "bg-[#b7cbc7]"
-                  }`}
-                />
-              ))}
-            </div>
-
-            <div className="flex items-center gap-2 max-sm:w-full max-sm:justify-end">
-              <button
-                type="button"
-                onClick={() => setStepIndex((value) => Math.max(value - 1, 0))}
-                disabled={stepIndex === 0}
-                className={`rounded-md border px-4 py-2 text-sm font-semibold uppercase tracking-[0.08em] shadow-[0_10px_20px_rgba(10,24,23,0.2)] transition ${
-                  stepIndex === 0
-                    ? "cursor-not-allowed border-[#c9d8d4] bg-[#dde8e5] text-[#7a918d]"
-                    : routeGuideGlassButtonClass
-                }`}
-              >
-                Previous
-              </button>
-              {stepIndex < ROUTE_GUIDE_STEPS.length - 1 ? (
-                <button
-                  data-testid="route-guide-next-button"
-                  type="button"
-                  onClick={() => setStepIndex((value) => Math.min(value + 1, ROUTE_GUIDE_STEPS.length - 1))}
-                  className={`rounded-md px-5 py-2 text-sm font-semibold uppercase tracking-[0.08em] ${routeGuideGlassButtonClass}`}
-                >
-                  Next
-                </button>
-              ) : (
-                <button
-                  data-testid="route-guide-next-button"
-                  type="button"
-                  onClick={() => onOpenChange(false)}
-                  className={`rounded-md px-5 py-2 text-sm font-semibold uppercase tracking-[0.08em] ${routeGuideGlassButtonClass}`}
-                >
-                  Done
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-      </motion.div>
-    </motion.div>
   );
 }
 

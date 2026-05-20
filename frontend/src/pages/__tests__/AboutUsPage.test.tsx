@@ -117,9 +117,7 @@ describe("AboutUsPage", () => {
       </MemoryRouter>
     );
 
-    const button = Array.from(view.container.querySelectorAll("button")).find((item) =>
-      item.textContent?.includes("Back")
-    );
+    const button = view.container.querySelector(".aboutus-back-button") as HTMLButtonElement | null;
 
     expect(button).toBeTruthy();
 
@@ -149,9 +147,7 @@ describe("AboutUsPage", () => {
     });
     window.history.replaceState({ idx: 0 }, "", "/aboutus");
 
-    const button = Array.from(view.container.querySelectorAll("button")).find((item) =>
-      item.textContent?.includes("Back")
-    );
+    const button = view.container.querySelector(".aboutus-back-button") as HTMLButtonElement | null;
 
     expect(button).toBeTruthy();
 

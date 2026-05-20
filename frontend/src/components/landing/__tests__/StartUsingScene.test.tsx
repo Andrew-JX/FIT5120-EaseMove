@@ -4,6 +4,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { MemoryRouter } from "react-router";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import StartUsingScene from "../StartUsingScene";
+import { resetLandingSpiderCatGuideRuntimeState } from "../LandingSpiderCatGuide";
 
 function render(element: React.ReactNode) {
   const container = document.createElement("div");
@@ -28,6 +29,7 @@ function render(element: React.ReactNode) {
 afterEach(() => {
   vi.useRealTimers();
   vi.unstubAllGlobals();
+  resetLandingSpiderCatGuideRuntimeState();
   document.body.innerHTML = "";
 });
 
@@ -151,6 +153,55 @@ describe("StartUsingScene", () => {
     expect(view.container.querySelector('[data-testid="landing-spider-cat-tip"]')).toBeNull();
 
     view.unmount();
+  });
+
+  test("can hide the spider cat for the current runtime until the page is refreshed", () => {
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn().mockImplementation((query: string) => ({
+        matches: query === "(pointer: fine)" || query === "(min-width: 821px)",
+        media: query,
+        onchange: null,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      }))
+    );
+
+    const firstView = render(
+      <MemoryRouter>
+        <StartUsingScene />
+      </MemoryRouter>
+    );
+
+    const spiderCat = firstView.container.querySelector('[data-testid="landing-spider-cat"]') as HTMLElement | null;
+    expect(spiderCat).not.toBeNull();
+
+    act(() => {
+      spiderCat?.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+    });
+
+    const hideButton = firstView.container.querySelector('[data-testid="landing-spider-cat-hide"]') as HTMLButtonElement | null;
+    expect(hideButton).not.toBeNull();
+
+    act(() => {
+      hideButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(firstView.container.querySelector('[data-testid="landing-spider-cat"]')).toBeNull();
+    firstView.unmount();
+
+    const secondView = render(
+      <MemoryRouter>
+        <StartUsingScene />
+      </MemoryRouter>
+    );
+
+    expect(secondView.container.querySelector('[data-testid="landing-spider-cat"]')).toBeNull();
+
+    secondView.unmount();
   });
 
   test("does not render the roaming spider cat on touch-sized screens", () => {

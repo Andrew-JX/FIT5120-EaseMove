@@ -1,8 +1,10 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import AppTopNav, { type LandingNavMode, type LandingNavTone } from "../AppTopNav";
+import FloatingBackToTop from "../FloatingBackToTop";
 import FooterScene from "./FooterScene";
 import HeroSplitScene from "./HeroSplitScene";
 import HowToUseScene from "./HowToUseScene";
+import LandingSpiderCatJourney from "./LandingSpiderCatJourney";
 import MissionGalleryScene from "./MissionGalleryScene";
 import StartUsingScene from "./StartUsingScene";
 import { resetLandingSceneController } from "./landingSceneController";
@@ -24,6 +26,8 @@ export default function HomePage() {
   const [landingTransitionProgress, setLandingTransitionProgress] = useState(0);
   const [landingOverlayOpen, setLandingOverlayOpen] = useState(false);
   const landingOverlayScrollYRef = useRef(0);
+  const howToSpiderAnchorRef = useRef<HTMLDivElement | null>(null);
+  const startSpiderAnchorRef = useRef<HTMLDivElement | null>(null);
 
   useLayoutEffect(() => {
     resetLandingEntryState();
@@ -161,10 +165,15 @@ export default function HomePage() {
           onLandingOverlayOpenChange={handleLandingOverlayOpenChange}
         />
       </div>
+      <FloatingBackToTop progress={landingTransitionProgress} tone={landingTone} />
       <div className="landing-home-stage">
         <HeroSplitScene />
-        <HowToUseScene />
-        <StartUsingScene />
+        <HowToUseScene showSpiderCatGuide={false} spiderJourneyAnchorRef={howToSpiderAnchorRef} />
+        <StartUsingScene showSpiderCatGuide={false} spiderJourneyAnchorRef={startSpiderAnchorRef} />
+        <LandingSpiderCatJourney
+          howToAnchorRef={howToSpiderAnchorRef}
+          startAnchorRef={startSpiderAnchorRef}
+        />
         <MissionGalleryScene />
         <FooterScene />
       </div>

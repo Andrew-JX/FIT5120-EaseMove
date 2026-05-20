@@ -81,7 +81,7 @@ describe("AppTopNav landing overlay", () => {
     view.unmount();
   });
 
-  test("treats Landing Page as a close-only action and navigates to route targets from overlay actions", () => {
+  test("treats Home as a close-only action and navigates to route targets from overlay actions", () => {
     vi.useFakeTimers();
 
     const view = render(
@@ -115,7 +115,7 @@ describe("AppTopNav landing overlay", () => {
 
     const landingPageAction = Array.from(
       view.container.querySelectorAll("button, a")
-    ).find((element) => element.textContent?.includes("Landing Page"));
+    ).find((element) => element.textContent?.includes("Home"));
 
     act(() => {
       landingPageAction?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
