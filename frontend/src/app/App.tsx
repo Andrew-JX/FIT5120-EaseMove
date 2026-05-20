@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef, useLayoutEffect } from "react";
+import { useState, useCallback, useEffect, useRef, useLayoutEffect, useMemo, type CSSProperties } from "react";
 import { useLocation, useNavigate } from "react-router";
 import { animate, utils } from "animejs";
 import {
@@ -17,7 +17,7 @@ import AppTopNav from "../components/AppTopNav";
 import LeafletMap from "../components/LeafletMap";
 import EasePlacesDetailPopup from "../components/map/EasePlacesDetailPopup";
 import DynamicLegendPanel from "../components/map/DynamicLegendPanel";
-import MapGuideDialog from "../components/map/MapGuideDialog";
+import SpotlightGuide, { type SpotlightGuideStep } from "../components/SpotlightGuide";
 import { usePrecincts } from "../hooks/usePrecincts";
 import {
   DEFAULT_WEIGHTS,
@@ -39,6 +39,22 @@ import AreaDetailPage from "../pages/AreaDetailPage";
 import RecommendationFacilitiesPage from "../pages/RecommendationFacilitiesPage";
 let hasAutoShownMapGuideThisRuntime = false;
 let suppressNextAutoMapGuide = false;
+
+const HIDDEN_GUIDE_TARGET_STYLE: CSSProperties = {
+  position: "fixed",
+  left: -9999,
+  top: -9999,
+  width: 1,
+  height: 1,
+  pointerEvents: "none",
+};
+
+const CARLTON_AREA_BOUNDS = {
+  northWest: [-37.7964, 144.9565] as const,
+  southEast: [-37.8087, 144.9748] as const,
+};
+
+const CARLTON_PIN_COORDINATE = [-37.8010, 144.9670] as const;
 
 const MAP_LAYOUT_NAV_ITEMS = [
   { label: "Home", to: APP_ROUTES.home },
@@ -481,14 +497,16 @@ export default function App() {
     naturalPlaces: false,
   });
   const [showMapGuide, setShowMapGuide] = useState(false);
+  const [mapGuideStepIndex, setMapGuideStepIndex] = useState(0);
   const shouldFetchPrecincts = true;
 
   const { precincts: precinctList, loading, error } = usePrecincts(
     shouldFetchPrecincts ? debouncedWeights : undefined
   );
 
-  const precincts: Record<string, Precinct> = Object.fromEntries(
-    precinctList.map((p: Precinct) => [p.id, p])
+  const precincts: Record<string, Precinct> = useMemo(
+    () => Object.fromEntries(precinctList.map((p: Precinct) => [p.id, p])),
+    [precinctList]
   );
 
   const [showCard, setShowCard] = useState<string | null>(null);
@@ -504,8 +522,18 @@ export default function App() {
   const [currentPageLabel, setCurrentPageLabel] = useState("Map");
   const [exploreOpen, setExploreOpen] = useState(false);
   const [legendDropdownOpen, setLegendDropdownOpen] = useState(false);
+  const [rankedPicksOpen, setRankedPicksOpen] = useState(false);
   const menuPanelRef = useRef<HTMLElement | null>(null);
   const leftPanelRef = useRef<HTMLDivElement | null>(null);
+  const mapSurfaceGuideRef = useRef<HTMLDivElement | null>(null);
+  const comfortMarkerGuideRef = useRef<HTMLElement | null>(null);
+  const areaBlockGuideRef = useRef<HTMLElement | null>(null);
+  const modeSwitchGuideRef = useRef<HTMLDivElement | null>(null);
+  const exploreMapButtonRef = useRef<HTMLButtonElement | null>(null);
+  const tipsButtonRef = useRef<HTMLButtonElement | null>(null);
+  const rankedPicksButtonRef = useRef<HTMLButtonElement | null>(null);
+  const legendButtonRef = useRef<HTMLButtonElement | null>(null);
+  const mapGuideWasOpenRef = useRef(false);
   const menuItemRefs = useRef<HTMLButtonElement[]>([]);
   const floatingUiRefs = useRef<HTMLElement[]>([]);
   const explorePanelRef = useRef<HTMLDivElement | null>(null);
@@ -569,6 +597,68 @@ export default function App() {
   const handleMapReady = useCallback((map: L.Map) => {
     mapInstanceRef.current = map;
   }, []);
+
+  const positionGuideProxy = useCallback((
+    element: HTMLElement | null,
+    rect: { left: number; top: number; width: number; height: number } | null
+  ) => {
+    if (!element || !rect) {
+      if (element) {
+        element.style.position = "fixed";
+        element.style.left = "-9999px";
+        element.style.top = "-9999px";
+        element.style.width = "1px";
+        element.style.height = "1px";
+        element.style.pointerEvents = "none";
+      }
+      return;
+    }
+
+    element.style.position = "fixed";
+    element.style.left = `${Math.round(rect.left)}px`;
+    element.style.top = `${Math.round(rect.top)}px`;
+    element.style.width = `${Math.round(rect.width)}px`;
+    element.style.height = `${Math.round(rect.height)}px`;
+    element.style.pointerEvents = "none";
+  }, []);
+
+  const updateCarltonGuideProxyTargets = useCallback(() => {
+    const map = mapInstanceRef.current;
+    if (!map) {
+      positionGuideProxy(comfortMarkerGuideRef.current, null);
+      positionGuideProxy(areaBlockGuideRef.current, null);
+      return;
+    }
+
+    const mapBounds = map.getContainer().getBoundingClientRect();
+    const carltonPrecinct = precincts.carlton ?? precinctList.find((precinct) =>
+      precinct.id === "carlton" || precinct.name.toLowerCase().includes("carlton")
+    );
+    const carltonLat = Number.isFinite(carltonPrecinct?.lat) ? carltonPrecinct!.lat : CARLTON_PIN_COORDINATE[0];
+    const carltonLng = Number.isFinite(carltonPrecinct?.lng) ? carltonPrecinct!.lng : CARLTON_PIN_COORDINATE[1];
+    const pinPoint = map.latLngToContainerPoint([carltonLat, carltonLng]);
+
+    positionGuideProxy(comfortMarkerGuideRef.current, {
+      left: mapBounds.left + pinPoint.x - 28,
+      top: mapBounds.top + pinPoint.y - 56,
+      width: 56,
+      height: 72,
+    });
+
+    const northWest = map.latLngToContainerPoint(CARLTON_AREA_BOUNDS.northWest);
+    const southEast = map.latLngToContainerPoint(CARLTON_AREA_BOUNDS.southEast);
+    const left = mapBounds.left + Math.min(northWest.x, southEast.x);
+    const top = mapBounds.top + Math.min(northWest.y, southEast.y);
+    const width = Math.abs(southEast.x - northWest.x);
+    const height = Math.abs(southEast.y - northWest.y);
+
+    positionGuideProxy(areaBlockGuideRef.current, {
+      left,
+      top,
+      width: Math.max(120, width),
+      height: Math.max(120, height),
+    });
+  }, [positionGuideProxy, precinctList, precincts]);
 
   const handleAreaNavigation = useCallback((
     areaId: string | null,
@@ -674,6 +764,7 @@ export default function App() {
       setMenuUiSuppressed(true);
       setExploreOpen(false);
       setLegendDropdownOpen(false);
+      setRankedPicksOpen(false);
       setShowMapGuide(false);
       setOpenPanel(null);
       setEasePlacesPopup(null);
@@ -951,6 +1042,7 @@ export default function App() {
       setLandingMenuOpen(false);
       setExploreOpen(false);
       setLegendDropdownOpen(false);
+      setRankedPicksOpen(false);
       setShowMapGuide(false);
       setOpenPanel(null);
       setEasePlacesPopup(null);
@@ -1099,7 +1191,164 @@ export default function App() {
     })
     .slice(0, 5);
 
-  const handleGuidePrecinctSelect = useCallback((precinct: Precinct) => {
+  const recommendationGuideCopy = loading
+    ? "The recommendation ranking is loading. Once the comfort scores arrive, this can become a compact ranked shelf directly on the map."
+    : guideTopPrecincts.length > 0
+      ? `Recommendation idea: show a small ranked shelf on the map, starting with ${guideTopPrecincts
+          .slice(0, 3)
+          .map((precinct) => precinct.name)
+          .join(", ")}. Each row can show score, risk label, and a shortcut into the 3D route page.`
+      : "Recommendation idea: show a small ranked shelf on the map with the top comfortable precincts, each with score, risk label, and a shortcut into the 3D route page.";
+
+  const refreshMapGuideTargets = useCallback(() => {
+    updateCarltonGuideProxyTargets();
+  }, [updateCarltonGuideProxyTargets]);
+
+  const mapGuideSteps = useMemo<SpotlightGuideStep[]>(
+    () => [
+      {
+        id: "map-canvas",
+        title: "Read the comfort map",
+        description:
+          "This is the main workspace. Comfort Area colours show precinct comfort scores; click an area or marker to open its details and live conditions.",
+        targetRef: mapSurfaceGuideRef,
+        placement: "auto",
+      },
+      {
+        id: "comfort-pin",
+        title: "Understand comfort score pins",
+        description:
+          "This example pin is a comfort score marker. Higher numbers mean more comfortable conditions. After the guide closes, click any pin to open the live score card for that precinct.",
+        targetRef: comfortMarkerGuideRef,
+        placement: "auto",
+      },
+      {
+        id: "carlton-block",
+        title: "Open an area block",
+        description:
+          "This example district shape is a clickable area block. After the guide closes, click an area to open its area page and route recommendations.",
+        targetRef: areaBlockGuideRef,
+        placement: "auto",
+      },
+      {
+        id: "view-compare",
+        title: "Switch between View and Compare",
+        description:
+          "Use View for normal map browsing. Use Compare when you want to pick two precincts and check which place is more comfortable side by side.",
+        targetRef: modeSwitchGuideRef,
+        placement: "bottom",
+      },
+      {
+        id: "explore-map",
+        title: "Choose map layers",
+        description:
+          "Explore Map turns layers on or off: Comfort Area, Ease Places, Street Facilities such as fountains, seats and bike racks, plus Natural Places such as parks and water.",
+        targetRef: exploreMapButtonRef,
+        placement: "top",
+      },
+      {
+        id: "legend",
+        title: "Decode colours and markers",
+        description:
+          "Legend explains the symbols currently visible on the map, including comfort score ranges, place categories, street facilities, parks, waterbodies, and no-sensor areas.",
+        targetRef: legendButtonRef,
+        placement: "top",
+      },
+      {
+        id: "ranked-picks",
+        title: "Use Ranked Picks",
+        description:
+          "Ranked Picks opens a short on-map list of the most comfortable precincts right now. Choose one when you want a quick recommended destination and a shortcut into the 3D route flow.",
+        targetRef: rankedPicksButtonRef,
+        placement: "top",
+      },
+      {
+        id: "tips",
+        title: "Reopen guidance and recommendations",
+        description: `Tips opens this walkthrough again. ${recommendationGuideCopy}`,
+        targetRef: tipsButtonRef,
+        placement: "top",
+      },
+    ],
+    [recommendationGuideCopy]
+  );
+
+  const handleMapGuideNext = useCallback(() => {
+    refreshMapGuideTargets();
+    const nextStepIndex = mapGuideStepIndex + 1;
+    if (nextStepIndex >= mapGuideSteps.length) {
+      setShowMapGuide(false);
+      setMapGuideStepIndex(0);
+      return;
+    }
+
+    setMapGuideStepIndex(nextStepIndex);
+  }, [mapGuideStepIndex, mapGuideSteps.length, refreshMapGuideTargets]);
+
+  const handleMapGuideSkip = useCallback(() => {
+    setShowMapGuide(false);
+    setMapGuideStepIndex(0);
+  }, []);
+
+  useEffect(() => {
+    if (!showMapGuide) {
+      mapGuideWasOpenRef.current = false;
+      return;
+    }
+
+    if (mapGuideWasOpenRef.current) return;
+    mapGuideWasOpenRef.current = true;
+
+    setMapGuideStepIndex(0);
+    setPanelOpen(false);
+    setLandingMenuOpen(false);
+    setMapFilters((current) => ({ ...current, comfortArea: true }));
+    setSelectedCategory(null);
+    setExploreOpen(false);
+    setLegendDropdownOpen(false);
+    setRankedPicksOpen(false);
+    setOpenPanel(null);
+    refreshMapGuideTargets();
+    const timer = window.setTimeout(refreshMapGuideTargets, 120);
+    return () => window.clearTimeout(timer);
+  }, [refreshMapGuideTargets, showMapGuide]);
+
+  useEffect(() => {
+    if (!showMapGuide) return;
+
+    refreshMapGuideTargets();
+    const frame = window.requestAnimationFrame(refreshMapGuideTargets);
+    const timer = window.setTimeout(refreshMapGuideTargets, 80);
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.clearTimeout(timer);
+    };
+  }, [mapGuideStepIndex, refreshMapGuideTargets, showMapGuide]);
+
+  useEffect(() => {
+    if (!showMapGuide) return;
+    const map = mapInstanceRef.current;
+    if (!map) return;
+
+    let frameId = 0;
+    const scheduleUpdate = () => {
+      window.cancelAnimationFrame(frameId);
+      frameId = window.requestAnimationFrame(updateCarltonGuideProxyTargets);
+    };
+
+    scheduleUpdate();
+    map.on("move zoom resize", scheduleUpdate);
+    window.addEventListener("resize", scheduleUpdate);
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      map.off("move zoom resize", scheduleUpdate);
+      window.removeEventListener("resize", scheduleUpdate);
+    };
+  }, [showMapGuide, updateCarltonGuideProxyTargets]);
+
+  const handleRankedPickSelect = useCallback((precinct: Precinct) => {
     const params = new URLSearchParams({
       endLat: String(precinct.lat),
       endLng: String(precinct.lng),
@@ -1107,7 +1356,7 @@ export default function App() {
       autoLocateStart: "1",
       skipTips: "1",
     });
-    setShowMapGuide(false);
+    setRankedPicksOpen(false);
     navigate(`${APP_ROUTES.map3dRoute}?${params.toString()}`);
   }, [navigate]);
 
@@ -1225,14 +1474,17 @@ export default function App() {
       : destPrecinct?.comfort_label === 'Caution'
         ? 'Conditions are elevated. Consider safer time windows.'
         : 'High risk conditions. Delay travel if possible.');
+    const formatTemp = (value: number) => `${Number(value.toFixed(1))}°C`;
+    const formatTempRange = (start: number, end: number) => `${formatTemp(start)}-${formatTemp(end)}`;
+    const hasCurrentTemp = currentTemp !== null && currentTemp !== undefined;
 
     const hourlyData = [
-      { time: "6AM", score: Math.min(100, currentScore + 8), temp: currentTemp !== null && currentTemp !== undefined ? Math.max(8, currentTemp - 4) : 16, crowd: 24 },
-      { time: "9AM", score: Math.min(100, currentScore + 4), temp: currentTemp !== null && currentTemp !== undefined ? Math.max(10, currentTemp - 2) : 18, crowd: 42 },
-      { time: "12PM", score: Math.max(45, currentScore - 12), temp: currentTemp !== null && currentTemp !== undefined ? currentTemp + 2 : 24, crowd: 80 },
-      { time: "3PM", score: Math.max(48, currentScore - 8), temp: currentTemp !== null && currentTemp !== undefined ? currentTemp + 3 : 25, crowd: 72 },
-      { time: "6PM", score: Math.min(100, currentScore + 3), temp: currentTemp !== null && currentTemp !== undefined ? Math.max(10, currentTemp - 1) : 20, crowd: 44 },
-      { time: "9PM", score: Math.max(52, currentScore - 10), temp: currentTemp !== null && currentTemp !== undefined ? Math.max(8, currentTemp - 5) : 16, crowd: 18 },
+      { time: "6AM", score: Math.min(100, currentScore + 8), temp: hasCurrentTemp ? Math.max(8, currentTemp - 4) : 16, crowd: 24 },
+      { time: "9AM", score: Math.min(100, currentScore + 4), temp: hasCurrentTemp ? Math.max(10, currentTemp - 2) : 18, crowd: 42 },
+      { time: "12PM", score: Math.max(45, currentScore - 12), temp: hasCurrentTemp ? currentTemp + 2 : 24, crowd: 80 },
+      { time: "3PM", score: Math.max(48, currentScore - 8), temp: hasCurrentTemp ? currentTemp + 3 : 25, crowd: 72 },
+      { time: "6PM", score: Math.min(100, currentScore + 3), temp: hasCurrentTemp ? Math.max(10, currentTemp - 1) : 20, crowd: 44 },
+      { time: "9PM", score: Math.max(52, currentScore - 10), temp: hasCurrentTemp ? Math.max(8, currentTemp - 5) : 16, crowd: 18 },
     ];
 
     const timeSlots = [
@@ -1249,7 +1501,7 @@ export default function App() {
           "Lower exposure to peak daytime heat.",
         ],
         stats: [
-          { label: "Temperature", value: currentTemp !== null && currentTemp !== undefined ? `${Math.max(8, currentTemp - 4)}-${Math.max(10, currentTemp - 2)}°C` : "15-18°C", icon: <ThermometerSun className="w-4 h-4" /> },
+          { label: "Temperature", value: hasCurrentTemp ? formatTempRange(Math.max(8, currentTemp - 4), Math.max(10, currentTemp - 2)) : "15-18°C", icon: <ThermometerSun className="w-4 h-4" /> },
           { label: "Crowd", value: "Low", icon: <Users className="w-4 h-4" /> },
           { label: "Visibility", value: "Good", icon: <Eye className="w-4 h-4" /> },
         ],
@@ -1267,7 +1519,7 @@ export default function App() {
           "Lower heat exposure than midday.",
         ],
         stats: [
-          { label: "Temperature", value: currentTemp !== null && currentTemp !== undefined ? `${Math.max(10, currentTemp - 1)}-${Math.max(8, currentTemp - 4)}°C` : "20-24°C", icon: <ThermometerSun className="w-4 h-4" /> },
+          { label: "Temperature", value: hasCurrentTemp ? formatTempRange(Math.max(10, currentTemp - 1), Math.max(8, currentTemp - 4)) : "20-24°C", icon: <ThermometerSun className="w-4 h-4" /> },
           { label: "Crowd", value: "Medium", icon: <Users className="w-4 h-4" /> },
           { label: "Visibility", value: "Good", icon: <Eye className="w-4 h-4" /> },
         ],
@@ -1385,7 +1637,7 @@ export default function App() {
                     <ThermometerSun className="w-5 h-5 text-orange-400" />
                     <span className="text-xs text-[#5f6f64]">Temperature</span>
                   </div>
-                  <div className="text-2xl font-bold text-[#10201f]">{currentTemp !== null && currentTemp !== undefined ? `${currentTemp}°C` : "N/A"}</div>
+                  <div className="text-2xl font-bold text-[#10201f]">{hasCurrentTemp ? formatTemp(currentTemp) : "N/A"}</div>
                 </div>
                 <div className="rounded-xl border border-[#d9d1c6] bg-[#f1ecdf] p-4">
                   <div className="flex items-center gap-2 mb-2">
@@ -1607,6 +1859,7 @@ export default function App() {
         <div
           ref={(el) => {
             if (!el) return;
+            modeSwitchGuideRef.current = el;
             floatingUiRefs.current[0] = el;
           }}
           className="flex flex-col gap-1 pointer-events-auto"
@@ -1646,15 +1899,16 @@ export default function App() {
         </div>
       </header>
 
-      <MapGuideDialog
+      <SpotlightGuide
         open={showMapGuide}
         onOpenChange={setShowMapGuide}
-        topPrecincts={guideTopPrecincts}
-        loading={loading}
-        onPrecinctSelect={handleGuidePrecinctSelect}
+        steps={mapGuideSteps}
+        currentStepIndex={mapGuideStepIndex}
+        onNext={handleMapGuideNext}
+        onSkip={handleMapGuideSkip}
       />
 
-      <div className="fixed inset-0 z-0">
+      <div ref={mapSurfaceGuideRef} className="fixed inset-0 z-0">
         <LeafletMap
           precincts={mapFilters.comfortArea ? precinctList : []}
           selectedCategory={activeView === "compare" ? null : (mapFilters.comfortArea ? selectedCategory : null)}
@@ -1671,6 +1925,20 @@ export default function App() {
           onEasePlacesClick={handleEasePlacesClick}
         />
       </div>
+      <div
+        ref={(el) => {
+          comfortMarkerGuideRef.current = el;
+        }}
+        aria-hidden="true"
+        style={HIDDEN_GUIDE_TARGET_STYLE}
+      />
+      <div
+        ref={(el) => {
+          areaBlockGuideRef.current = el;
+        }}
+        aria-hidden="true"
+        style={HIDDEN_GUIDE_TARGET_STYLE}
+      />
 
       <div className="relative z-10 pt-14 pointer-events-none sm:pt-16">
         <section className="snap-start h-[calc(100vh-56px)] w-full sm:h-[calc(100vh-64px)]">
@@ -2048,24 +2316,93 @@ export default function App() {
               </div>
             )}
             <button
+              ref={exploreMapButtonRef}
               type="button"
-              onClick={() => setExploreOpen((open) => !open)}
+              onClick={() => {
+                setRankedPicksOpen(false);
+                setExploreOpen((open) => !open);
+              }}
               className="map-bottom-action-btn flex h-full w-full items-center justify-center gap-2 rounded-sm bg-gradient-to-b from-[#122d2b] to-[#17413f] px-4 py-2 text-[10px] font-medium tracking-[0.18em] uppercase text-white backdrop-blur sm:gap-3 sm:px-6 sm:py-3 sm:text-[11px] sm:tracking-[0.24em]"
             >
               Explore Map
               <span className="text-[10px] opacity-60">{exploreOpen ? "▴" : "▾"}</span>
             </button>
           </div>
-          <div className="flex-1">
+          <div className="relative flex flex-[1.18] gap-2">
+            {rankedPicksOpen && (
+              <div className="absolute bottom-full left-1/2 z-[420] mb-2 w-[min(88vw,360px)] -translate-x-1/2 overflow-hidden rounded-lg border border-[#4a5c3a]/25 bg-[#f5f0e8] shadow-[0_-8px_40px_rgba(0,0,0,0.2)] sm:mb-3">
+                <div className="border-b border-black/10 px-3 pb-2 pt-3 text-center sm:px-4">
+                  <div className="font-['Montserrat',sans-serif] text-[9px] font-semibold tracking-[0.22em] uppercase text-[#4a5c3a] sm:text-[10px]">
+                    Ranked Picks
+                  </div>
+                  <p className="mt-1 text-[10px] leading-4 text-[#4a5c3a]/75">
+                    Best comfort scores right now
+                  </p>
+                </div>
+                <div className="max-h-[42vh] overflow-y-auto p-2">
+                  {loading ? (
+                    <div className="rounded-md border border-dashed border-[#b9c7bb] bg-white/55 px-3 py-2 text-[11px] text-[#4a5c3a]">
+                      Loading current rankings...
+                    </div>
+                  ) : guideTopPrecincts.length > 0 ? (
+                    guideTopPrecincts.map((precinct, index) => (
+                      <button
+                        key={precinct.id}
+                        type="button"
+                        onClick={() => handleRankedPickSelect(precinct)}
+                        className="mb-1.5 grid w-full grid-cols-[24px_minmax(0,1fr)_auto] items-center gap-2 overflow-hidden rounded-md border border-[#d7d0c2] bg-white/70 px-2.5 py-2 text-left transition hover:border-[#4a5c3a]/45 hover:bg-white sm:grid-cols-[28px_minmax(0,1fr)_auto] sm:gap-3"
+                      >
+                        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#17413f] text-[10px] font-bold text-white sm:h-7 sm:w-7 sm:text-[11px]">
+                          {index + 1}
+                        </span>
+                        <span className="min-w-0 overflow-hidden">
+                          <span className="block truncate text-[11px] font-semibold text-[#10201f]">{precinct.name}</span>
+                          <span className="block truncate text-[10px] text-[#5f6f64]">{precinct.comfort_label}</span>
+                        </span>
+                        <span className="shrink-0 rounded-full bg-[#eef3e6] px-2 py-0.5 text-[11px] font-semibold text-[#4a5c3a]">
+                          {precinct.comfort_score}
+                        </span>
+                      </button>
+                    ))
+                  ) : (
+                    <div className="rounded-md border border-dashed border-[#b9c7bb] bg-white/55 px-3 py-2 text-[11px] text-[#4a5c3a]">
+                      Rankings will appear when map data is ready.
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
             <button
+              ref={tipsButtonRef}
               type="button"
-              onClick={() => setShowMapGuide(true)}
-              className="map-bottom-action-btn map-bottom-tips-btn flex h-full w-full items-center justify-center gap-2 rounded-sm bg-gradient-to-b from-[#122d2b] to-[#17413f] px-3 py-2 text-[10px] font-medium tracking-[0.14em] uppercase text-white backdrop-blur sm:gap-3 sm:px-6 sm:py-3 sm:text-[11px] sm:tracking-[0.24em]"
+              onClick={() => {
+                setRankedPicksOpen(false);
+                setShowMapGuide(true);
+              }}
+              className="map-bottom-action-btn map-bottom-tips-btn flex h-full flex-1 items-center justify-center gap-2 rounded-sm bg-gradient-to-b from-[#122d2b] to-[#17413f] px-3 py-2 text-[10px] font-medium tracking-[0.14em] uppercase text-white backdrop-blur sm:gap-3 sm:px-6 sm:py-3 sm:text-[11px] sm:tracking-[0.24em]"
               aria-label="Open map tips"
               title="Open tips"
             >
               Tips
               <span className="text-[10px] opacity-60">▾</span>
+            </button>
+            <button
+              ref={rankedPicksButtonRef}
+              type="button"
+              onClick={() => {
+                setExploreOpen(false);
+                setLegendDropdownOpen(false);
+                setRankedPicksOpen((open) => !open);
+              }}
+              className={`map-bottom-action-btn flex h-full flex-[0.95] items-center justify-center gap-2 rounded-sm bg-gradient-to-b from-[#122d2b] to-[#17413f] px-2.5 py-2 text-[9px] font-medium tracking-[0.12em] uppercase text-white backdrop-blur sm:px-4 sm:py-3 sm:text-[10px] sm:tracking-[0.18em] ${
+                rankedPicksOpen ? "ring-1 ring-white/80" : ""
+              }`}
+              aria-label="Open ranked picks"
+              title="Ranked Picks"
+            >
+              <span className="hidden sm:inline">Ranked Picks</span>
+              <span className="sm:hidden">Picks</span>
+              <span className="text-[10px] opacity-60">{rankedPicksOpen ? "▴" : "▾"}</span>
             </button>
           </div>
           <div className="relative map-legend-wrap flex-1">
@@ -2123,8 +2460,12 @@ export default function App() {
                 </div>
               )}
               <button
+                ref={legendButtonRef}
                 type="button"
-                onClick={() => setLegendDropdownOpen((open) => !open)}
+                onClick={() => {
+                  setRankedPicksOpen(false);
+                  setLegendDropdownOpen((open) => !open);
+                }}
                 className={`map-bottom-action-btn flex h-full w-full items-center justify-center gap-2 rounded-sm bg-gradient-to-b from-[#122d2b] to-[#17413f] px-3 py-2 text-[10px] font-medium tracking-[0.14em] uppercase text-white backdrop-blur sm:gap-3 sm:px-6 sm:py-3 sm:text-[11px] sm:tracking-[0.24em] ${
                   legendDropdownOpen ? "ring-1 ring-white/80" : ""
                 }`}
@@ -2147,12 +2488,13 @@ export default function App() {
       onWheel={handleSectionWheel}
       className="fixed inset-0 overflow-y-auto overflow-x-hidden snap-y snap-mandatory bg-[#f7fbfa] text-[#10201f]"
     >
-      <MapGuideDialog
+      <SpotlightGuide
         open={showMapGuide}
         onOpenChange={setShowMapGuide}
-        topPrecincts={guideTopPrecincts}
-        loading={loading}
-        onPrecinctSelect={handleGuidePrecinctSelect}
+        steps={mapGuideSteps}
+        currentStepIndex={mapGuideStepIndex}
+        onNext={handleMapGuideNext}
+        onSkip={handleMapGuideSkip}
       />
 
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
@@ -2204,6 +2546,7 @@ export default function App() {
                       </p>
                     </div>
                     <button
+                      ref={tipsButtonRef}
                       type="button"
                       onClick={() => setShowMapGuide(true)}
                       className="inline-flex items-center gap-2 rounded-xl border border-[#83c5be]/28 bg-[rgba(247,255,253,0.94)] px-4 py-2 text-sm font-semibold text-[#17413f] shadow-[0_12px_28px_rgba(16,32,31,0.08)] transition-all hover:border-[#83c5be]/52 hover:bg-white hover:shadow-[0_16px_34px_rgba(16,32,31,0.12)]"
@@ -2288,7 +2631,7 @@ export default function App() {
                   </div>
 
                   {/* Map area */}
-                  <div className="flex-1 relative">
+                  <div ref={mapSurfaceGuideRef} className="flex-1 relative">
                     {/* Left sidebar toggle — only visible when Comfort Area is enabled */}
                     {mapFilters.comfortArea && (
                       <button
