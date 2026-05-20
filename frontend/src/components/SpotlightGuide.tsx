@@ -1,4 +1,4 @@
-import { type RefObject, useEffect, useLayoutEffect, useMemo, useState } from "react";
+import { type RefObject, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 export type SpotlightGuideStep = {
   id: string;
@@ -30,6 +30,7 @@ const CARD_WIDTH = 320;
 const CARD_GAP = 16;
 const VIEWPORT_PADDING = 16;
 const HIGHLIGHT_PADDING = 10;
+const FALLBACK_CARD_HEIGHT = 220;
 
 function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value));
@@ -73,6 +74,8 @@ export default function SpotlightGuide({
   onSkip,
 }: SpotlightGuideProps) {
   const [highlightRect, setHighlightRect] = useState<Rect | null>(null);
+  const [cardHeight, setCardHeight] = useState(FALLBACK_CARD_HEIGHT);
+  const cardRef = useRef<HTMLElement | null>(null);
 
   const currentStep = steps[currentStepIndex] ?? null;
 
@@ -137,6 +140,27 @@ export default function SpotlightGuide({
     };
   }, [currentStep, open]);
 
+  useLayoutEffect(() => {
+    if (!open || !currentStep) return;
+    const card = cardRef.current;
+    if (!card) return;
+
+    const measure = () => {
+      const nextHeight = Math.ceil(card.getBoundingClientRect().height);
+      setCardHeight(nextHeight > 0 ? nextHeight : FALLBACK_CARD_HEIGHT);
+    };
+
+    measure();
+
+    const resizeObserver =
+      typeof ResizeObserver !== "undefined"
+        ? new ResizeObserver(measure)
+        : null;
+
+    resizeObserver?.observe(card);
+    return () => resizeObserver?.disconnect();
+  }, [currentStep, open]);
+
   const cardPosition = useMemo(() => {
     if (!highlightRect) {
       const preferredWidth = Math.min(CARD_WIDTH, window.innerWidth - VIEWPORT_PADDING * 2);
@@ -154,22 +178,23 @@ export default function SpotlightGuide({
       Math.max(VIEWPORT_PADDING, window.innerWidth - preferredWidth - VIEWPORT_PADDING)
     );
 
+    const measuredCardHeight = Math.max(cardHeight, FALLBACK_CARD_HEIGHT);
     const defaultTop = highlightRect.bottom + CARD_GAP;
-    const topCandidate = defaultTop + 220 <= window.innerHeight - VIEWPORT_PADDING;
+    const topCandidate = defaultTop + measuredCardHeight <= window.innerHeight - VIEWPORT_PADDING;
     const shouldPlaceOnTop =
       currentStep?.placement === "top" ||
-      (currentStep?.placement !== "bottom" && !topCandidate && highlightRect.top - CARD_GAP - 220 >= VIEWPORT_PADDING);
+      (currentStep?.placement !== "bottom" && !topCandidate && highlightRect.top - CARD_GAP - measuredCardHeight >= VIEWPORT_PADDING);
 
     const top = shouldPlaceOnTop
-      ? Math.max(VIEWPORT_PADDING, highlightRect.top - CARD_GAP - 220)
-      : Math.min(defaultTop, window.innerHeight - 220 - VIEWPORT_PADDING);
+      ? Math.max(VIEWPORT_PADDING, highlightRect.top - CARD_GAP - measuredCardHeight)
+      : Math.min(defaultTop, window.innerHeight - measuredCardHeight - VIEWPORT_PADDING);
 
     return {
       left,
       top,
       width: preferredWidth,
     };
-  }, [currentStep?.placement, highlightRect]);
+  }, [cardHeight, currentStep?.placement, highlightRect]);
 
   if (!open || !currentStep || !cardPosition) return null;
 
@@ -185,7 +210,7 @@ export default function SpotlightGuide({
     } satisfies Rect);
 
   return (
-    <div data-testid="spotlight-guide-overlay" className="pointer-events-none fixed inset-0 z-[520]">
+    <div data-testid="spotlight-guide-overlay" className="pointer-events-auto fixed inset-0 z-[520]">
       <div
         className="absolute bg-[rgba(5,12,12,0.68)]"
         style={{ top: 0, left: 0, right: 0, height: resolvedHighlightRect.top }}
@@ -210,7 +235,7 @@ export default function SpotlightGuide({
 
       <div
         data-testid="spotlight-guide-highlight"
-        className="absolute rounded-[24px] border-2 border-white shadow-[0_0_0_9999px_rgba(0,0,0,0)]"
+        className="pointer-events-none absolute rounded-[24px] border-2 border-white shadow-[0_0_0_9999px_rgba(0,0,0,0)]"
         style={{
           top: resolvedHighlightRect.top,
           left: resolvedHighlightRect.left,
@@ -222,7 +247,7 @@ export default function SpotlightGuide({
 
       <div
         data-testid={`spotlight-guide-target-${currentStep.id}`}
-        className="absolute rounded-[24px] border border-white/55 bg-white/8"
+        className="pointer-events-none absolute rounded-[24px] border border-white/55 bg-white/8"
         style={{
           top: resolvedHighlightRect.top,
           left: resolvedHighlightRect.left,
@@ -232,6 +257,7 @@ export default function SpotlightGuide({
       />
 
       <section
+        ref={cardRef}
         data-testid="spotlight-guide-card"
         className="pointer-events-auto absolute rounded-[24px] border border-white/40 bg-[linear-gradient(145deg,rgba(255,255,255,0.96),rgba(238,248,245,0.92))] p-5 text-[#17413f] shadow-[0_24px_48px_rgba(7,21,21,0.28)] backdrop-blur-md"
         style={{
