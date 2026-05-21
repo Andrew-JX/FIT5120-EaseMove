@@ -5,10 +5,51 @@ type MapFilters = {
   naturalPlaces: boolean;
 };
 
+function easePlaceMarkerColor(categoryKey: "arts" | "recreation" | "shopping" | "food"): { core: string; halo: string } {
+  if (categoryKey === "arts") return { core: "#5b5b9b", halo: "rgba(91,91,155,0.3)" };
+  if (categoryKey === "recreation") return { core: "#00a859", halo: "rgba(0,168,89,0.3)" };
+  if (categoryKey === "food") return { core: "#dd6b20", halo: "rgba(221,107,32,0.3)" };
+  return { core: "#e197b9", halo: "rgba(225,151,185,0.3)" };
+}
+
+function EasePlaceLegendMarker({
+  categoryKey,
+}: {
+  categoryKey: "arts" | "recreation" | "shopping" | "food";
+}) {
+  const { core, halo } = easePlaceMarkerColor(categoryKey);
+  return (
+    <span
+      aria-hidden="true"
+      className="mt-1 inline-block h-[14px] w-[14px] shrink-0 rounded-full"
+      style={{ background: core, boxShadow: `0 0 0 6px ${halo}` }}
+    />
+  );
+}
+
+function ComfortMarkerLegend({
+  color,
+  score,
+}: {
+  color: string;
+  score: string;
+}) {
+  return (
+    <div className="legend-comfort-marker" aria-hidden="true">
+      <div className="legend-comfort-score" style={{ borderColor: color }}>
+        {score}
+      </div>
+      <div className="legend-comfort-pin" style={{ background: color }}>
+        <span className="legend-comfort-pin-inner" />
+      </div>
+    </div>
+  );
+}
+
 function FurnitureLegend() {
   return (
     <>
-      <div className="legend-section-label">Street Furniture</div>
+      <div className="legend-section-label">Street Facilities</div>
       <div className="legend-row">
         <div className="furniture-dot furniture-dot-drinking" />
         <span>Drinking Fountain</span>
@@ -46,21 +87,21 @@ export default function DynamicLegendPanel({
         {filters.easePlaces ? (
           <>
             <div className="legend-section-label">Ease Places</div>
-            <div className="legend-row">
-              <div className="cp-dot cp-dot-arts" />
-              <span>Arts, Culture &amp; Enrichment</span>
+            <div className="legend-row legend-ease-row">
+              <EasePlaceLegendMarker categoryKey="arts" />
+              <span className="legend-ease-label">Arts, Culture &amp; Enrichment</span>
             </div>
-            <div className="legend-row">
-              <div className="cp-dot cp-dot-recreation" />
-              <span>Recreation / Leisure &amp; Open Spaces</span>
+            <div className="legend-row legend-ease-row">
+              <EasePlaceLegendMarker categoryKey="recreation" />
+              <span className="legend-ease-label">Recreation / Leisure &amp; Open Spaces</span>
             </div>
-            <div className="legend-row">
-              <div className="cp-dot cp-dot-shopping" />
-              <span>Shopping</span>
+            <div className="legend-row legend-ease-row">
+              <EasePlaceLegendMarker categoryKey="shopping" />
+              <span className="legend-ease-label">Shopping</span>
             </div>
-            <div className="legend-row">
-              <div className="cp-dot cp-dot-food" />
-              <span>Food &amp; Dining</span>
+            <div className="legend-row legend-ease-row">
+              <EasePlaceLegendMarker categoryKey="food" />
+              <span className="legend-ease-label">Food &amp; Dining</span>
             </div>
           </>
         ) : null}
@@ -70,11 +111,11 @@ export default function DynamicLegendPanel({
             {showDividerBefore("naturalPlaces") ? <div className="legend-divider" /> : null}
             <div className="legend-section-label">Natural Places</div>
             <div className="legend-row">
-              <div className="h-3 w-3 border-2 border-blue-900 bg-blue-200" />
+              <div className="legend-natural-swatch legend-natural-water" />
               <span>Waterbody</span>
             </div>
             <div className="legend-row">
-              <div className="h-3 w-3 border-2 border-green-900 bg-green-300" />
+              <div className="legend-natural-swatch legend-natural-park" />
               <span>Park</span>
             </div>
           </>
@@ -85,19 +126,19 @@ export default function DynamicLegendPanel({
             {showDividerBefore("comfortArea") ? <div className="legend-divider" /> : null}
             <div className="legend-section-label">Comfort Level</div>
             <div className="legend-row">
-              <div className="comfort-dot comfort-dot-comfortable" />
+              <ComfortMarkerLegend color="#22c55e" score="82" />
               <span>Comfortable (70-100)</span>
             </div>
             <div className="legend-row">
-              <div className="comfort-dot comfort-dot-caution" />
+              <ComfortMarkerLegend color="#eab308" score="56" />
               <span>Caution (40-69)</span>
             </div>
             <div className="legend-row">
-              <div className="comfort-dot comfort-dot-high" />
+              <ComfortMarkerLegend color="#ef4444" score="24" />
               <span>High Risk (0-39)</span>
             </div>
             <div className="legend-row">
-              <div className="comfort-dot comfort-dot-no-data" />
+              <ComfortMarkerLegend color="#9ca3af" score="--" />
               <span>No sensor data</span>
             </div>
           </>

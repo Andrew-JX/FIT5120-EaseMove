@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef, useLayoutEffect } from "react";
+import { useState, useCallback, useEffect, useRef, useLayoutEffect, useMemo, type CSSProperties } from "react";
 import { useLocation, useNavigate } from "react-router";
 import { animate, utils } from "animejs";
 import {
@@ -17,7 +17,7 @@ import AppTopNav from "../components/AppTopNav";
 import LeafletMap from "../components/LeafletMap";
 import EasePlacesDetailPopup from "../components/map/EasePlacesDetailPopup";
 import DynamicLegendPanel from "../components/map/DynamicLegendPanel";
-import MapGuideDialog from "../components/map/MapGuideDialog";
+import SpotlightGuide, { type SpotlightGuideStep } from "../components/SpotlightGuide";
 import { usePrecincts } from "../hooks/usePrecincts";
 import {
   DEFAULT_WEIGHTS,
@@ -39,6 +39,22 @@ import AreaDetailPage from "../pages/AreaDetailPage";
 import RecommendationFacilitiesPage from "../pages/RecommendationFacilitiesPage";
 let hasAutoShownMapGuideThisRuntime = false;
 let suppressNextAutoMapGuide = false;
+
+const HIDDEN_GUIDE_TARGET_STYLE: CSSProperties = {
+  position: "fixed",
+  left: -9999,
+  top: -9999,
+  width: 1,
+  height: 1,
+  pointerEvents: "none",
+};
+
+const CARLTON_AREA_BOUNDS = {
+  northWest: [-37.7964, 144.9565] as const,
+  southEast: [-37.8087, 144.9748] as const,
+};
+
+const CARLTON_PIN_COORDINATE = [-37.8010, 144.9670] as const;
 
 const MAP_LAYOUT_NAV_ITEMS = [
   { label: "Home", to: APP_ROUTES.home },
@@ -72,6 +88,16 @@ function formatDetailSensorStatus(p: Precinct): string {
   return '✅ Live Sensors';
 }
 
+function formatMetricNumber(value: number): string {
+  if (!Number.isFinite(value)) return 'N/A';
+  return Number(value.toFixed(1)).toString();
+}
+
+function formatMetricValue(value: number | null | undefined, unit = ''): string {
+  if (value === null || value === undefined) return 'N/A';
+  return `${formatMetricNumber(value)}${unit}`;
+}
+
 function getAreaIdFromSearch(search: string): string | null {
   const areaId = new URLSearchParams(search).get("area");
   return getAreaInfo(areaId)?.id ?? null;
@@ -101,6 +127,28 @@ function cpDotClass(category: string): string {
   if (category.includes('Recreation')) return 'cp-dot cp-dot-recreation';
   if (category.includes('Food') || category.includes('Dining')) return 'cp-dot cp-dot-food';
   return 'cp-dot cp-dot-shopping';
+}
+
+function easePlaceMarkerColor(categoryKey: "arts" | "recreation" | "shopping" | "food"): { core: string; halo: string } {
+  if (categoryKey === "arts") return { core: "#5b5b9b", halo: "rgba(91,91,155,0.3)" };
+  if (categoryKey === "recreation") return { core: "#00a859", halo: "rgba(0,168,89,0.3)" };
+  if (categoryKey === "food") return { core: "#dd6b20", halo: "rgba(221,107,32,0.3)" };
+  return { core: "#e197b9", halo: "rgba(225,151,185,0.3)" };
+}
+
+function EasePlaceLegendMarker({
+  categoryKey,
+}: {
+  categoryKey: "arts" | "recreation" | "shopping" | "food";
+}) {
+  const { core, halo } = easePlaceMarkerColor(categoryKey);
+  return (
+    <span
+      aria-hidden="true"
+      className="mt-1 inline-block h-[14px] w-[14px] shrink-0 rounded-full"
+      style={{ background: core, boxShadow: `0 0 0 6px ${halo}` }}
+    />
+  );
 }
 
 function ComfortScoreInfo({ placement = 'bottom' }: { placement?: 'bottom' | 'right' }) {
@@ -351,6 +399,25 @@ type MapFilters = {
   naturalPlaces: boolean;
 };
 
+function ComfortMarkerLegend({
+  color,
+  score,
+}: {
+  color: string;
+  score: string;
+}) {
+  return (
+    <div className="legend-comfort-marker" aria-hidden="true">
+      <div className="legend-comfort-score" style={{ borderColor: color }}>
+        {score}
+      </div>
+      <div className="legend-comfort-pin" style={{ background: color }}>
+        <span className="legend-comfort-pin-inner" />
+      </div>
+    </div>
+  );
+}
+
 function MapFilterPanel({
   filters,
   onToggle,
@@ -389,7 +456,7 @@ function FurnitureLegend() {
   return (
     <>
       <div className="legend-divider" />
-      <div className="legend-section-label">Street Furniture</div>
+      <div className="legend-section-label">Street Facilities</div>
       <div className="legend-row">
         <div className="furniture-dot furniture-dot-drinking" />
         <span>Drinking Fountain</span>
@@ -412,46 +479,46 @@ function LegendPanel() {
       <div className="map-panel-header">Legend</div>
       <div className="legend-body">
         <div className="legend-section-label">Ease Places</div>
-        <div className="legend-row">
-          <div className="cp-dot cp-dot-arts" />
-          <span>Arts, Culture &amp; Enrichment</span>
+        <div className="legend-row legend-ease-row">
+          <EasePlaceLegendMarker categoryKey="arts" />
+          <span className="legend-ease-label">Arts, Culture &amp; Enrichment</span>
         </div>
-        <div className="legend-row">
-          <div className="cp-dot cp-dot-recreation" />
-          <span>Recreation / Leisure &amp; Open Spaces</span>
+        <div className="legend-row legend-ease-row">
+          <EasePlaceLegendMarker categoryKey="recreation" />
+          <span className="legend-ease-label">Recreation / Leisure &amp; Open Spaces</span>
         </div>
-        <div className="legend-row">
-          <div className="cp-dot cp-dot-shopping" />
-          <span>Shopping</span>
+        <div className="legend-row legend-ease-row">
+          <EasePlaceLegendMarker categoryKey="shopping" />
+          <span className="legend-ease-label">Shopping</span>
         </div>
 
         <div className="legend-divider" />
         <div className="legend-section-label">Natural Places</div>
         <div className="legend-row">
-          <div className="h-3 w-3 border-2 border-blue-900 bg-blue-200" />
+          <div className="legend-natural-swatch legend-natural-water" />
           <span>Waterbody</span>
         </div>
         <div className="legend-row">
-          <div className="h-3 w-3 border-2 border-green-900 bg-green-300" />
+          <div className="legend-natural-swatch legend-natural-park" />
           <span>Park</span>
         </div>
 
         <div className="legend-divider" />
         <div className="legend-section-label">Comfort Level</div>
         <div className="legend-row">
-          <div className="comfort-dot comfort-dot-comfortable" />
+          <ComfortMarkerLegend color="#22c55e" score="82" />
           <span>Comfortable (70–100)</span>
         </div>
         <div className="legend-row">
-          <div className="comfort-dot comfort-dot-caution" />
+          <ComfortMarkerLegend color="#eab308" score="56" />
           <span>Caution (40–69)</span>
         </div>
         <div className="legend-row">
-          <div className="comfort-dot comfort-dot-high" />
+          <ComfortMarkerLegend color="#ef4444" score="24" />
           <span>High Risk (0–39)</span>
         </div>
         <div className="legend-row">
-          <div className="comfort-dot comfort-dot-no-data" />
+          <ComfortMarkerLegend color="#9ca3af" score="--" />
           <span>No sensor data</span>
         </div>
 
@@ -481,14 +548,16 @@ export default function App() {
     naturalPlaces: false,
   });
   const [showMapGuide, setShowMapGuide] = useState(false);
+  const [mapGuideStepIndex, setMapGuideStepIndex] = useState(0);
   const shouldFetchPrecincts = true;
 
   const { precincts: precinctList, loading, error } = usePrecincts(
     shouldFetchPrecincts ? debouncedWeights : undefined
   );
 
-  const precincts: Record<string, Precinct> = Object.fromEntries(
-    precinctList.map((p: Precinct) => [p.id, p])
+  const precincts: Record<string, Precinct> = useMemo(
+    () => Object.fromEntries(precinctList.map((p: Precinct) => [p.id, p])),
+    [precinctList]
   );
 
   const [showCard, setShowCard] = useState<string | null>(null);
@@ -504,8 +573,18 @@ export default function App() {
   const [currentPageLabel, setCurrentPageLabel] = useState("Map");
   const [exploreOpen, setExploreOpen] = useState(false);
   const [legendDropdownOpen, setLegendDropdownOpen] = useState(false);
+  const [rankedPicksOpen, setRankedPicksOpen] = useState(false);
   const menuPanelRef = useRef<HTMLElement | null>(null);
   const leftPanelRef = useRef<HTMLDivElement | null>(null);
+  const mapSurfaceGuideRef = useRef<HTMLDivElement | null>(null);
+  const comfortMarkerGuideRef = useRef<HTMLElement | null>(null);
+  const areaBlockGuideRef = useRef<HTMLElement | null>(null);
+  const modeSwitchGuideRef = useRef<HTMLDivElement | null>(null);
+  const exploreMapButtonRef = useRef<HTMLButtonElement | null>(null);
+  const tipsButtonRef = useRef<HTMLButtonElement | null>(null);
+  const rankedPicksButtonRef = useRef<HTMLButtonElement | null>(null);
+  const legendButtonRef = useRef<HTMLButtonElement | null>(null);
+  const mapGuideWasOpenRef = useRef(false);
   const menuItemRefs = useRef<HTMLButtonElement[]>([]);
   const floatingUiRefs = useRef<HTMLElement[]>([]);
   const explorePanelRef = useRef<HTMLDivElement | null>(null);
@@ -569,6 +648,68 @@ export default function App() {
   const handleMapReady = useCallback((map: L.Map) => {
     mapInstanceRef.current = map;
   }, []);
+
+  const positionGuideProxy = useCallback((
+    element: HTMLElement | null,
+    rect: { left: number; top: number; width: number; height: number } | null
+  ) => {
+    if (!element || !rect) {
+      if (element) {
+        element.style.position = "fixed";
+        element.style.left = "-9999px";
+        element.style.top = "-9999px";
+        element.style.width = "1px";
+        element.style.height = "1px";
+        element.style.pointerEvents = "none";
+      }
+      return;
+    }
+
+    element.style.position = "fixed";
+    element.style.left = `${Math.round(rect.left)}px`;
+    element.style.top = `${Math.round(rect.top)}px`;
+    element.style.width = `${Math.round(rect.width)}px`;
+    element.style.height = `${Math.round(rect.height)}px`;
+    element.style.pointerEvents = "none";
+  }, []);
+
+  const updateCarltonGuideProxyTargets = useCallback(() => {
+    const map = mapInstanceRef.current;
+    if (!map) {
+      positionGuideProxy(comfortMarkerGuideRef.current, null);
+      positionGuideProxy(areaBlockGuideRef.current, null);
+      return;
+    }
+
+    const mapBounds = map.getContainer().getBoundingClientRect();
+    const carltonPrecinct = precincts.carlton ?? precinctList.find((precinct) =>
+      precinct.id === "carlton" || precinct.name.toLowerCase().includes("carlton")
+    );
+    const carltonLat = Number.isFinite(carltonPrecinct?.lat) ? carltonPrecinct!.lat : CARLTON_PIN_COORDINATE[0];
+    const carltonLng = Number.isFinite(carltonPrecinct?.lng) ? carltonPrecinct!.lng : CARLTON_PIN_COORDINATE[1];
+    const pinPoint = map.latLngToContainerPoint([carltonLat, carltonLng]);
+
+    positionGuideProxy(comfortMarkerGuideRef.current, {
+      left: mapBounds.left + pinPoint.x - 28,
+      top: mapBounds.top + pinPoint.y - 56,
+      width: 56,
+      height: 72,
+    });
+
+    const northWest = map.latLngToContainerPoint(CARLTON_AREA_BOUNDS.northWest);
+    const southEast = map.latLngToContainerPoint(CARLTON_AREA_BOUNDS.southEast);
+    const left = mapBounds.left + Math.min(northWest.x, southEast.x);
+    const top = mapBounds.top + Math.min(northWest.y, southEast.y);
+    const width = Math.abs(southEast.x - northWest.x);
+    const height = Math.abs(southEast.y - northWest.y);
+
+    positionGuideProxy(areaBlockGuideRef.current, {
+      left,
+      top,
+      width: Math.max(120, width),
+      height: Math.max(120, height),
+    });
+  }, [positionGuideProxy, precinctList, precincts]);
 
   const handleAreaNavigation = useCallback((
     areaId: string | null,
@@ -674,6 +815,7 @@ export default function App() {
       setMenuUiSuppressed(true);
       setExploreOpen(false);
       setLegendDropdownOpen(false);
+      setRankedPicksOpen(false);
       setShowMapGuide(false);
       setOpenPanel(null);
       setEasePlacesPopup(null);
@@ -951,6 +1093,7 @@ export default function App() {
       setLandingMenuOpen(false);
       setExploreOpen(false);
       setLegendDropdownOpen(false);
+      setRankedPicksOpen(false);
       setShowMapGuide(false);
       setOpenPanel(null);
       setEasePlacesPopup(null);
@@ -1099,7 +1242,156 @@ export default function App() {
     })
     .slice(0, 5);
 
-  const handleGuidePrecinctSelect = useCallback((precinct: Precinct) => {
+  const recommendationGuideCopy = loading
+    ? "The recommendation ranking is loading. Once the comfort scores arrive, this can become a compact ranked shelf directly on the map."
+    : guideTopPrecincts.length > 0
+      ? `Recommendation idea: show a small ranked shelf on the map, starting with ${guideTopPrecincts
+          .slice(0, 3)
+          .map((precinct) => precinct.name)
+          .join(", ")}. Each row can show score, risk label, and a shortcut into the 3D route page.`
+      : "Recommendation idea: show a small ranked shelf on the map with the top comfortable precincts, each with score, risk label, and a shortcut into the 3D route page.";
+
+  const refreshMapGuideTargets = useCallback(() => {
+    updateCarltonGuideProxyTargets();
+  }, [updateCarltonGuideProxyTargets]);
+
+  const mapGuideSteps = useMemo<SpotlightGuideStep[]>(
+    () => [
+      {
+        id: "comfort-pin",
+        title: "Understand comfort score pins",
+        description:
+          "This example pin is a comfort score marker. Higher numbers mean more comfortable conditions. After the guide closes, click any pin to open the live score card for that precinct.",
+        targetRef: comfortMarkerGuideRef,
+        placement: "auto",
+      },
+      {
+        id: "carlton-block",
+        title: "Open an area block",
+        description:
+          "This example district shape is a clickable area block. After the guide closes, click an area to open its area page and route recommendations.",
+        targetRef: areaBlockGuideRef,
+        placement: "auto",
+      },
+      {
+        id: "view-compare",
+        title: "Switch between View and Compare",
+        description:
+          "Use View for normal map browsing. Use Compare when you want to pick two precincts and check which place is more comfortable side by side.",
+        targetRef: modeSwitchGuideRef,
+        placement: "bottom",
+      },
+      {
+        id: "explore-map",
+        title: "Choose map layers",
+        description:
+          "Explore Map turns layers on or off: Comfort Area, Ease Places, Street Facilities such as fountains, seats and bike racks, plus Natural Places such as parks and water.",
+        targetRef: exploreMapButtonRef,
+        placement: "top",
+      },
+      {
+        id: "legend",
+        title: "Decode colours and markers",
+        description:
+          "Legend explains the symbols currently visible on the map, including comfort score ranges, place categories, street facilities, parks, waterbodies, and no-sensor areas.",
+        targetRef: legendButtonRef,
+        placement: "top",
+      },
+      {
+        id: "ranked-picks",
+        title: "Use Ranked Picks",
+        description:
+          "Ranked Picks opens a short on-map list of the most comfortable precincts right now. Choose one when you want a quick recommended destination and a shortcut into the 3D route flow.",
+        targetRef: rankedPicksButtonRef,
+        placement: "top",
+      },
+      {
+        id: "tips",
+        title: "Reopen guidance and recommendations",
+        description: `Tips opens this walkthrough again. ${recommendationGuideCopy}`,
+        targetRef: tipsButtonRef,
+        placement: "top",
+      },
+    ],
+    [recommendationGuideCopy]
+  );
+
+  const handleMapGuideNext = useCallback(() => {
+    refreshMapGuideTargets();
+    const nextStepIndex = mapGuideStepIndex + 1;
+    if (nextStepIndex >= mapGuideSteps.length) {
+      setShowMapGuide(false);
+      setMapGuideStepIndex(0);
+      return;
+    }
+
+    setMapGuideStepIndex(nextStepIndex);
+  }, [mapGuideStepIndex, mapGuideSteps.length, refreshMapGuideTargets]);
+
+  const handleMapGuideSkip = useCallback(() => {
+    setShowMapGuide(false);
+    setMapGuideStepIndex(0);
+  }, []);
+
+  useEffect(() => {
+    if (!showMapGuide) {
+      mapGuideWasOpenRef.current = false;
+      return;
+    }
+
+    if (mapGuideWasOpenRef.current) return;
+    mapGuideWasOpenRef.current = true;
+
+    setMapGuideStepIndex(0);
+    setPanelOpen(false);
+    setLandingMenuOpen(false);
+    setMapFilters((current) => ({ ...current, comfortArea: true }));
+    setSelectedCategory(null);
+    setExploreOpen(false);
+    setLegendDropdownOpen(false);
+    setRankedPicksOpen(false);
+    setOpenPanel(null);
+    refreshMapGuideTargets();
+    const timer = window.setTimeout(refreshMapGuideTargets, 120);
+    return () => window.clearTimeout(timer);
+  }, [refreshMapGuideTargets, showMapGuide]);
+
+  useEffect(() => {
+    if (!showMapGuide) return;
+
+    refreshMapGuideTargets();
+    const frame = window.requestAnimationFrame(refreshMapGuideTargets);
+    const timer = window.setTimeout(refreshMapGuideTargets, 80);
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.clearTimeout(timer);
+    };
+  }, [mapGuideStepIndex, refreshMapGuideTargets, showMapGuide]);
+
+  useEffect(() => {
+    if (!showMapGuide) return;
+    const map = mapInstanceRef.current;
+    if (!map) return;
+
+    let frameId = 0;
+    const scheduleUpdate = () => {
+      window.cancelAnimationFrame(frameId);
+      frameId = window.requestAnimationFrame(updateCarltonGuideProxyTargets);
+    };
+
+    scheduleUpdate();
+    map.on("move zoom resize", scheduleUpdate);
+    window.addEventListener("resize", scheduleUpdate);
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      map.off("move zoom resize", scheduleUpdate);
+      window.removeEventListener("resize", scheduleUpdate);
+    };
+  }, [showMapGuide, updateCarltonGuideProxyTargets]);
+
+  const handleRankedPickSelect = useCallback((precinct: Precinct) => {
     const params = new URLSearchParams({
       endLat: String(precinct.lat),
       endLng: String(precinct.lng),
@@ -1107,7 +1399,7 @@ export default function App() {
       autoLocateStart: "1",
       skipTips: "1",
     });
-    setShowMapGuide(false);
+    setRankedPicksOpen(false);
     navigate(`${APP_ROUTES.map3dRoute}?${params.toString()}`);
   }, [navigate]);
 
@@ -1225,14 +1517,17 @@ export default function App() {
       : destPrecinct?.comfort_label === 'Caution'
         ? 'Conditions are elevated. Consider safer time windows.'
         : 'High risk conditions. Delay travel if possible.');
+    const formatTemp = (value: number) => `${Number(value.toFixed(1))}°C`;
+    const formatTempRange = (start: number, end: number) => `${formatTemp(start)}-${formatTemp(end)}`;
+    const hasCurrentTemp = currentTemp !== null && currentTemp !== undefined;
 
     const hourlyData = [
-      { time: "6AM", score: Math.min(100, currentScore + 8), temp: currentTemp !== null && currentTemp !== undefined ? Math.max(8, currentTemp - 4) : 16, crowd: 24 },
-      { time: "9AM", score: Math.min(100, currentScore + 4), temp: currentTemp !== null && currentTemp !== undefined ? Math.max(10, currentTemp - 2) : 18, crowd: 42 },
-      { time: "12PM", score: Math.max(45, currentScore - 12), temp: currentTemp !== null && currentTemp !== undefined ? currentTemp + 2 : 24, crowd: 80 },
-      { time: "3PM", score: Math.max(48, currentScore - 8), temp: currentTemp !== null && currentTemp !== undefined ? currentTemp + 3 : 25, crowd: 72 },
-      { time: "6PM", score: Math.min(100, currentScore + 3), temp: currentTemp !== null && currentTemp !== undefined ? Math.max(10, currentTemp - 1) : 20, crowd: 44 },
-      { time: "9PM", score: Math.max(52, currentScore - 10), temp: currentTemp !== null && currentTemp !== undefined ? Math.max(8, currentTemp - 5) : 16, crowd: 18 },
+      { time: "6AM", score: Math.min(100, currentScore + 8), temp: hasCurrentTemp ? Math.max(8, currentTemp - 4) : 16, crowd: 24 },
+      { time: "9AM", score: Math.min(100, currentScore + 4), temp: hasCurrentTemp ? Math.max(10, currentTemp - 2) : 18, crowd: 42 },
+      { time: "12PM", score: Math.max(45, currentScore - 12), temp: hasCurrentTemp ? currentTemp + 2 : 24, crowd: 80 },
+      { time: "3PM", score: Math.max(48, currentScore - 8), temp: hasCurrentTemp ? currentTemp + 3 : 25, crowd: 72 },
+      { time: "6PM", score: Math.min(100, currentScore + 3), temp: hasCurrentTemp ? Math.max(10, currentTemp - 1) : 20, crowd: 44 },
+      { time: "9PM", score: Math.max(52, currentScore - 10), temp: hasCurrentTemp ? Math.max(8, currentTemp - 5) : 16, crowd: 18 },
     ];
 
     const timeSlots = [
@@ -1249,7 +1544,7 @@ export default function App() {
           "Lower exposure to peak daytime heat.",
         ],
         stats: [
-          { label: "Temperature", value: currentTemp !== null && currentTemp !== undefined ? `${Math.max(8, currentTemp - 4)}-${Math.max(10, currentTemp - 2)}°C` : "15-18°C", icon: <ThermometerSun className="w-4 h-4" /> },
+          { label: "Temperature", value: hasCurrentTemp ? formatTempRange(Math.max(8, currentTemp - 4), Math.max(10, currentTemp - 2)) : "15-18°C", icon: <ThermometerSun className="w-4 h-4" /> },
           { label: "Crowd", value: "Low", icon: <Users className="w-4 h-4" /> },
           { label: "Visibility", value: "Good", icon: <Eye className="w-4 h-4" /> },
         ],
@@ -1267,7 +1562,7 @@ export default function App() {
           "Lower heat exposure than midday.",
         ],
         stats: [
-          { label: "Temperature", value: currentTemp !== null && currentTemp !== undefined ? `${Math.max(10, currentTemp - 1)}-${Math.max(8, currentTemp - 4)}°C` : "20-24°C", icon: <ThermometerSun className="w-4 h-4" /> },
+          { label: "Temperature", value: hasCurrentTemp ? formatTempRange(Math.max(10, currentTemp - 1), Math.max(8, currentTemp - 4)) : "20-24°C", icon: <ThermometerSun className="w-4 h-4" /> },
           { label: "Crowd", value: "Medium", icon: <Users className="w-4 h-4" /> },
           { label: "Visibility", value: "Good", icon: <Eye className="w-4 h-4" /> },
         ],
@@ -1385,7 +1680,7 @@ export default function App() {
                     <ThermometerSun className="w-5 h-5 text-orange-400" />
                     <span className="text-xs text-[#5f6f64]">Temperature</span>
                   </div>
-                  <div className="text-2xl font-bold text-[#10201f]">{currentTemp !== null && currentTemp !== undefined ? `${currentTemp}°C` : "N/A"}</div>
+                  <div className="text-2xl font-bold text-[#10201f]">{hasCurrentTemp ? formatTemp(currentTemp) : "N/A"}</div>
                 </div>
                 <div className="rounded-xl border border-[#d9d1c6] bg-[#f1ecdf] p-4">
                   <div className="flex items-center gap-2 mb-2">
@@ -1607,6 +1902,7 @@ export default function App() {
         <div
           ref={(el) => {
             if (!el) return;
+            modeSwitchGuideRef.current = el;
             floatingUiRefs.current[0] = el;
           }}
           className="flex flex-col gap-1 pointer-events-auto"
@@ -1646,15 +1942,16 @@ export default function App() {
         </div>
       </header>
 
-      <MapGuideDialog
+      <SpotlightGuide
         open={showMapGuide}
         onOpenChange={setShowMapGuide}
-        topPrecincts={guideTopPrecincts}
-        loading={loading}
-        onPrecinctSelect={handleGuidePrecinctSelect}
+        steps={mapGuideSteps}
+        currentStepIndex={mapGuideStepIndex}
+        onNext={handleMapGuideNext}
+        onSkip={handleMapGuideSkip}
       />
 
-      <div className="fixed inset-0 z-0">
+      <div ref={mapSurfaceGuideRef} className="fixed inset-0 z-0">
         <LeafletMap
           precincts={mapFilters.comfortArea ? precinctList : []}
           selectedCategory={activeView === "compare" ? null : (mapFilters.comfortArea ? selectedCategory : null)}
@@ -1671,6 +1968,20 @@ export default function App() {
           onEasePlacesClick={handleEasePlacesClick}
         />
       </div>
+      <div
+        ref={(el) => {
+          comfortMarkerGuideRef.current = el;
+        }}
+        aria-hidden="true"
+        style={HIDDEN_GUIDE_TARGET_STYLE}
+      />
+      <div
+        ref={(el) => {
+          areaBlockGuideRef.current = el;
+        }}
+        aria-hidden="true"
+        style={HIDDEN_GUIDE_TARGET_STYLE}
+      />
 
       <div className="relative z-10 pt-14 pointer-events-none sm:pt-16">
         <section className="snap-start h-[calc(100vh-56px)] w-full sm:h-[calc(100vh-64px)]">
@@ -1901,6 +2212,9 @@ export default function App() {
                 { side: "right", precinct: compareRightPrecinct, selectedId: compareSelection2, refEl: compareRightRef },
               ] as const).map(({ side, precinct, selectedId, refEl }) => {
                 const isBetter = betterPrecinctId === selectedId;
+                const risk = riskLevel(precinct.comfort_label);
+                const stale = isStale(precinct);
+                const riskColor = stale ? '#9ca3af' : getRiskColor(risk);
                 return (
                   <div
                     key={selectedId}
@@ -1925,7 +2239,15 @@ export default function App() {
                     </div>
                     <div className="mt-3 grid min-w-0 grid-cols-2 gap-2 text-sm">
                       <div data-compare-reveal className="col-span-2 min-w-0 rounded-xl border border-[#d9d1c6] bg-white/85 p-2.5 sm:p-3">
-                        <p className="text-[clamp(10px,1.8vw,12px)] font-medium text-[#456765]">Comfort</p>
+                        <div className="flex min-w-0 items-center justify-between gap-2">
+                          <p className="text-[clamp(10px,1.8vw,12px)] font-medium text-[#456765]">Comfort Score</p>
+                          <span
+                            className="shrink-0 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.08em] text-white"
+                            style={{ backgroundColor: riskColor }}
+                          >
+                            {precinct.comfort_label}
+                          </span>
+                        </div>
                         <p className="text-[clamp(22px,5.6vw,36px)] font-bold leading-tight tracking-tight text-[#17413f] break-words">
                           {precinct.comfort_score}
                           <span className="ml-1 text-[clamp(12px,2.4vw,16px)] font-normal text-[#5f8682]">/100</span>
@@ -1941,14 +2263,14 @@ export default function App() {
                       </div>
                       <div data-compare-reveal className="min-w-0 rounded-xl border border-[#e7cf9f] bg-gradient-to-br from-amber-50 to-amber-100/60 p-2">
                         <div className="mb-1 flex min-w-0 items-center gap-1.5"><Thermometer className="h-3.5 w-3.5 shrink-0 text-amber-600" /><p className="text-[clamp(10px,1.8vw,12px)] font-medium text-amber-700">Temp</p></div>
-                        <p className="text-[clamp(12px,2.6vw,16px)] font-bold leading-tight break-words text-[#9a4b22]">{precinct.temperature !== null ? `${precinct.temperature}°C` : "N/A"}</p>
+                        <p className="text-[clamp(12px,2.6vw,16px)] font-bold leading-tight break-words text-[#9a4b22]">{formatMetricValue(precinct.temperature, "°C")}</p>
                       </div>
                       <div data-compare-reveal className="min-w-0 rounded-xl border border-[#bcd8e6] bg-gradient-to-br from-blue-50 to-blue-100/60 p-2">
                         <div className="mb-1 flex min-w-0 items-center gap-1.5"><Droplets className="h-3.5 w-3.5 shrink-0 text-blue-600" /><p className="text-[clamp(10px,1.8vw,12px)] font-medium text-blue-700">Humidity</p></div>
-                        <p className="text-[clamp(12px,2.6vw,16px)] font-bold leading-tight break-words text-[#205f86]">{precinct.humidity !== null ? `${precinct.humidity}%` : "N/A"}</p>
+                        <p className="text-[clamp(12px,2.6vw,16px)] font-bold leading-tight break-words text-[#205f86]">{formatMetricValue(precinct.humidity, "%")}</p>
                       </div>
                       <div data-compare-reveal className="col-span-2 min-w-0 rounded-xl border border-[#d9d1c6] bg-white/80 p-2">
-                        <div className="mb-1 flex min-w-0 items-center gap-1.5"><Users className="h-3.5 w-3.5 shrink-0 text-[#5a6c6a]" /><p className="text-[clamp(10px,1.8vw,12px)] font-medium text-[#5a6c6a]">Crowd</p></div>
+                        <div className="mb-1 flex min-w-0 items-center gap-1.5"><Users className="h-3.5 w-3.5 shrink-0 text-[#5a6c6a]" /><p className="text-[clamp(10px,1.8vw,12px)] font-medium text-[#5a6c6a]">Activity Level</p></div>
                         <p className="text-[clamp(12px,2.4vw,16px)] font-bold leading-tight break-words text-[#5a3f8c]">{precinct.activity_level}</p>
                       </div>
                     </div>
@@ -2007,7 +2329,7 @@ export default function App() {
         className={`map-bottom-actions fixed bottom-4 left-1/2 z-[460] w-[96vw] max-w-[980px] -translate-x-1/2 transition-all duration-300 ease-out sm:bottom-7 sm:w-[92vw] ${bottomControlsFadeClass}`}
         style={{ transitionDuration: "720ms", transitionTimingFunction: "cubic-bezier(0.22,1,0.36,1)" }}
       >
-        <div className="map-bottom-actions-row flex items-stretch justify-center gap-2 sm:gap-3">
+        <div className="map-bottom-actions-row grid grid-cols-4 items-stretch gap-2 sm:gap-3">
           <div className="relative map-explore-wrap flex-1">
             {exploreOpen && (
               <div
@@ -2048,24 +2370,93 @@ export default function App() {
               </div>
             )}
             <button
+              ref={exploreMapButtonRef}
               type="button"
-              onClick={() => setExploreOpen((open) => !open)}
-              className="map-bottom-action-btn flex h-full w-full items-center justify-center gap-2 rounded-sm bg-gradient-to-b from-[#122d2b] to-[#17413f] px-4 py-2 text-[10px] font-medium tracking-[0.18em] uppercase text-white backdrop-blur sm:gap-3 sm:px-6 sm:py-3 sm:text-[11px] sm:tracking-[0.24em]"
+              onClick={() => {
+                setExploreOpen((open) => !open);
+              }}
+              className="map-bottom-action-btn flex h-full w-full items-center justify-center gap-2 rounded-sm bg-gradient-to-b from-[#122d2b] to-[#17413f] px-3 py-2 text-[10px] font-medium tracking-[0.14em] uppercase text-white backdrop-blur sm:gap-3 sm:px-6 sm:py-3 sm:text-[11px] sm:tracking-[0.24em]"
             >
-              Explore Map
-              <span className="text-[10px] opacity-60">{exploreOpen ? "▴" : "▾"}</span>
+              <span className="map-bottom-action-label hidden sm:inline">Explore Map</span>
+              <span className="map-bottom-action-label sm:hidden">Map</span>
+              <span className="map-bottom-action-caret text-[10px] opacity-60">{exploreOpen ? "▴" : "▾"}</span>
             </button>
           </div>
-          <div className="flex-1">
+          <div className="relative map-bottom-secondary flex-1">
             <button
+              ref={tipsButtonRef}
               type="button"
-              onClick={() => setShowMapGuide(true)}
-              className="map-bottom-action-btn map-bottom-tips-btn flex h-full w-full items-center justify-center gap-2 rounded-sm bg-gradient-to-b from-[#122d2b] to-[#17413f] px-3 py-2 text-[10px] font-medium tracking-[0.14em] uppercase text-white backdrop-blur sm:gap-3 sm:px-6 sm:py-3 sm:text-[11px] sm:tracking-[0.24em]"
+              onClick={() => {
+                setRankedPicksOpen(false);
+                setShowMapGuide(true);
+              }}
+              className="map-bottom-action-btn flex h-full w-full items-center justify-center gap-2 rounded-sm bg-gradient-to-b from-[#122d2b] to-[#17413f] px-3 py-2 text-[10px] font-medium tracking-[0.14em] uppercase text-white backdrop-blur sm:gap-3 sm:px-6 sm:py-3 sm:text-[11px] sm:tracking-[0.24em]"
               aria-label="Open map tips"
               title="Open tips"
             >
-              Tips
-              <span className="text-[10px] opacity-60">▾</span>
+              <span className="map-bottom-action-label">Tips</span>
+              <span className="map-bottom-action-caret text-[10px] opacity-60">▾</span>
+            </button>
+          </div>
+          <div className="relative map-bottom-secondary flex-1">
+            {rankedPicksOpen && (
+              <div className="ranked-picks-panel absolute bottom-full left-1/2 z-[420] mb-2 w-[min(76vw,260px)] -translate-x-1/2 overflow-hidden rounded-lg border border-[#4a5c3a]/25 bg-[#f5f0e8] shadow-[0_-8px_40px_rgba(0,0,0,0.2)] sm:left-0 sm:mb-3 sm:w-full sm:translate-x-0">
+                <div className="border-b border-black/10 px-3 pb-2 pt-3 text-center sm:px-4">
+                  <div className="font-['Montserrat',sans-serif] text-[9px] font-semibold tracking-[0.16em] uppercase text-[#4a5c3a] sm:text-[10px]">
+                    Ranked Picks
+                  </div>
+                  <p className="mt-1 text-[10px] leading-4 text-[#4a5c3a]/75">
+                    Best comfort scores right now
+                  </p>
+                </div>
+                <div className="max-h-[42vh] overflow-y-auto p-1.5 sm:p-2">
+                  {loading ? (
+                    <div className="rounded-md border border-dashed border-[#b9c7bb] bg-white/55 px-2 py-2 text-[10px] text-[#4a5c3a] sm:px-3 sm:text-[11px]">
+                      Loading current rankings...
+                    </div>
+                  ) : guideTopPrecincts.length > 0 ? (
+                    guideTopPrecincts.map((precinct, index) => (
+                      <button
+                        key={precinct.id}
+                        type="button"
+                        onClick={() => handleRankedPickSelect(precinct)}
+                        className="mb-1.5 grid w-full grid-cols-[24px_minmax(0,1fr)_auto] items-center gap-2 overflow-hidden rounded-md border border-[#d7d0c2] bg-white/70 px-2 py-2 text-left transition hover:border-[#4a5c3a]/45 hover:bg-white sm:grid-cols-[28px_minmax(0,1fr)_auto] sm:gap-3 sm:px-2.5"
+                      >
+                        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#17413f] text-[10px] font-bold text-white sm:h-7 sm:w-7 sm:text-[11px]">
+                          {index + 1}
+                        </span>
+                        <span className="min-w-0 overflow-hidden">
+                          <span className="block truncate text-[11px] font-semibold leading-tight text-[#10201f]">{precinct.name}</span>
+                          <span className="block truncate text-[10px] leading-tight text-[#5f6f64]">{precinct.comfort_label}</span>
+                        </span>
+                        <span className="shrink-0 rounded-full bg-[#eef3e6] px-2 py-0.5 text-[11px] font-semibold text-[#4a5c3a]">
+                          {precinct.comfort_score}
+                        </span>
+                      </button>
+                    ))
+                  ) : (
+                    <div className="rounded-md border border-dashed border-[#b9c7bb] bg-white/55 px-2 py-2 text-[10px] text-[#4a5c3a] sm:px-3 sm:text-[11px]">
+                      Rankings will appear when map data is ready.
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+            <button
+              ref={rankedPicksButtonRef}
+              type="button"
+              onClick={() => {
+                setRankedPicksOpen((open) => !open);
+              }}
+              className={`map-bottom-action-btn flex h-full w-full items-center justify-center gap-2 rounded-sm bg-gradient-to-b from-[#122d2b] to-[#17413f] px-3 py-2 text-[10px] font-medium tracking-[0.14em] uppercase text-white backdrop-blur sm:gap-3 sm:px-6 sm:py-3 sm:text-[11px] sm:tracking-[0.24em] ${
+                rankedPicksOpen ? "ring-1 ring-white/80" : ""
+              }`}
+              aria-label="Open ranked picks"
+              title="Ranked Picks"
+            >
+              <span className="map-bottom-action-label hidden sm:inline">Ranked Picks</span>
+              <span className="map-bottom-action-label sm:hidden">Picks</span>
+              <span className="map-bottom-action-caret text-[10px] opacity-60">{rankedPicksOpen ? "▴" : "▾"}</span>
             </button>
           </div>
           <div className="relative map-legend-wrap flex-1">
@@ -2084,19 +2475,19 @@ export default function App() {
                     {mapFilters.comfortArea && (
                       <>
                         <div data-legend-item className="mb-1 font-semibold text-[#4a5c3a]" style={{ opacity: 0, transform: "translateY(10px)" }}>Comfort Level</div>
-                        <div data-legend-item className="mb-1 flex items-start gap-2" style={{ opacity: 0, transform: "translateY(10px)" }}><div className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-[#22c55e]" /><span className="min-w-0 whitespace-normal break-words leading-tight">Comfortable (70-100)</span></div>
-                        <div data-legend-item className="mb-1 flex items-start gap-2" style={{ opacity: 0, transform: "translateY(10px)" }}><div className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-[#eab308]" /><span className="min-w-0 whitespace-normal break-words leading-tight">Caution (40-69)</span></div>
-                        <div data-legend-item className="mb-2 flex items-start gap-2" style={{ opacity: 0, transform: "translateY(10px)" }}><div className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-[#ef4444]" /><span className="min-w-0 whitespace-normal break-words leading-tight">High Risk (0-39)</span></div>
-                        <div data-legend-item className="mb-2 flex items-start gap-2" style={{ opacity: 0, transform: "translateY(10px)" }}><div className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-[#9ca3af]" /><span className="min-w-0 whitespace-normal break-words leading-tight">No sensor data</span></div>
+                        <div data-legend-item className="mb-1 flex items-start gap-2" style={{ opacity: 0, transform: "translateY(10px)" }}><ComfortMarkerLegend color="#22c55e" score="82" /><span className="min-w-0 whitespace-normal break-words leading-tight">Comfortable (70-100)</span></div>
+                        <div data-legend-item className="mb-1 flex items-start gap-2" style={{ opacity: 0, transform: "translateY(10px)" }}><ComfortMarkerLegend color="#eab308" score="56" /><span className="min-w-0 whitespace-normal break-words leading-tight">Caution (40-69)</span></div>
+                        <div data-legend-item className="mb-2 flex items-start gap-2" style={{ opacity: 0, transform: "translateY(10px)" }}><ComfortMarkerLegend color="#ef4444" score="24" /><span className="min-w-0 whitespace-normal break-words leading-tight">High Risk (0-39)</span></div>
+                        <div data-legend-item className="mb-2 flex items-start gap-2" style={{ opacity: 0, transform: "translateY(10px)" }}><ComfortMarkerLegend color="#9ca3af" score="--" /><span className="min-w-0 whitespace-normal break-words leading-tight">No sensor data</span></div>
                       </>
                     )}
                     {mapFilters.easePlaces && (
                       <>
                         <div data-legend-item className="mb-1 font-semibold text-[#4a5c3a]" style={{ opacity: 0, transform: "translateY(10px)" }}>Ease Places</div>
-                        <div data-legend-item className="mb-1 flex items-start gap-2" style={{ opacity: 0, transform: "translateY(10px)" }}><div className="cp-dot cp-dot-arts !mt-1 !h-2.5 !w-2.5 shrink-0 !shadow-none" /><span className="min-w-0 whitespace-normal break-words leading-tight">Arts, Culture & Enrichment</span></div>
-                        <div data-legend-item className="mb-1 flex items-start gap-2" style={{ opacity: 0, transform: "translateY(10px)" }}><div className="cp-dot cp-dot-recreation !mt-1 !h-2.5 !w-2.5 shrink-0 !shadow-none" /><span className="min-w-0 whitespace-normal break-words leading-tight">Recreation / Leisure & Open Spaces</span></div>
-                        <div data-legend-item className="mb-1 flex items-start gap-2" style={{ opacity: 0, transform: "translateY(10px)" }}><div className="cp-dot cp-dot-shopping !mt-1 !h-2.5 !w-2.5 shrink-0 !shadow-none" /><span className="min-w-0 whitespace-normal break-words leading-tight">Shopping</span></div>
-                        <div data-legend-item className="mb-2 flex items-start gap-2" style={{ opacity: 0, transform: "translateY(10px)" }}><div className="cp-dot cp-dot-food !mt-1 !h-2.5 !w-2.5 shrink-0 !shadow-none" /><span className="min-w-0 whitespace-normal break-words leading-tight">Food & Dining</span></div>
+                        <div data-legend-item className="mb-2 flex items-start gap-2 legend-ease-row" style={{ opacity: 0, transform: "translateY(10px)" }}><EasePlaceLegendMarker categoryKey="arts" /><span className="legend-ease-label min-w-0 whitespace-normal break-words">Arts, Culture & Enrichment</span></div>
+                        <div data-legend-item className="mb-2 flex items-start gap-2 legend-ease-row" style={{ opacity: 0, transform: "translateY(10px)" }}><EasePlaceLegendMarker categoryKey="recreation" /><span className="legend-ease-label min-w-0 whitespace-normal break-words">Recreation / Leisure & Open Spaces</span></div>
+                        <div data-legend-item className="mb-2 flex items-start gap-2 legend-ease-row" style={{ opacity: 0, transform: "translateY(10px)" }}><EasePlaceLegendMarker categoryKey="shopping" /><span className="legend-ease-label min-w-0 whitespace-normal break-words">Shopping</span></div>
+                        <div data-legend-item className="mb-3 flex items-start gap-2 legend-ease-row" style={{ opacity: 0, transform: "translateY(10px)" }}><EasePlaceLegendMarker categoryKey="food" /><span className="legend-ease-label min-w-0 whitespace-normal break-words">Food & Dining</span></div>
                       </>
                     )}
                     {mapFilters.streetFacilities && (
@@ -2110,8 +2501,8 @@ export default function App() {
                     {mapFilters.naturalPlaces && (
                       <>
                         <div data-legend-item className="mb-1 font-semibold text-[#4a5c3a]" style={{ opacity: 0, transform: "translateY(10px)" }}>Natural Places</div>
-                        <div data-legend-item className="mb-1 flex items-start gap-2" style={{ opacity: 0, transform: "translateY(10px)" }}><div className="mt-1 h-2.5 w-2.5 shrink-0 border border-blue-900 bg-blue-200" /><span className="min-w-0 whitespace-normal break-words leading-tight">Waterbody</span></div>
-                        <div data-legend-item className="mb-2 flex items-start gap-2" style={{ opacity: 0, transform: "translateY(10px)" }}><div className="mt-1 h-2.5 w-2.5 shrink-0 border border-green-900 bg-green-300" /><span className="min-w-0 whitespace-normal break-words leading-tight">Park</span></div>
+                        <div data-legend-item className="mb-1 flex items-start gap-2" style={{ opacity: 0, transform: "translateY(10px)" }}><div className="legend-natural-swatch legend-natural-water mt-1" /><span className="min-w-0 whitespace-normal break-words leading-tight">Waterbody</span></div>
+                        <div data-legend-item className="mb-2 flex items-start gap-2" style={{ opacity: 0, transform: "translateY(10px)" }}><div className="legend-natural-swatch legend-natural-park mt-1" /><span className="min-w-0 whitespace-normal break-words leading-tight">Park</span></div>
                       </>
                     )}
                     {!mapFilters.comfortArea && !mapFilters.easePlaces && !mapFilters.streetFacilities && !mapFilters.naturalPlaces && (
@@ -2123,16 +2514,19 @@ export default function App() {
                 </div>
               )}
               <button
+                ref={legendButtonRef}
                 type="button"
-                onClick={() => setLegendDropdownOpen((open) => !open)}
+                onClick={() => {
+                  setLegendDropdownOpen((open) => !open);
+                }}
                 className={`map-bottom-action-btn flex h-full w-full items-center justify-center gap-2 rounded-sm bg-gradient-to-b from-[#122d2b] to-[#17413f] px-3 py-2 text-[10px] font-medium tracking-[0.14em] uppercase text-white backdrop-blur sm:gap-3 sm:px-6 sm:py-3 sm:text-[11px] sm:tracking-[0.24em] ${
                   legendDropdownOpen ? "ring-1 ring-white/80" : ""
                 }`}
                 aria-label="Toggle map legend"
                 title="Legend"
               >
-                Legend
-                <span className="text-[10px] opacity-60">{legendDropdownOpen ? "▴" : "▾"}</span>
+                <span className="map-bottom-action-label">Legend</span>
+                <span className="map-bottom-action-caret text-[10px] opacity-60">{legendDropdownOpen ? "▴" : "▾"}</span>
               </button>
           </div>
         </div>
@@ -2147,12 +2541,13 @@ export default function App() {
       onWheel={handleSectionWheel}
       className="fixed inset-0 overflow-y-auto overflow-x-hidden snap-y snap-mandatory bg-[#f7fbfa] text-[#10201f]"
     >
-      <MapGuideDialog
+      <SpotlightGuide
         open={showMapGuide}
         onOpenChange={setShowMapGuide}
-        topPrecincts={guideTopPrecincts}
-        loading={loading}
-        onPrecinctSelect={handleGuidePrecinctSelect}
+        steps={mapGuideSteps}
+        currentStepIndex={mapGuideStepIndex}
+        onNext={handleMapGuideNext}
+        onSkip={handleMapGuideSkip}
       />
 
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
@@ -2204,6 +2599,7 @@ export default function App() {
                       </p>
                     </div>
                     <button
+                      ref={tipsButtonRef}
                       type="button"
                       onClick={() => setShowMapGuide(true)}
                       className="inline-flex items-center gap-2 rounded-xl border border-[#83c5be]/28 bg-[rgba(247,255,253,0.94)] px-4 py-2 text-sm font-semibold text-[#17413f] shadow-[0_12px_28px_rgba(16,32,31,0.08)] transition-all hover:border-[#83c5be]/52 hover:bg-white hover:shadow-[0_16px_34px_rgba(16,32,31,0.12)]"
@@ -2288,7 +2684,7 @@ export default function App() {
                   </div>
 
                   {/* Map area */}
-                  <div className="flex-1 relative">
+                  <div ref={mapSurfaceGuideRef} className="flex-1 relative">
                     {/* Left sidebar toggle — only visible when Comfort Area is enabled */}
                     {mapFilters.comfortArea && (
                       <button
@@ -2570,26 +2966,32 @@ export default function App() {
                                     <ComfortScoreInfo placement="right" />
                                   </div>
                                   <p className={`text-3xl font-bold ${stale ? 'text-gray-400' : ''}`} style={{ color: stale ? undefined : getRiskColor(risk) }}>{p.comfort_score}</p>
+                                  <p
+                                    className="mt-1 inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.08em] text-white"
+                                    style={{ backgroundColor: stale ? '#9ca3af' : getRiskColor(risk) }}
+                                  >
+                                    {p.comfort_label}
+                                  </p>
                                 </div>
                                 <div className="space-y-2">
                                   <div className="bg-[#fff3eb] rounded-xl p-2 border border-[#e29578]/24">
                                     <div className="flex items-center gap-1 mb-1"><Thermometer className="w-3 h-3 text-orange-600" /><p className="text-[10px] text-gray-600">Temperature</p></div>
-                                    <p className="text-sm font-bold text-orange-700">{p.temperature !== null ? `${p.temperature}°C` : 'N/A'}</p>
+                                    <p className="text-sm font-bold text-orange-700">{formatMetricValue(p.temperature, '°C')}</p>
                                     <p className="text-[10px] text-gray-500 mt-1">Recommended: 18-26°C</p>
                                   </div>
                                   <div className="bg-[#edf6f9] rounded-xl p-2 border border-[#83c5be]/24">
                                     <div className="flex items-center gap-1 mb-1"><Droplets className="w-3 h-3 text-blue-600" /><p className="text-[10px] text-gray-600">Humidity</p></div>
-                                    <p className="text-sm font-bold text-blue-700">{p.humidity !== null ? `${p.humidity}%` : 'N/A'}</p>
+                                    <p className="text-sm font-bold text-blue-700">{formatMetricValue(p.humidity, '%')}</p>
                                     <p className="text-[10px] text-gray-500 mt-1">Recommended: 40-60%</p>
                                   </div>
                                   <div className="bg-[#f5f8f8] rounded-xl p-2 border border-[#83c5be]/18">
-                                    <div className="flex items-center gap-1 mb-1"><Users className="w-3 h-3 text-purple-600" /><p className="text-[10px] text-gray-600">Crowd Density</p></div>
+                                    <div className="flex items-center gap-1 mb-1"><Users className="w-3 h-3 text-purple-600" /><p className="text-[10px] text-gray-600">Activity Level</p></div>
                                     <p className="text-sm font-bold text-purple-700">{p.activity_level}</p>
                                     <p className="text-[10px] text-gray-500 mt-1">Recommended: Low / Medium</p>
                                   </div>
                                   <div className="bg-[#eef8f5] rounded-xl p-2 border border-[#83c5be]/22">
                                     <div className="flex items-center gap-1 mb-1"><Wind className="w-3 h-3 text-teal-600" /><p className="text-[10px] text-gray-600">Wind</p></div>
-                                    <p className="text-sm font-bold text-teal-700">{p.wind_speed !== null ? `${p.wind_speed} m/s` : 'N/A'}</p>
+                                    <p className="text-sm font-bold text-teal-700">{formatMetricValue(p.wind_speed, ' m/s')}</p>
                                     <p className="text-[10px] text-gray-500 mt-1">Recommended: 2-8 m/s</p>
                                   </div>
                                 </div>
