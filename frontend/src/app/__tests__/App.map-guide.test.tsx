@@ -82,7 +82,7 @@ describe("App map guide", () => {
 
     expect(view.container.textContent).toContain("Tips Guide");
     expect(view.container.textContent).toContain(
-      "Comfort Area colours show precinct comfort scores"
+      "This example pin is a comfort score marker"
     );
 
     view.unmount();
