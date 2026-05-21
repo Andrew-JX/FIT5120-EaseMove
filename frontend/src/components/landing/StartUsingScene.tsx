@@ -1,10 +1,28 @@
 import { createScope, createTimeline, stagger } from "animejs";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
 import { useNavigate } from "react-router";
+import LandingSpiderCatGuide from "./LandingSpiderCatGuide";
 import { LANDING_CHOREO_EASE, LANDING_REVEAL_DURATIONS } from "./landingMotion";
 
 const bGifUrl = new URL("../../assets/B.gif", import.meta.url).href;
 const wGifUrl = new URL("../../assets/W.gif", import.meta.url).href;
+
+const SPIDER_CAT_PATROL_POINTS = [
+  { x: 28, y: 24 },
+  { x: 34, y: 22 },
+  { x: 42, y: 26 },
+  { x: 52, y: 31 },
+  { x: 64, y: 29 },
+  { x: 73, y: 34 },
+  { x: 78, y: 45 },
+  { x: 74, y: 56 },
+  { x: 65, y: 63 },
+  { x: 53, y: 67 },
+  { x: 40, y: 64 },
+  { x: 30, y: 58 },
+  { x: 24, y: 46 },
+  { x: 23, y: 34 },
+] as const;
 
 function buildMobileCurvePath(side: "left" | "right") {
   if (side === "left") {
@@ -156,7 +174,17 @@ function AnimatedLandingButton({
   );
 }
 
-export default function StartUsingScene() {
+type StartUsingSceneProps = {
+  sectionRef?: RefObject<HTMLElement | null>;
+  spiderJourneyAnchorRef?: RefObject<HTMLDivElement | null>;
+  showSpiderCatGuide?: boolean;
+};
+
+export default function StartUsingScene({
+  sectionRef,
+  spiderJourneyAnchorRef,
+  showSpiderCatGuide = true,
+}: StartUsingSceneProps) {
   const navigate = useNavigate();
   const sceneRef = useRef<HTMLElement | null>(null);
   const titleShellRef = useRef<HTMLDivElement | null>(null);
@@ -370,7 +398,12 @@ export default function StartUsingScene() {
 
   return (
     <section
-      ref={sceneRef}
+      ref={(node) => {
+        sceneRef.current = node;
+        if (sectionRef) {
+          sectionRef.current = node;
+        }
+      }}
       className={`landing-start-scene${isTitleRevealed ? " is-title-revealed" : ""}${
         isChoreoActive ? " is-choreo-active" : ""
       }`}
@@ -378,8 +411,19 @@ export default function StartUsingScene() {
       data-choreo-seq={choreoSeq}
       aria-label="Start using EaseMove"
     >
+      {showSpiderCatGuide ? (
+        <LandingSpiderCatGuide sceneRef={sceneRef} patrolPoints={SPIDER_CAT_PATROL_POINTS} />
+      ) : null}
       <div className="landing-start-inner">
-        <div ref={titleShellRef} className="landing-start-title-shell">
+        <div
+          ref={(node) => {
+            titleShellRef.current = node;
+            if (spiderJourneyAnchorRef) {
+              spiderJourneyAnchorRef.current = node;
+            }
+          }}
+          className="landing-start-title-shell"
+        >
           <p className="landing-start-title-tag">Choose your next step</p>
           <h2 className="landing-start-title">
             <span className="landing-start-title-main back-in-left" aria-label="Pick your path">

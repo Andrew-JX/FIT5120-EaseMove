@@ -117,4 +117,17 @@ describe("HeroSplitScene", () => {
 
     view.unmount();
   });
+
+  test("uses a responsive poster source set for the hero video frame", () => {
+    const view = render(<HeroSplitScene />);
+
+    const poster = view.container.querySelector(".landing-video-poster") as HTMLImageElement | null;
+
+    expect(poster).not.toBeNull();
+    expect(poster?.getAttribute("src")).toContain("loading-optimized.jpg");
+    expect(poster?.getAttribute("srcset")).toBeNull();
+    expect(poster?.getAttribute("sizes")).toBeNull();
+
+    view.unmount();
+  });
 });

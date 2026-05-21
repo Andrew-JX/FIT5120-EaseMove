@@ -16,12 +16,14 @@
   XCircle,
 } from "lucide-react";
 import { AnimatePresence, LayoutGroup, motion } from "motion/react";
-import { type ComponentType, type CSSProperties, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type CSSProperties, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
 import AppTopNav from "../components/AppTopNav";
+import SpotlightGuide, { type SpotlightGuideStep } from "../components/SpotlightGuide";
 import WhiteModelMap, {
   type MapViewportControls,
   type RoutePoint,
+  type RoutePlaybackMode,
   type RouteProfile,
   type RouteStepItem,
   type RouteSummary,
@@ -34,6 +36,9 @@ import { APP_ROUTES } from "../lib/navigation";
 const MAPBOX_PUBLIC_TOKEN = (import.meta.env.VITE_MAPBOX_PUBLIC_TOKEN as string | undefined)?.trim() || null;
 const ROUTE_REQUEST_TIMEOUT_MS = 12000;
 const LOW_ACCURACY_THRESHOLD_METERS = 120;
+const ROUTE_AUTOPLAY_DURATION_MS = 11000;
+const ROUTE_AUTOPLAY_END_HOLD_MS = 1100;
+const LIVE_REROUTE_PROMPT_DISTANCE_METERS = 1200;
 const MOBILE_PANEL_MEDIA_QUERY = "(max-width: 767px)";
 let hasAutoShownRouteGuideThisRuntime = false;
 const liquidGlassPanelStyle: CSSProperties = {
@@ -59,15 +64,6 @@ const liquidGlassCardClass =
 
 const liquidGlassInteractiveClass =
   `${liquidGlassCardClass} transition duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-0.5 hover:border-white/72 hover:bg-[linear-gradient(145deg,rgba(255,255,255,0.48),rgba(237,246,249,0.24))] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.78),0_18px_42px_rgba(4,14,14,0.12)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#83c5be]/70`;
-
-const routeGuideGlassCardClass =
-  "route-guide-glass-card border border-white/55 bg-[radial-gradient(circle_at_16%_0%,rgba(255,255,255,0.52),transparent_38%),linear-gradient(145deg,rgba(255,255,255,0.46),rgba(237,246,249,0.24)_56%,rgba(255,248,232,0.22))] shadow-[inset_0_1px_0_rgba(255,255,255,0.78),inset_0_-14px_26px_rgba(23,65,63,0.08),0_16px_34px_rgba(4,14,14,0.1)] backdrop-blur-md";
-
-const routeGuideGlassPanelClass =
-  "route-guide-glass-panel border border-[#d9d1c6]/70 bg-[radial-gradient(circle_at_14%_0%,rgba(255,255,255,0.58),transparent_36%),linear-gradient(145deg,rgba(255,250,244,0.94),rgba(245,240,232,0.88)_62%,rgba(236,245,242,0.72))] shadow-[inset_0_1px_0_rgba(255,255,255,0.82),inset_0_-12px_24px_rgba(23,65,63,0.05),0_14px_28px_rgba(10,24,23,0.08)] backdrop-blur-md";
-
-const routeGuideGlassButtonClass =
-  "route-guide-glass-button border border-white/40 bg-[radial-gradient(circle_at_18%_0%,rgba(255,255,255,0.24),transparent_42%),linear-gradient(180deg,#163634_0%,#17413f_100%)] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.24),0_12px_24px_rgba(10,24,23,0.22)] transition duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-0.5 hover:brightness-110 active:translate-y-[1px] active:scale-[0.985] active:shadow-[inset_0_2px_6px_rgba(5,14,14,0.22),0_8px_16px_rgba(10,24,23,0.18)]";
 
 const floatingChromeButtonClass =
   "inline-flex items-center justify-center gap-2 rounded-full border border-white/42 bg-white/72 text-sm font-semibold text-[#17413f] shadow-[inset_0_1px_0_rgba(255,255,255,0.82),0_10px_24px_rgba(23,65,63,0.14)] backdrop-blur-md transition hover:bg-white active:scale-[0.98]";
@@ -159,49 +155,15 @@ function shouldAutoLocateStart(search: string): boolean {
   return new URLSearchParams(search).get("autoLocateStart") === "1";
 }
 
+function shouldSkipAutoGuide(search: string): boolean {
+  return new URLSearchParams(search).get("skipTips") === "1";
+}
+
 type LayerLegendFilters = {
   easePlaces: boolean;
   naturalPlaces: boolean;
   streetFacilities: boolean;
 };
-
-type RouteGuideStep = {
-  id: string;
-  title: string;
-  description: string;
-  icon: ComponentType<{ className?: string }>;
-};
-
-const ROUTE_GUIDE_STEPS: RouteGuideStep[] = [
-  {
-    id: "points",
-    title: "Choose your route points",
-    description:
-      "Tap or click the map once to choose a start point, then pick the destination next. On mobile, the route panel can sit lower, but the guide stays centered so it remains easy to read on small screens.",
-    icon: MapPinned,
-  },
-  {
-    id: "results",
-    title: "Read the route summary quickly",
-    description:
-      "When both points are set, the route panel expands with distance, travel time, and step-by-step directions. Switch between Walking and Cycling to compare the default route without reloading the page.",
-    icon: Navigation,
-  },
-  {
-    id: "controls",
-    title: "Use map controls without losing context",
-    description:
-      "Use the top toolbar for Route, Layers, Tips, Menu, and zoom controls. On smaller screens the toolbar stays on one row and scales down to fit cleanly inside the screen.",
-    icon: Layers3,
-  },
-  {
-    id: "refine",
-    title: "Refine the route when needed",
-    description:
-      "Use the pin button or the Start card to lock point picking, use current location when available, and reopen Tips any time from the toolbar. Turn on Natural Places, Ease Places, or Public Facilities to add more context to the 3D map.",
-    icon: LocateFixed,
-  },
-];
 
 function buildRouteUrl(profile: RouteProfile, startPoint: RoutePoint, endPoint: RoutePoint) {
   const start = `${startPoint.lng},${startPoint.lat}`;
@@ -257,6 +219,96 @@ function geolocationMessage(error: GeolocationPositionError) {
   return "We could not read your location. You can still select points manually.";
 }
 
+function clampProgress(progress: number) {
+  return Math.max(0, Math.min(1, progress));
+}
+
+function segmentLength(start: [number, number], end: [number, number]) {
+  const dx = end[0] - start[0];
+  const dy = end[1] - start[1];
+  return Math.hypot(dx, dy);
+}
+
+function interpolatePoint(start: [number, number], end: [number, number], ratio: number): RoutePoint {
+  return {
+    lng: start[0] + (end[0] - start[0]) * ratio,
+    lat: start[1] + (end[1] - start[1]) * ratio,
+  };
+}
+
+function projectPointToRoute(point: RoutePoint, route: RouteSummary): { progress: number; snappedPoint: RoutePoint } {
+  const coordinates = route.geometry.coordinates as [number, number][];
+  if (coordinates.length <= 1) {
+    return {
+      progress: 0,
+      snappedPoint: coordinates[0] ? { lng: coordinates[0][0], lat: coordinates[0][1] } : point,
+    };
+  }
+
+  const segmentLengths = coordinates.slice(0, -1).map((coord, index) => segmentLength(coord, coordinates[index + 1]));
+  const totalLength = segmentLengths.reduce((sum, value) => sum + value, 0);
+
+  let bestDistance = Number.POSITIVE_INFINITY;
+  let bestProgress = 0;
+  let bestPoint: RoutePoint = { lng: coordinates[0][0], lat: coordinates[0][1] };
+  let traversedLength = 0;
+
+  for (let index = 0; index < coordinates.length - 1; index += 1) {
+    const start = coordinates[index];
+    const end = coordinates[index + 1];
+    const vx = end[0] - start[0];
+    const vy = end[1] - start[1];
+    const segmentSquared = vx * vx + vy * vy;
+    const wx = point.lng - start[0];
+    const wy = point.lat - start[1];
+    const projection = segmentSquared === 0 ? 0 : clampProgress((wx * vx + wy * vy) / segmentSquared);
+    const snappedPoint = interpolatePoint(start, end, projection);
+    const distance = Math.hypot(point.lng - snappedPoint.lng, point.lat - snappedPoint.lat);
+
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      bestPoint = snappedPoint;
+      bestProgress = totalLength === 0 ? 0 : clampProgress((traversedLength + segmentLengths[index] * projection) / totalLength);
+    }
+
+    traversedLength += segmentLengths[index];
+  }
+
+  return {
+    progress: bestProgress,
+    snappedPoint: bestPoint,
+  };
+}
+
+function distanceBetweenPointsMeters(start: RoutePoint, end: RoutePoint) {
+  const toRadians = (value: number) => (value * Math.PI) / 180;
+  const earthRadiusMeters = 6371000;
+  const dLat = toRadians(end.lat - start.lat);
+  const dLng = toRadians(end.lng - start.lng);
+  const lat1 = toRadians(start.lat);
+  const lat2 = toRadians(end.lat);
+
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return earthRadiusMeters * c;
+}
+
+function easeInOutSine(progress: number) {
+  return -(Math.cos(Math.PI * progress) - 1) / 2;
+}
+
+function getAutoplayLoopProgress(elapsedMs: number) {
+  const movementDuration = ROUTE_AUTOPLAY_DURATION_MS;
+  const cycleDuration = movementDuration + ROUTE_AUTOPLAY_END_HOLD_MS;
+  const cycleElapsed = elapsedMs % cycleDuration;
+  if (cycleElapsed >= movementDuration) {
+    return 1;
+  }
+  return clampProgress(easeInOutSine(cycleElapsed / movementDuration));
+}
+
 function isMobilePanelViewport() {
   if (typeof window === "undefined") return false;
   return window.matchMedia(MOBILE_PANEL_MEDIA_QUERY).matches;
@@ -282,6 +334,7 @@ export default function Map3DExperimentPage() {
   const [activePanel, setActivePanel] = useState<PanelView>(initialIsMobileViewport ? null : "route");
   const [isMobileViewport, setIsMobileViewport] = useState(initialIsMobileViewport);
   const [showGuide, setShowGuide] = useState(false);
+  const [guideStepIndex, setGuideStepIndex] = useState(0);
   const [landingMenuOpen, setLandingMenuOpen] = useState(false);
   const [mapViewportControls, setMapViewportControls] = useState<MapViewportControls | null>(null);
   const [isMapPointSelectionEnabled, setIsMapPointSelectionEnabled] = useState(true);
@@ -299,13 +352,28 @@ export default function Map3DExperimentPage() {
     point: { x: number; y: number };
     viewport: { width: number; height: number };
   } | null>(null);
+  const [routePlaybackMode, setRoutePlaybackMode] = useState<RoutePlaybackMode>("idle");
+  const [routeProgress, setRouteProgress] = useState<number | null>(null);
+  const [liveTrackedPoint, setLiveTrackedPoint] = useState<RoutePoint | null>(null);
+  const [pendingLiveReroute, setPendingLiveReroute] = useState<{
+    point: RoutePoint;
+    distanceMeters: number;
+  } | null>(null);
   const [geolocation, setGeolocation] = useState<GeolocationState>({
     status: "idle",
     message: null,
   });
   const requestIdRef = useRef(0);
   const hasAppliedSearchRef = useRef(false);
-  const sheetRef = useRef<HTMLElement | null>(null);
+  const sheetRef = useRef<HTMLDivElement | null>(null);
+  const toolbarRef = useRef<HTMLDivElement | null>(null);
+  const routePointsRef = useRef<HTMLDivElement | null>(null);
+  const routeResultsRef = useRef<HTMLDivElement | null>(null);
+  const routeHeaderControlsRef = useRef<HTMLDivElement | null>(null);
+  const autoplayFrameRef = useRef<number | null>(null);
+  const liveWatchIdRef = useRef<number | null>(null);
+  const routeRef = useRef<RouteSummary | null>(route);
+  const shouldAutoplayRouteRef = useRef(false);
 
   const routeReady = Boolean(route && startPoint && endPoint);
   const canUseRouteApi = Boolean(MAPBOX_PUBLIC_TOKEN);
@@ -319,14 +387,44 @@ export default function Map3DExperimentPage() {
 
   const isSupportedPoint = useCallback((point: RoutePoint) => isPointInSupportedRegion(point), []);
 
-  const clearRouteOnly = useCallback(() => {
-    requestIdRef.current += 1;
-    setRoute(null);
-    setIsRouteLoading(false);
+  const stopRouteAutoplay = useCallback(() => {
+    if (autoplayFrameRef.current !== null) {
+      window.cancelAnimationFrame(autoplayFrameRef.current);
+      autoplayFrameRef.current = null;
+    }
   }, []);
 
+  const stopLiveTracking = useCallback(() => {
+    if (liveWatchIdRef.current !== null && navigator.geolocation?.clearWatch) {
+      navigator.geolocation.clearWatch(liveWatchIdRef.current);
+      liveWatchIdRef.current = null;
+    }
+  }, []);
+
+  const resetRoutePlaybackState = useCallback(() => {
+    stopRouteAutoplay();
+    stopLiveTracking();
+    shouldAutoplayRouteRef.current = false;
+    setRoutePlaybackMode("idle");
+    setRouteProgress(null);
+    setLiveTrackedPoint(null);
+    setPendingLiveReroute(null);
+  }, [stopLiveTracking, stopRouteAutoplay]);
+
+  const clearRouteOnly = useCallback(() => {
+    requestIdRef.current += 1;
+    resetRoutePlaybackState();
+    setRoute(null);
+    setIsRouteLoading(false);
+  }, [resetRoutePlaybackState]);
+
   const requestRoute = useCallback(
-    async (nextProfile: RouteProfile, nextStart: RoutePoint, nextEnd: RoutePoint) => {
+    async (
+      nextProfile: RouteProfile,
+      nextStart: RoutePoint,
+      nextEnd: RoutePoint,
+      options?: { preserveLiveTracking?: boolean }
+    ) => {
       if (!isSupportedPoint(nextStart) || !isSupportedPoint(nextEnd)) {
         setRoute(null);
         setIsRouteLoading(false);
@@ -349,6 +447,12 @@ export default function Map3DExperimentPage() {
       const controller = new AbortController();
       const timeoutId = window.setTimeout(() => controller.abort(), ROUTE_REQUEST_TIMEOUT_MS);
 
+      if (options?.preserveLiveTracking) {
+        stopRouteAutoplay();
+        setPendingLiveReroute(null);
+      } else {
+        resetRoutePlaybackState();
+      }
       setIsRouteLoading(true);
       setRoute(null);
       setRouteError(null);
@@ -386,8 +490,22 @@ export default function Map3DExperimentPage() {
         }
       }
     },
-    [isSupportedPoint, showOutsideRegionError]
+    [isSupportedPoint, resetRoutePlaybackState, showOutsideRegionError, stopRouteAutoplay]
   );
+
+  const startRouteAutoplay = useCallback((nextRoute: RouteSummary) => {
+    stopRouteAutoplay();
+    routeRef.current = nextRoute;
+    setRoutePlaybackMode("autoplay");
+    setRouteProgress(0);
+    const startedAt = Date.now();
+    const animate = () => {
+      const elapsed = Date.now() - startedAt;
+      setRouteProgress(getAutoplayLoopProgress(elapsed));
+      autoplayFrameRef.current = window.requestAnimationFrame(animate);
+    };
+    autoplayFrameRef.current = window.requestAnimationFrame(animate);
+  }, [stopRouteAutoplay]);
 
   const handleMapClick = useCallback(
     (point: RoutePoint) => {
@@ -510,6 +628,115 @@ export default function Map3DExperimentPage() {
     );
   }, [clearRouteOnly, endPoint, isMobileViewport, isSupportedPoint, profile, requestRoute]);
 
+  const handleStartLiveTracking = useCallback(() => {
+    if (!routeRef.current) return;
+    if (routePlaybackMode === "live") {
+      stopLiveTracking();
+      setPendingLiveReroute(null);
+      setLiveTrackedPoint(null);
+      startRouteAutoplay(routeRef.current);
+      setGeolocation({
+        status: "success",
+        message: "Live route tracking stopped. Auto playback restarted.",
+      });
+      return;
+    }
+    if (!navigator.geolocation?.watchPosition) {
+      setRoutePlaybackMode("idle");
+      setGeolocation({
+        status: "error",
+        message: "Live route tracking could not start. This browser does not support location tracking.",
+      });
+      return;
+    }
+
+    stopRouteAutoplay();
+    stopLiveTracking();
+    setRoutePlaybackMode("live");
+    setGeolocation({
+      status: "loading",
+      message: "Starting live route progress...",
+    });
+
+    const watchId = navigator.geolocation.watchPosition(
+      (position) => {
+        const point = {
+          lng: position.coords.longitude,
+          lat: position.coords.latitude,
+        };
+
+        if (!routeRef.current || !isSupportedPoint(point)) {
+          setRoutePlaybackMode("idle");
+          setGeolocation({
+            status: "error",
+            message: "Live route tracking could not continue because your location is outside the supported Australia area.",
+          });
+          stopLiveTracking();
+          return;
+        }
+
+        const projection = projectPointToRoute(point, routeRef.current);
+        setLiveTrackedPoint(point);
+        setRouteProgress(projection.progress);
+        if (startPoint && endPoint) {
+          const startDistance = distanceBetweenPointsMeters(startPoint, point);
+          if (startDistance > LIVE_REROUTE_PROMPT_DISTANCE_METERS) {
+            setPendingLiveReroute({
+              point,
+              distanceMeters: startDistance,
+            });
+          } else {
+            setPendingLiveReroute(null);
+          }
+        }
+        setGeolocation({
+          status: position.coords.accuracy > LOW_ACCURACY_THRESHOLD_METERS ? "warning" : "success",
+          message:
+            position.coords.accuracy > LOW_ACCURACY_THRESHOLD_METERS
+              ? `Live route progress is tracking your current location, but GPS accuracy is about ${Math.round(position.coords.accuracy)} m.`
+              : "Live route progress is tracking your current location.",
+        });
+      },
+      (error) => {
+        setRoutePlaybackMode("idle");
+        setGeolocation({
+          status: "error",
+          message: `Live route tracking could not start. ${geolocationMessage(error)}`,
+        });
+        stopLiveTracking();
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 5000,
+      }
+    );
+
+    liveWatchIdRef.current = watchId;
+  }, [endPoint, isSupportedPoint, routePlaybackMode, startPoint, startRouteAutoplay, stopLiveTracking, stopRouteAutoplay]);
+
+  const handleKeepCurrentLiveRoute = useCallback(() => {
+    setPendingLiveReroute(null);
+    setGeolocation({
+      status: "success",
+      message: "Live route progress is tracking your current location while keeping the original route.",
+    });
+  }, []);
+
+  const handleRerouteFromLiveLocation = useCallback(() => {
+    if (!pendingLiveReroute || !endPoint) return;
+    setStartPoint(pendingLiveReroute.point);
+    setLiveTrackedPoint(pendingLiveReroute.point);
+    setRoutePlaybackMode("live");
+    setGeolocation({
+      status: "success",
+      message: "Re-routing from your current location while keeping the same destination.",
+    });
+    void requestRoute(profile, pendingLiveReroute.point, endPoint, {
+      preserveLiveTracking: true,
+    });
+  }, [endPoint, pendingLiveReroute, profile, requestRoute]);
+
   const handleMapError = useCallback((message: string) => {
     setRouteError({
       title: "3D map problem",
@@ -527,14 +754,16 @@ export default function Map3DExperimentPage() {
 
   const currentInstruction = useMemo(() => {
     if (!canUseRouteApi) return "Configure the Mapbox public token before using the 3D route preview.";
+    if (routePlaybackMode === "live") return "Live tracking is active. Your Codex pet and completed path now follow your route progress.";
     if (!isMapPointSelectionEnabled) return "Point picking is locked. Turn the map point toggle back on before selecting a new start or end point.";
     if (!startPoint) return "Click the map once to set a start point.";
     if (!endPoint) return "Click the map again to set the destination.";
     if (isRouteLoading) return `Loading the default ${profile} route...`;
     if (routeReady) return "Route preview is ready.";
     return "Reselect points or switch travel mode to try again.";
-  }, [canUseRouteApi, endPoint, isMapPointSelectionEnabled, isRouteLoading, profile, routeReady, startPoint]);
+  }, [canUseRouteApi, endPoint, isMapPointSelectionEnabled, isRouteLoading, profile, routePlaybackMode, routeReady, startPoint]);
 
+  const showEmptyStateHelperCards = !startPoint && !endPoint;
   const panelHasDenseContent = Boolean(route || routeError || isRouteLoading);
   const activeLayerCount =
     Number(areaLayers.easePlaces) + Number(areaLayers.naturalPlaces) + Number(areaLayers.streetFacilities);
@@ -578,18 +807,111 @@ export default function Map3DExperimentPage() {
     setActivePanel(null);
   }, []);
 
+  const ensureRoutePanelExpanded = useCallback(() => {
+    setActivePanel("route");
+    if (isMobileViewport) {
+      setMobileSheetMode("expanded");
+    }
+  }, [isMobileViewport]);
+
+  const routeGuideSteps = useMemo<SpotlightGuideStep[]>(
+    () => [
+      {
+        id: "points",
+        title: "Pick your two points",
+        description:
+          "Start here. Turn Map picking on if needed, lock it when you do not want to change points, then pick a start point first and a destination second.",
+        targetRef: routePointsRef,
+      },
+      {
+        id: "results",
+        title: "Your route info will show here",
+        description:
+          "This is the route results area. After you choose both points, this is where distance, time, directions, and Walking or Cycling options will appear.",
+        targetRef: routeResultsRef,
+      },
+      {
+        id: "toolbar",
+        title: "Use the top bar",
+        description:
+          "Use this bar to switch panels, reopen Tips, open the menu, and zoom the map.",
+        targetRef: toolbarRef,
+      },
+      {
+        id: "controls",
+        title: "More controls are here",
+        description:
+          "You can turn Map picking on or off, use your current location, and later track live route progress here once a route is ready.",
+        targetRef: routeHeaderControlsRef,
+      },
+    ],
+    []
+  );
+
+  const enterRouteGuideStep = useCallback(
+    (nextStepIndex: number) => {
+      const step = routeGuideSteps[nextStepIndex];
+      if (!step) {
+        setShowGuide(false);
+        return;
+      }
+
+      if (step.id === "points" || step.id === "results" || step.id === "controls") {
+        ensureRoutePanelExpanded();
+      }
+
+      setGuideStepIndex(nextStepIndex);
+    },
+    [ensureRoutePanelExpanded, routeGuideSteps]
+  );
+
+  const handleGuideNext = useCallback(() => {
+    const nextStepIndex = guideStepIndex + 1;
+    if (nextStepIndex >= routeGuideSteps.length) {
+      setShowGuide(false);
+      return;
+    }
+    enterRouteGuideStep(nextStepIndex);
+  }, [enterRouteGuideStep, guideStepIndex, routeGuideSteps.length]);
+
+  const handleGuideSkip = useCallback(() => {
+    setShowGuide(false);
+  }, []);
+
   const handleActivityHourChange = useCallback((_hour: number) => {}, []);
+
+  useEffect(() => {
+    routeRef.current = route;
+    shouldAutoplayRouteRef.current = Boolean(route);
+  }, [route]);
 
   useEffect(() => {
     setFocusedStepIndex(null);
   }, [route]);
 
   useEffect(() => {
+    if (!route) {
+      stopRouteAutoplay();
+      return;
+    }
+
+    if (!shouldAutoplayRouteRef.current || routePlaybackMode !== "idle") return;
+    shouldAutoplayRouteRef.current = false;
+    startRouteAutoplay(route);
+  }, [route, routePlaybackMode, startRouteAutoplay, stopRouteAutoplay]);
+
+  useEffect(() => {
+    if (shouldSkipAutoGuide(location.search)) return;
     if (!hasAutoShownRouteGuideThisRuntime) {
       hasAutoShownRouteGuideThisRuntime = true;
       setShowGuide(true);
     }
-  }, []);
+  }, [location.search]);
+
+  useEffect(() => {
+    if (!showGuide) return;
+    enterRouteGuideStep(0);
+  }, [enterRouteGuideStep, showGuide]);
 
   useEffect(() => {
     const mediaQuery = window.matchMedia(MOBILE_PANEL_MEDIA_QUERY);
@@ -661,9 +983,11 @@ export default function Map3DExperimentPage() {
 
   useEffect(() => {
     return () => {
+      stopRouteAutoplay();
+      stopLiveTracking();
       requestIdRef.current += 1;
     };
-  }, []);
+  }, [stopLiveTracking, stopRouteAutoplay]);
 
   useEffect(() => {
     if (!isMobileViewport || activePanel === null) return;
@@ -727,6 +1051,7 @@ export default function Map3DExperimentPage() {
         style={{ pointerEvents: landingMenuOpen ? "none" : "auto" }}
       >
         <div
+          ref={toolbarRef}
           data-testid="route-top-toolbar"
           style={routeToolbarStyle}
           className="flex min-h-14 w-[min(94vw,112rem)] flex-nowrap items-center gap-1 rounded-[28px] border border-white/55 px-2 py-2 text-[#17413f] shadow-[inset_0_1px_0_rgba(255,255,255,0.74)] max-sm:min-h-12 max-sm:w-[calc(100vw-0.6rem)] max-sm:justify-between max-sm:gap-0.5 max-sm:overflow-hidden max-sm:rounded-[24px] max-sm:px-1.5 max-sm:py-1.5"
@@ -806,6 +1131,10 @@ export default function Map3DExperimentPage() {
         startPoint={startPoint}
         endPoint={endPoint}
         route={route}
+        routeProgress={routeProgress}
+        routePlaybackMode={routePlaybackMode}
+        followPet={routePlaybackMode === "live"}
+        liveTrackedPoint={liveTrackedPoint}
         focusedStep={focusedStepIndex !== null && route ? route.steps[focusedStepIndex] ?? null : null}
         showEasePlaces={areaLayers.easePlaces}
         showNaturalPlaces={areaLayers.naturalPlaces}
@@ -816,11 +1145,14 @@ export default function Map3DExperimentPage() {
         onViewportControlsReady={setMapViewportControls}
         onEasePlaceSelect={handleEasePlaceSelect}
       />
-      <AnimatePresence>
-        {showGuide ? (
-          <RouteGuideDialog open={showGuide} onOpenChange={setShowGuide} />
-        ) : null}
-      </AnimatePresence>
+      <SpotlightGuide
+        open={showGuide}
+        onOpenChange={setShowGuide}
+        steps={routeGuideSteps}
+        currentStepIndex={guideStepIndex}
+        onNext={handleGuideNext}
+        onSkip={handleGuideSkip}
+      />
       {selectedEasePlace && areaLayers.easePlaces ? (
         <EasePlacesDetailPopup
           feature={selectedEasePlace.feature}
@@ -829,13 +1161,55 @@ export default function Map3DExperimentPage() {
           onClose={() => setSelectedEasePlace(null)}
         />
       ) : null}
+      <AnimatePresence>
+        {pendingLiveReroute ? (
+          <motion.div
+            className="fixed inset-0 z-[420] flex items-center justify-center bg-[rgba(7,21,21,0.26)] px-4 py-6 backdrop-blur-[3px] sm:px-6"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <motion.div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="live-reroute-title"
+              initial={{ opacity: 0, y: 18, scale: 0.96 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 12, scale: 0.97 }}
+              transition={{ type: "spring", stiffness: 220, damping: 22, mass: 0.92 }}
+              className="w-full max-w-[min(92vw,31rem)] rounded-[28px] border border-white/60 bg-[radial-gradient(circle_at_18%_0%,rgba(255,255,255,0.72),transparent_38%),linear-gradient(145deg,rgba(255,255,255,0.95),rgba(239,248,246,0.92)_58%,rgba(231,245,241,0.88))] p-5 text-[#17413f] shadow-[0_28px_64px_rgba(7,21,21,0.22),inset_0_1px_0_rgba(255,255,255,0.84)] sm:p-6"
+            >
+              <p id="live-reroute-title" className="text-lg font-semibold tracking-[-0.01em] text-[#17413f]">
+                You are far from the selected start point
+              </p>
+              <p className="mt-3 text-sm leading-6 text-[#456765] sm:text-[0.95rem]">
+                Your current location is about {Math.round(pendingLiveReroute.distanceMeters)} m from the chosen start.
+                Keep the current route or re-route from your live location while keeping the same destination.
+              </p>
+              <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                <button
+                  type="button"
+                  onClick={handleKeepCurrentLiveRoute}
+                  className="inline-flex min-h-11 items-center justify-center rounded-full border border-[#83c5be]/55 bg-white px-4 py-2 text-sm font-semibold text-[#17413f] transition hover:bg-[#f7fcfb] active:scale-[0.98]"
+                >
+                  Keep current route
+                </button>
+                <button
+                  type="button"
+                  onClick={handleRerouteFromLiveLocation}
+                  className="inline-flex min-h-11 items-center justify-center rounded-full bg-[#17413f] px-4 py-2 text-sm font-semibold text-white shadow-[0_10px_20px_rgba(23,65,63,0.16)] transition hover:bg-[#0f3230] active:scale-[0.98]"
+                >
+                  Re-route from my location
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
 
       <AnimatePresence initial={false}>
       {!panelCollapsed ? (
       <motion.aside
-        ref={(node) => {
-          sheetRef.current = node;
-        }}
         style={liquidGlassPanelStyle}
         className={`absolute left-4 top-20 z-10 flex max-w-[calc(100vw-2rem)] flex-col overflow-hidden border border-white/55 max-md:fixed max-md:bottom-0 max-md:left-3 max-md:right-3 max-md:top-auto max-md:max-w-none max-md:rounded-t-[26px] max-md:rounded-b-[18px] max-md:pb-[max(env(safe-area-inset-bottom),0px)] ${
           panelHasDenseContent
@@ -866,6 +1240,7 @@ export default function Map3DExperimentPage() {
         }}
         transition={{ type: "spring", stiffness: 210, damping: 20, mass: 0.92 }}
       >
+        <div ref={sheetRef} className="relative flex min-h-0 flex-1 flex-col">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_0%,rgba(255,255,255,0.48),transparent_34%),linear-gradient(120deg,rgba(255,255,255,0.12),transparent_42%,rgba(255,255,255,0.1)_68%,transparent)]" />
           <>
         {isMobileViewport ? (
@@ -887,7 +1262,7 @@ export default function Map3DExperimentPage() {
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#5f8682]">MoveComfortly route</p>
               <h1 className="mt-1 text-xl font-semibold text-[#17413f]">3D Route Preview</h1>
             </div>
-            <div className="flex shrink-0 items-center gap-2 self-start">
+            <div ref={routeHeaderControlsRef} className="flex shrink-0 items-center gap-2 self-start">
               <button
                 type="button"
                 onClick={() => setIsMapPointSelectionEnabled((current) => !current)}
@@ -915,6 +1290,22 @@ export default function Map3DExperimentPage() {
                   <LocateFixed className="h-4 w-4" />
                 )}
               </button>
+              {routeReady ? (
+                <button
+                  type="button"
+                  onClick={handleStartLiveTracking}
+                  disabled={!canUseRouteApi}
+                  aria-label={routePlaybackMode === "live" ? "Stop live route progress" : "Track my live route progress"}
+                  className={`inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/42 shadow-[inset_0_1px_0_rgba(255,255,255,0.7),0_8px_18px_rgba(23,65,63,0.08)] transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-45 ${
+                    routePlaybackMode === "live"
+                      ? "bg-[#17413f] text-white hover:bg-[#0f3230]"
+                      : "bg-white/42 text-[#17413f] hover:bg-white/62"
+                  }`}
+                  title={routePlaybackMode === "live" ? "Stop live route progress" : "Track live route progress"}
+                >
+                  <Navigation className="h-4 w-4" />
+                </button>
+              ) : null}
               <button
                 type="button"
                 onClick={closePanel}
@@ -927,22 +1318,26 @@ export default function Map3DExperimentPage() {
           </div>
         </div>
 
-        <div className={`relative ${panelHasDenseContent ? "flex-1 overflow-y-auto" : ""} px-4 py-4 sm:px-5`}>
+        <div className="relative min-h-0 flex-1 overflow-y-scroll [scrollbar-gutter:stable] px-4 py-4 sm:px-5">
           {activePanel === "route" ? (
             <>
-              <div className={`mb-4 rounded-2xl p-4 text-sm text-[#456765] ${liquidGlassInteractiveClass}`} tabIndex={0}>
-                <div className="flex items-start gap-3">
-                  <MapPinned className="mt-0.5 h-4 w-4 shrink-0 text-[#17413f]" />
-                  <p>{currentInstruction}</p>
-                </div>
-              </div>
+              {showEmptyStateHelperCards ? (
+                <>
+                  <div className={`mb-4 rounded-2xl p-4 text-sm text-[#456765] ${liquidGlassInteractiveClass}`} tabIndex={0}>
+                    <div className="flex items-start gap-3">
+                      <MapPinned className="mt-0.5 h-4 w-4 shrink-0 text-[#17413f]" />
+                      <p>{currentInstruction}</p>
+                    </div>
+                  </div>
 
-              <div className={`mb-4 rounded-2xl p-4 text-sm text-[#456765] ${liquidGlassInteractiveClass}`} tabIndex={0}>
-                <div className="flex items-start gap-3">
-                  <Navigation className="mt-0.5 h-4 w-4 shrink-0 text-[#17413f]" />
-                  <p>Drag to pan, scroll to zoom, and right-drag or use the compass control to rotate and tilt the 3D city view.</p>
-                </div>
-              </div>
+                  <div className={`mb-4 rounded-2xl p-4 text-sm text-[#456765] ${liquidGlassInteractiveClass}`} tabIndex={0}>
+                    <div className="flex items-start gap-3">
+                      <Navigation className="mt-0.5 h-4 w-4 shrink-0 text-[#17413f]" />
+                      <p>Drag to pan, scroll to zoom, and right-drag or use the compass control to rotate and tilt the 3D city view.</p>
+                    </div>
+                  </div>
+                </>
+              ) : null}
 
               <div className="mb-4 grid grid-cols-2 rounded-full border border-white/32 bg-white/28 p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.55)]">
                 <button
@@ -991,78 +1386,89 @@ export default function Map3DExperimentPage() {
                 </div>
               ) : null}
 
-              <div className="mb-4 space-y-3">
+              <div ref={routePointsRef} className="mb-4 space-y-3">
+                <MapPickingCard
+                  enabled={isMapPointSelectionEnabled}
+                  onToggle={() => setIsMapPointSelectionEnabled((current) => !current)}
+                />
                 <PointRow
                   label="Start"
                   point={startPoint}
                   badgeClassName="bg-[#0f766e]"
                   onDelete={handleDeleteStart}
-                  onPrimaryAction={() => setIsMapPointSelectionEnabled((current) => !current)}
-                  primaryActionAriaLabel={
-                    isMapPointSelectionEnabled
-                      ? "Disable map point selection from Start card"
-                      : "Enable map point selection from Start card"
-                  }
-                  statusLabel={isMapPointSelectionEnabled ? "Map picking ON" : "Map picking LOCKED"}
-                  helperText="Tap Start to lock or re-arm map picking"
-                  emphasized
                 />
                 <PointRow label="End" point={endPoint} badgeClassName="bg-[#ea580c]" onDelete={handleDeleteEnd} />
               </div>
 
-              {isRouteLoading ? (
-                <div className="mb-4 grid grid-cols-2 gap-3 max-sm:grid-cols-1">
-                  <div className={`h-[86px] animate-pulse rounded-2xl ${liquidGlassCardClass}`} />
-                  <div className={`h-[86px] animate-pulse rounded-2xl ${liquidGlassCardClass}`} />
-                </div>
-              ) : null}
-
-              {route ? (
-                <>
-                  <div className="mb-4 grid grid-cols-2 gap-3 max-sm:grid-cols-1">
-                    <Metric label="Distance" value={formatDistance(route.distanceMeters)} />
-                    <Metric label="Time" value={formatDuration(route.durationSeconds)} />
+              <div ref={routeResultsRef} className="mb-4 space-y-4">
+                {!route && !isRouteLoading ? (
+                  <div className={`rounded-2xl p-4 text-sm text-[#456765] ${liquidGlassInteractiveClass}`} tabIndex={0}>
+                    <div className="flex items-start gap-3">
+                      <Navigation className="mt-0.5 h-4 w-4 shrink-0 text-[#17413f]" />
+                      <div>
+                        <p className="font-semibold text-[#17413f]">Route summary will show here</p>
+                        <p className="mt-1 text-xs text-[#6b8582]">
+                          Pick a start point and a destination to see distance, time, and directions.
+                        </p>
+                      </div>
+                    </div>
                   </div>
+                ) : null}
 
-                  <div className="mb-3 flex items-center gap-2">
-                    <Navigation className="h-4 w-4 text-[#17413f]" />
-                    <h2 className="text-sm font-semibold uppercase tracking-[0.12em] text-[#5f8682]">Directions</h2>
+                {isRouteLoading ? (
+                  <div className="grid grid-cols-2 gap-3 max-sm:grid-cols-1">
+                    <div className={`h-[86px] animate-pulse rounded-2xl ${liquidGlassCardClass}`} />
+                    <div className={`h-[86px] animate-pulse rounded-2xl ${liquidGlassCardClass}`} />
                   </div>
-                  {route.steps.length > 0 ? (
-                    <div className="space-y-3">
-                      {route.steps.map((step, index) => (
-                        <button
-                          key={`${step.instruction}-${index}`}
-                          type="button"
-                          onClick={() => setFocusedStepIndex(index)}
-                          className={`w-full rounded-2xl p-4 text-left ${liquidGlassInteractiveClass} ${
-                            focusedStepIndex === index
-                              ? "border-[#83c5be]/80 bg-[linear-gradient(145deg,rgba(255,255,255,0.52),rgba(186,226,220,0.2))] shadow-[inset_0_1px_0_rgba(255,255,255,0.84),0_20px_42px_rgba(4,14,14,0.14)]"
-                              : ""
-                          }`}
-                        >
-                          <div className="flex items-start justify-between gap-3 max-sm:flex-col">
-                            <div>
-                              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#5f8682]">
-                                {step.modifier ?? step.type}
-                              </p>
-                              <p className="mt-1 text-sm font-semibold text-[#17413f]">{step.instruction}</p>
-                              {step.roadName ? <p className="mt-1 text-xs text-[#6b8582]">{step.roadName}</p> : null}
+                ) : null}
+
+                {route ? (
+                  <>
+                    <div className="grid grid-cols-2 gap-3 max-sm:grid-cols-1">
+                      <Metric label="Distance" value={formatDistance(route.distanceMeters)} />
+                      <Metric label="Time" value={formatDuration(route.durationSeconds)} />
+                    </div>
+
+                    <div className="mb-3 flex items-center gap-2">
+                      <Navigation className="h-4 w-4 text-[#17413f]" />
+                      <h2 className="text-sm font-semibold uppercase tracking-[0.12em] text-[#5f8682]">Directions</h2>
+                    </div>
+                    {route.steps.length > 0 ? (
+                      <div className="space-y-3">
+                        {route.steps.map((step, index) => (
+                          <button
+                            key={`${step.instruction}-${index}`}
+                            type="button"
+                            onClick={() => setFocusedStepIndex(index)}
+                            className={`w-full rounded-2xl p-4 text-left ${liquidGlassInteractiveClass} ${
+                              focusedStepIndex === index
+                                ? "border-[#83c5be]/80 bg-[linear-gradient(145deg,rgba(255,255,255,0.52),rgba(186,226,220,0.2))] shadow-[inset_0_1px_0_rgba(255,255,255,0.84),0_20px_42px_rgba(4,14,14,0.14)]"
+                                : ""
+                            }`}
+                          >
+                            <div className="flex items-start justify-between gap-3 max-sm:flex-col">
+                              <div>
+                                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#5f8682]">
+                                  {step.modifier ?? step.type}
+                                </p>
+                                <p className="mt-1 text-sm font-semibold text-[#17413f]">{step.instruction}</p>
+                                {step.roadName ? <p className="mt-1 text-xs text-[#6b8582]">{step.roadName}</p> : null}
+                              </div>
+                              <span className="shrink-0 rounded-full bg-[#e3f3ef] px-2 py-1 text-xs font-semibold text-[#456765] max-sm:self-start">
+                                {formatDistance(step.distanceMeters)}
+                              </span>
                             </div>
-                            <span className="shrink-0 rounded-full bg-[#e3f3ef] px-2 py-1 text-xs font-semibold text-[#456765] max-sm:self-start">
-                              {formatDistance(step.distanceMeters)}
-                            </span>
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="rounded-2xl border border-white/38 bg-white/34 p-4 text-sm text-[#456765] shadow-[inset_0_1px_0_rgba(255,255,255,0.72)]">
-                      The route was returned without step-by-step instructions.
-                    </div>
-                  )}
-                </>
-              ) : null}
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="rounded-2xl border border-white/38 bg-white/34 p-4 text-sm text-[#456765] shadow-[inset_0_1px_0_rgba(255,255,255,0.72)]">
+                        The route was returned without step-by-step instructions.
+                      </div>
+                    )}
+                  </>
+                ) : null}
+              </div>
             </>
           ) : null}
 
@@ -1075,6 +1481,9 @@ export default function Map3DExperimentPage() {
                     <p className="font-semibold text-[#17413f]">Area layers</p>
                     <p className="mt-1 text-xs text-[#6b8582]">
                       {activeLayerCount === 0 ? "No place-based layers active." : `${activeLayerCount} layer${activeLayerCount > 1 ? "s" : ""} active.`}
+                    </p>
+                    <p className="mt-2 text-[11px] text-[#6b8582]">
+                      Current layer data points are only available within the Melbourne CBD area.
                     </p>
                   </div>
                 </div>
@@ -1173,6 +1582,7 @@ export default function Map3DExperimentPage() {
           ) : null}
         </div>
           </>
+        </div>
       </motion.aside>
       ) : null}
       </AnimatePresence>
@@ -1301,6 +1711,81 @@ function PointRow({
   );
 }
 
+function MapPickingCard({
+  enabled,
+  onToggle,
+}: {
+  enabled: boolean;
+  onToggle: () => void;
+}) {
+  const statusLabel = enabled ? "Map picking ON" : "Map picking LOCKED";
+  const isLocked = !enabled;
+
+  return (
+    <div
+      className={`flex items-center gap-3 rounded-2xl p-3 ${liquidGlassInteractiveClass} border-[#83c5be]/55 bg-[linear-gradient(145deg,rgba(255,255,255,0.58),rgba(186,226,220,0.18))] shadow-[inset_0_1px_0_rgba(255,255,255,0.84),0_18px_38px_rgba(4,14,14,0.1)]`}
+      tabIndex={0}
+    >
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-[4px] border-white bg-[#17413f] text-white shadow-[0_0_0_6px_rgba(255,255,255,0.26),0_0_0_12px_rgba(255,255,255,0.1),0_14px_28px_rgba(15,23,42,0.22)]">
+        <MapPinned className="h-4 w-4" />
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="text-sm font-semibold text-[#17413f]">Map picking</p>
+          <span className="rounded-full border border-[#83c5be]/45 bg-[#e3f3ef] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#17413f]">
+            {statusLabel}
+          </span>
+        </div>
+        <p className="mt-1 text-xs font-semibold text-[#0f766e]">Tap Map picking to lock or re-arm point selection</p>
+      </div>
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-label={enabled ? "Disable map point selection from Map picking card" : "Enable map point selection from Map picking card"}
+        aria-pressed={isLocked}
+        className="relative inline-flex h-10 w-20 shrink-0 cursor-pointer items-center"
+      >
+        <span
+          className={`absolute inset-0 rounded-full border border-white/55 shadow-[0_10px_22px_rgba(23,65,63,0.14),inset_0_1px_0_rgba(255,255,255,0.55)] outline-none ring-0 transition-all duration-300 ${
+            isLocked ? "bg-[linear-gradient(135deg,#83c5be,#5fa8a1)]" : "bg-[linear-gradient(135deg,#d7e9e5,#b8d7d1)]"
+          }`}
+        />
+        <svg
+          className={`absolute top-1 h-8 w-8 stroke-[#17413f] transition-all duration-300 ${isLocked ? "left-10" : "left-1.5"}`}
+          viewBox="0 0 100 100"
+          xmlns="http://www.w3.org/2000/svg"
+          aria-hidden="true"
+        >
+          <path
+            fillRule="evenodd"
+            clipRule="evenodd"
+            d="M50,18A19.9,19.9,0,0,0,30,38v8a8,8,0,0,0-8,8V74a8,8,0,0,0,8,8H70a8,8,0,0,0,8-8V54a8,8,0,0,0-8-8H38V38a12,12,0,0,1,23.6-3,4,4,0,1,0,7.8-2A20.1,20.1,0,0,0,50,18Z"
+            className="fill-[#17413f]"
+          />
+        </svg>
+        <svg
+          className={`absolute top-1 h-8 w-8 stroke-[#456765] transition-all duration-300 ${isLocked ? "left-1.5" : "left-10"}`}
+          viewBox="0 0 100 100"
+          xmlns="http://www.w3.org/2000/svg"
+          aria-hidden="true"
+        >
+          <path
+            fillRule="evenodd"
+            clipRule="evenodd"
+            d="M30,46V38a20,20,0,0,1,40,0v8a8,8,0,0,1,8,8V74a8,8,0,0,1-8,8H30a8,8,0,0,1-8-8V54A8,8,0,0,1,30,46Zm32-8v8H38V38a12,12,0,0,1,24,0Z"
+            className="fill-[#456765]"
+          />
+        </svg>
+        <span
+          className={`absolute top-1 flex h-8 w-8 items-center justify-center rounded-full bg-[linear-gradient(145deg,#f8fbfa,#ffffff)] shadow-[0_8px_18px_rgba(15,23,42,0.14),inset_0_1px_0_rgba(255,255,255,0.88)] outline-none transition-all duration-300 ${
+            isLocked ? "left-1" : "left-1 translate-x-10"
+          }`}
+        />
+      </button>
+    </div>
+  );
+}
+
 function LayerToggle({
   label,
   description,
@@ -1378,7 +1863,7 @@ function ActiveLayerLegends({ filters }: { filters: LayerLegendFilters }) {
   return (
     <div
       data-testid="active-layer-legends"
-      className={`mt-4 max-h-[min(38vh,18rem)] overflow-y-auto rounded-2xl p-4 pr-3 ${liquidGlassCardClass}`}
+      className={`mt-4 max-h-[min(38vh,18rem)] overflow-y-scroll [scrollbar-gutter:stable] rounded-2xl p-4 pr-3 ${liquidGlassCardClass}`}
     >
       <div className="flex items-start gap-3">
         <Layers3 className="mt-0.5 h-4 w-4 shrink-0 text-[#17413f]" />
@@ -1493,152 +1978,6 @@ function TopBarActionButton({
         <span className="sr-only">{label}</span>
       )}
     </motion.button>
-  );
-}
-
-function RouteGuideDialog({
-  open,
-  onOpenChange,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-}) {
-  const [stepIndex, setStepIndex] = useState(0);
-  const currentStep = ROUTE_GUIDE_STEPS[stepIndex];
-  const StepIcon = currentStep.icon;
-
-  useEffect(() => {
-    if (!open) return;
-    setStepIndex(0);
-  }, [open]);
-
-  return (
-    <motion.div
-      data-testid="route-guide-overlay"
-      className="fixed inset-0 z-[320] flex items-center justify-center overflow-hidden px-2 py-[max(0.75rem,env(safe-area-inset-top))] sm:px-4 sm:py-6"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-    >
-      <button
-        type="button"
-        className="absolute inset-0 bg-[#0c1716]/16 backdrop-blur-[2px]"
-        aria-label="Close 3D route guide"
-        onClick={() => onOpenChange(false)}
-      />
-
-      <motion.div
-        style={{
-          background: "linear-gradient(180deg, #122d2b 0%, #eef8f5 25%, #f7fbfa 75%, #122d2b 100%)",
-        }}
-        className="relative w-[min(640px,calc(100vw-1rem))] overflow-hidden rounded-[28px] border border-[#d9e5e2] text-[#17413f] shadow-[0_28px_80px_rgba(10,24,23,0.2)]"
-        initial={{ opacity: 0, scale: 0.9, y: 28 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.94, y: 18 }}
-        transition={{ type: "spring", stiffness: 220, damping: 20, mass: 0.9 }}
-      >
-        <div className="flex items-center justify-between border-b border-white/25 px-5 py-4 sm:px-6">
-          <div className="flex items-center gap-2 text-white">
-            <MapPinned className="h-5 w-5" />
-            <span className="text-sm font-semibold uppercase tracking-[0.14em]">Tips Guide</span>
-          </div>
-          <button
-            type="button"
-            onClick={() => onOpenChange(false)}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/35 bg-white/12 text-white transition hover:bg-white/20"
-            aria-label="Close 3D route guide"
-          >
-            <XCircle className="h-4 w-4" />
-          </button>
-        </div>
-
-        <div className="px-5 pb-5 pt-4 sm:px-6 sm:pb-6">
-          <motion.div
-            key={`route-guide-step-${currentStep.id}`}
-            data-testid="route-guide-step-card"
-            className={`mb-4 rounded-2xl p-4 ${routeGuideGlassCardClass}`}
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-          >
-            <div className="flex items-center gap-3">
-              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-[#d4e3df] bg-gradient-to-b from-[#122d2b] to-[#17413f] text-white">
-                <StepIcon className="h-6 w-6" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#5f8682]">
-                  Step {stepIndex + 1} of {ROUTE_GUIDE_STEPS.length}
-                </p>
-                <h2 className="mt-1 text-xl font-bold text-[#10201f] sm:text-2xl">{currentStep.title}</h2>
-              </div>
-            </div>
-          </motion.div>
-
-          <motion.div
-            key={`route-guide-copy-${currentStep.id}`}
-            data-testid="route-guide-body-card"
-            className={`mb-5 min-h-[156px] rounded-2xl p-4 text-sm leading-7 text-[#3f5f5b] sm:p-5 ${routeGuideGlassPanelClass}`}
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-          >
-            <p>{currentStep.description}</p>
-            {currentStep.id === "refine" ? (
-              <div className="mt-4 rounded-xl border border-[#d7e4e0] bg-white/80 px-3 py-3 text-xs leading-6 text-[#4c6d69]">
-                This guide appears once after each refresh. Use the toolbar Tips button any time you want to reopen it.
-              </div>
-            ) : null}
-          </motion.div>
-
-          <div className="flex items-center justify-between gap-3 max-sm:flex-wrap">
-            <div className="flex items-center gap-2">
-              {ROUTE_GUIDE_STEPS.map((step, index) => (
-                <span
-                  key={step.id}
-                  className={`h-2.5 w-2.5 rounded-full transition-all duration-250 ${
-                    index === stepIndex ? "bg-[#17413f]" : "bg-[#b7cbc7]"
-                  }`}
-                />
-              ))}
-            </div>
-
-            <div className="flex items-center gap-2 max-sm:w-full max-sm:justify-end">
-              <button
-                type="button"
-                onClick={() => setStepIndex((value) => Math.max(value - 1, 0))}
-                disabled={stepIndex === 0}
-                className={`rounded-md border px-4 py-2 text-sm font-semibold uppercase tracking-[0.08em] shadow-[0_10px_20px_rgba(10,24,23,0.2)] transition ${
-                  stepIndex === 0
-                    ? "cursor-not-allowed border-[#c9d8d4] bg-[#dde8e5] text-[#7a918d]"
-                    : routeGuideGlassButtonClass
-                }`}
-              >
-                Previous
-              </button>
-              {stepIndex < ROUTE_GUIDE_STEPS.length - 1 ? (
-                <button
-                  data-testid="route-guide-next-button"
-                  type="button"
-                  onClick={() => setStepIndex((value) => Math.min(value + 1, ROUTE_GUIDE_STEPS.length - 1))}
-                  className={`rounded-md px-5 py-2 text-sm font-semibold uppercase tracking-[0.08em] ${routeGuideGlassButtonClass}`}
-                >
-                  Next
-                </button>
-              ) : (
-                <button
-                  data-testid="route-guide-next-button"
-                  type="button"
-                  onClick={() => onOpenChange(false)}
-                  className={`rounded-md px-5 py-2 text-sm font-semibold uppercase tracking-[0.08em] ${routeGuideGlassButtonClass}`}
-                >
-                  Done
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-      </motion.div>
-    </motion.div>
   );
 }
 

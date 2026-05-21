@@ -9,6 +9,7 @@ import {
   getSupportedFacilityTypeLabel,
   type SupportedFacilityKind,
 } from "../lib/streetFacilities";
+import { DEFAULT_ROUTE_PET_CONFIG } from "../lib/routePet";
 
 export const MELBOURNE_CENTER: [number, number] = [144.9631, -37.8136];
 
@@ -75,6 +76,8 @@ export type RouteSummary = {
   geometry: GeoJSON.LineString;
 };
 
+export type RoutePlaybackMode = "idle" | "autoplay" | "live";
+
 export type MapViewportControls = {
   zoomIn: () => void;
   zoomOut: () => void;
@@ -85,6 +88,10 @@ type WhiteModelMapProps = {
   startPoint: RoutePoint | null;
   endPoint: RoutePoint | null;
   route: RouteSummary | null;
+  routeProgress: number | null;
+  routePlaybackMode: RoutePlaybackMode;
+  followPet: boolean;
+  liveTrackedPoint?: RoutePoint | null;
   focusedStep: RouteStepItem | null;
   showEasePlaces: boolean;
   showNaturalPlaces: boolean;
@@ -175,6 +182,264 @@ function createFocusMarkerElement() {
   return wrapper;
 }
 
+function createPetMarkerElement() {
+  const petConfig = DEFAULT_ROUTE_PET_CONFIG;
+  const wrapper = document.createElement("div");
+  wrapper.setAttribute("data-testid", "route-pet-marker");
+  wrapper.setAttribute("data-pet-mode", petConfig.mode);
+  wrapper.style.width = `${petConfig.widthPx}px`;
+  wrapper.style.height = `${petConfig.heightPx}px`;
+  wrapper.style.position = "relative";
+  wrapper.style.display = "grid";
+  wrapper.style.placeItems = "center";
+  wrapper.style.pointerEvents = "none";
+  wrapper.style.willChange = "transform";
+  wrapper.style.transform = "translateZ(0)";
+
+  const halo = document.createElement("div");
+  halo.style.position = "absolute";
+  halo.style.inset = `${petConfig.haloInsetPx}px`;
+  halo.style.borderRadius = "999px";
+  halo.style.background = "radial-gradient(circle, rgba(79,209,197,0.3) 0%, rgba(79,209,197,0.12) 55%, rgba(79,209,197,0) 100%)";
+  halo.style.animation = "route-pet-pulse 1.8s ease-in-out infinite";
+  halo.style.willChange = "transform, opacity";
+
+  let petVisual: HTMLElement;
+  if (petConfig.mode === "spritesheet") {
+    const sprite = document.createElement("div");
+    sprite.className = "route-pet-sprite";
+    sprite.setAttribute("aria-hidden", petConfig.alt ? "false" : "true");
+    sprite.style.width = `${petConfig.imageWidthPx}px`;
+    sprite.style.height = `${petConfig.imageHeightPx}px`;
+    sprite.style.backgroundImage = `url(${petConfig.assetUrl})`;
+    sprite.style.backgroundRepeat = "no-repeat";
+    sprite.style.backgroundSize = `${petConfig.imageWidthPx * (petConfig.frameColumns ?? 1)}px ${petConfig.imageHeightPx * (petConfig.frameRows ?? 1)}px`;
+    sprite.style.backgroundPosition = "0px 0px";
+    sprite.style.filter = "drop-shadow(0 10px 18px rgba(11,24,24,0.28))";
+    sprite.style.animation = "route-pet-bob 1.2s ease-in-out infinite";
+    sprite.style.willChange = "transform, background-position";
+    sprite.style.transform = "translateZ(0)";
+    petVisual = sprite;
+
+    petConfig
+      .loadAssetUrl?.()
+      .then((assetUrl) => {
+        sprite.style.backgroundImage = `url(${assetUrl})`;
+      })
+      .catch((error: unknown) => {
+        console.warn("[WhiteModelMap] failed to lazy-load the route pet spritesheet", error);
+      });
+  } else {
+    const img = document.createElement("img");
+    img.src = petConfig.assetUrl;
+    img.alt = petConfig.alt;
+    if (!petConfig.alt) {
+      img.setAttribute("aria-hidden", "true");
+    }
+    img.style.width = `${petConfig.imageWidthPx}px`;
+    img.style.height = `${petConfig.imageHeightPx}px`;
+    img.style.display = "block";
+    img.style.filter = "drop-shadow(0 10px 18px rgba(11,24,24,0.28))";
+    img.style.animation = "route-pet-bob 1.2s ease-in-out infinite";
+    img.style.willChange = "transform";
+    img.style.transform = "translateZ(0)";
+    petVisual = img;
+  }
+
+  wrapper.appendChild(halo);
+  wrapper.appendChild(petVisual);
+  return wrapper;
+}
+
+function clampProgress(progress: number) {
+  return Math.max(0, Math.min(1, progress));
+}
+
+function lineDistance(start: [number, number], end: [number, number]) {
+  const dx = end[0] - start[0];
+  const dy = end[1] - start[1];
+  return Math.hypot(dx, dy);
+}
+
+function interpolateCoord(start: [number, number], end: [number, number], ratio: number): [number, number] {
+  return [start[0] + (end[0] - start[0]) * ratio, start[1] + (end[1] - start[1]) * ratio];
+}
+
+function splitRouteGeometry(geometry: GeoJSON.LineString, progress: number) {
+  const coordinates = geometry.coordinates as [number, number][];
+  if (coordinates.length === 0) {
+    return {
+      traveled: { type: "LineString", coordinates: [] } satisfies GeoJSON.LineString,
+      remaining: { type: "LineString", coordinates: [] } satisfies GeoJSON.LineString,
+      point: null as RoutePoint | null,
+    };
+  }
+
+  if (coordinates.length === 1) {
+    const [lng, lat] = coordinates[0];
+    return {
+      traveled: { type: "LineString", coordinates: [coordinates[0], coordinates[0]] } satisfies GeoJSON.LineString,
+      remaining: { type: "LineString", coordinates: [coordinates[0], coordinates[0]] } satisfies GeoJSON.LineString,
+      point: { lng, lat },
+    };
+  }
+
+  const clampedProgress = clampProgress(progress);
+  const segmentLengths = coordinates.slice(0, -1).map((coord, index) => lineDistance(coord, coordinates[index + 1]));
+  const totalLength = segmentLengths.reduce((sum, value) => sum + value, 0);
+
+  if (totalLength === 0) {
+    const [lng, lat] = coordinates[0];
+    return {
+      traveled: { type: "LineString", coordinates: [coordinates[0], coordinates[0]] } satisfies GeoJSON.LineString,
+      remaining: { type: "LineString", coordinates: [coordinates[0], coordinates.at(-1) ?? coordinates[0]] } satisfies GeoJSON.LineString,
+      point: { lng, lat },
+    };
+  }
+
+  const targetLength = totalLength * clampedProgress;
+  let accumulated = 0;
+
+  for (let index = 0; index < segmentLengths.length; index += 1) {
+    const segmentLength = segmentLengths[index];
+    const nextAccumulated = accumulated + segmentLength;
+    if (targetLength <= nextAccumulated || index === segmentLengths.length - 1) {
+      const start = coordinates[index];
+      const end = coordinates[index + 1];
+      const ratio = segmentLength === 0 ? 0 : (targetLength - accumulated) / segmentLength;
+      const splitPoint = interpolateCoord(start, end, ratio);
+      return {
+        traveled: {
+          type: "LineString",
+          coordinates: [...coordinates.slice(0, index + 1), splitPoint],
+        } satisfies GeoJSON.LineString,
+        remaining: {
+          type: "LineString",
+          coordinates: [splitPoint, ...coordinates.slice(index + 1)],
+        } satisfies GeoJSON.LineString,
+        point: { lng: splitPoint[0], lat: splitPoint[1] },
+      };
+    }
+    accumulated = nextAccumulated;
+  }
+
+  const end = coordinates.at(-1) ?? coordinates[0];
+  return {
+    traveled: { type: "LineString", coordinates: [...coordinates] } satisfies GeoJSON.LineString,
+    remaining: { type: "LineString", coordinates: [end, end] } satisfies GeoJSON.LineString,
+    point: { lng: end[0], lat: end[1] },
+  };
+}
+
+function isRecoverableMapboxError(error: unknown) {
+  const candidate = error as {
+    status?: number;
+    message?: string;
+    error?: { status?: number; message?: string };
+  } | null;
+  const status = candidate?.status ?? candidate?.error?.status;
+  const message = (candidate?.message ?? candidate?.error?.message ?? "").toLowerCase();
+
+  if (status === 404 && (message.includes("procedural-buildings") || message.includes("could not load models"))) {
+    return true;
+  }
+
+  if (message.includes("could not load models") || message.includes("procedural-buildings")) {
+    return true;
+  }
+
+  return false;
+}
+
+function easeInOutSine(progress: number) {
+  return -(Math.cos(Math.PI * progress) - 1) / 2;
+}
+
+function resolvePetSpriteRow(
+  routePlaybackMode: RoutePlaybackMode,
+  direction: "left" | "right",
+  isMoving: boolean
+) {
+  if (routePlaybackMode === "idle") return 0;
+  if (routePlaybackMode === "live" && !isMoving) return 8;
+  if (routePlaybackMode === "live" && isMoving) return 7;
+  return direction === "left" ? 2 : 1;
+}
+
+function resolvePetDirection(
+  geometry: GeoJSON.LineString,
+  progress: number | null,
+  fallbackDirection: "left" | "right" = "right"
+) {
+  const coordinates = geometry.coordinates as [number, number][];
+  if (coordinates.length < 2) return fallbackDirection;
+  const clampedProgress = clampProgress(typeof progress === "number" ? progress : 0);
+  const segmentLengths = coordinates.slice(0, -1).map((coord, index) => lineDistance(coord, coordinates[index + 1]));
+  const totalLength = segmentLengths.reduce((sum, value) => sum + value, 0);
+  if (totalLength === 0) {
+    return coordinates.at(-1)?.[0] ?? 0 < coordinates[0][0] ? "left" : "right";
+  }
+
+  const targetLength = totalLength * clampedProgress;
+  let accumulated = 0;
+  for (let index = 0; index < segmentLengths.length; index += 1) {
+    const nextAccumulated = accumulated + segmentLengths[index];
+    if (targetLength <= nextAccumulated || index === segmentLengths.length - 1) {
+      return coordinates[index + 1][0] < coordinates[index][0] ? "left" : "right";
+    }
+    accumulated = nextAccumulated;
+  }
+
+  return fallbackDirection;
+}
+
+function updatePetMarkerPresentation(
+  element: HTMLElement,
+  routePlaybackMode: RoutePlaybackMode,
+  direction: "left" | "right",
+  isMoving: boolean
+) {
+  const petConfig = DEFAULT_ROUTE_PET_CONFIG;
+  element.dataset.playbackMode = routePlaybackMode;
+  element.dataset.direction = direction;
+  element.dataset.moving = String(isMoving);
+  if (petConfig.mode !== "spritesheet") return;
+
+  const sprite = element.querySelector<HTMLElement>(".route-pet-sprite");
+  if (!sprite) return;
+
+  const row = resolvePetSpriteRow(routePlaybackMode, direction, isMoving);
+  const frameWidth = petConfig.imageWidthPx;
+  const frameHeight = petConfig.imageHeightPx;
+  const nextRow = String(row);
+  const nextAnimation = routePlaybackMode === "idle"
+    ? "route-pet-bob 1.4s ease-in-out infinite"
+    : row === 8
+      ? "route-pet-bob 1.35s ease-in-out infinite"
+      : "route-pet-scooter-frames 1.25s steps(8) infinite, route-pet-bob 1.25s ease-in-out infinite";
+  const nextBackgroundPositionY = `${-row * frameHeight}px`;
+
+  if (element.dataset.spriteRow !== nextRow) {
+    element.dataset.spriteRow = nextRow;
+    sprite.dataset.spriteRow = nextRow;
+    sprite.style.backgroundPositionY = nextBackgroundPositionY;
+  }
+
+  if (sprite.dataset.animationName !== nextAnimation) {
+    sprite.dataset.animationName = nextAnimation;
+    sprite.style.animation = nextAnimation;
+  }
+
+  if (sprite.style.transform !== "translateZ(0)") {
+    sprite.style.transform = "translateZ(0)";
+  }
+
+  const nextFrameWidth = `${frameWidth}px`;
+  if (sprite.style.getPropertyValue("--route-pet-frame-width") !== nextFrameWidth) {
+    sprite.style.setProperty("--route-pet-frame-width", nextFrameWidth);
+  }
+}
+
 function easePlacesToFeatureCollection(): FeatureCollection {
   return toFeatureCollection(
     EASE_PLACES_DATA.map((feature) => {
@@ -203,6 +468,10 @@ export default function WhiteModelMap({
   startPoint,
   endPoint,
   route,
+  routeProgress,
+  routePlaybackMode,
+  followPet,
+  liveTrackedPoint = null,
   focusedStep,
   showEasePlaces,
   showNaturalPlaces,
@@ -217,6 +486,11 @@ export default function WhiteModelMap({
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const startMarkerRef = useRef<mapboxgl.Marker | null>(null);
   const endMarkerRef = useRef<mapboxgl.Marker | null>(null);
+  const petMarkerRef = useRef<mapboxgl.Marker | null>(null);
+  const petMarkerElementRef = useRef<HTMLElement | null>(null);
+  const petMarkerStateRef = useRef<{ point: RoutePoint; progress: number | null } | null>(null);
+  const petMarkerAttachedRef = useRef(false);
+  const pauseAutoplayPetUpdatesRef = useRef(false);
   const focusedStepMarkerRef = useRef<mapboxgl.Marker | null>(null);
   const naturalPopupRef = useRef<mapboxgl.Popup | null>(null);
   const easePlacesPopupRef = useRef<mapboxgl.Popup | null>(null);
@@ -229,7 +503,12 @@ export default function WhiteModelMap({
   const onViewportControlsReadyRef = useRef(onViewportControlsReady);
   const onEasePlaceSelectRef = useRef(onEasePlaceSelect);
   const routeRef = useRef(route);
+  const routeProgressRef = useRef(routeProgress);
+  const routePlaybackModeRef = useRef(routePlaybackMode);
+  const routeGeometryRef = useRef<GeoJSON.LineString | null>(null);
   const hasFocusedInitialRouteRef = useRef(false);
+  const followPetRef = useRef(followPet);
+  const liveTrackedPointRef = useRef<RoutePoint | null>(liveTrackedPoint);
   const showEasePlacesRef = useRef(showEasePlaces);
   const showNaturalPlacesRef = useRef(showNaturalPlaces);
   const showStreetFacilitiesRef = useRef(showStreetFacilities);
@@ -271,54 +550,139 @@ export default function WhiteModelMap({
     if (map.getLayer(LAYER_IDS.route)) map.removeLayer(LAYER_IDS.route);
     if (map.getLayer(LAYER_IDS.routeCasing)) map.removeLayer(LAYER_IDS.routeCasing);
     if (map.getSource(SOURCE_IDS.route)) map.removeSource(SOURCE_IDS.route);
+    routeGeometryRef.current = null;
   };
 
-  const drawRoute = (geometry: GeoJSON.LineString) => {
+  const ensureRouteSourcesAndLayers = () => {
     const map = mapRef.current;
     if (!map || !map.isStyleLoaded()) return;
+    const emptyFeature = {
+      type: "Feature" as const,
+      properties: {},
+      geometry: { type: "LineString" as const, coordinates: [] },
+    };
 
-    removeRoute();
+    if (!map.getSource(SOURCE_IDS.route)) {
+      map.addSource(SOURCE_IDS.route, {
+        type: "geojson",
+        data: emptyFeature,
+      });
+    }
 
-    map.addSource(SOURCE_IDS.route, {
-      type: "geojson",
-      data: {
+    if (!map.getLayer(LAYER_IDS.routeCasing)) {
+      map.addLayer({
+        id: LAYER_IDS.routeCasing,
+        type: "line",
+        source: SOURCE_IDS.route,
+        layout: {
+          "line-cap": "round",
+          "line-join": "round",
+        },
+        paint: {
+          "line-color": "#2b1a12",
+          "line-width": 14,
+          "line-opacity": 0.58,
+        },
+      });
+    }
+
+    if (!map.getLayer(LAYER_IDS.route)) {
+      map.addLayer({
+        id: LAYER_IDS.route,
+        type: "line",
+        source: SOURCE_IDS.route,
+        layout: {
+          "line-cap": "round",
+          "line-join": "round",
+        },
+        paint: {
+          "line-color": "#ff7a1a",
+          "line-width": 7.5,
+          "line-opacity": 0.74,
+        },
+      });
+    }
+
+    ensureRouteOnTop();
+  };
+
+  const drawRoute = (geometry: GeoJSON.LineString, progress: number | null) => {
+    const map = mapRef.current;
+    if (!map || !map.isStyleLoaded()) return null;
+
+    ensureRouteSourcesAndLayers();
+
+    const split = splitRouteGeometry(geometry, typeof progress === "number" ? progress : 0);
+    const routeSource = map.getSource(SOURCE_IDS.route) as mapboxgl.GeoJSONSource | undefined;
+    if (routeGeometryRef.current !== geometry) {
+      routeSource?.setData({
         type: "Feature",
         properties: {},
         geometry,
-      },
-    });
+      });
+      routeGeometryRef.current = geometry;
+    }
 
-    map.addLayer({
-      id: LAYER_IDS.routeCasing,
-      type: "line",
-      source: SOURCE_IDS.route,
-      layout: {
-        "line-cap": "round",
-        "line-join": "round",
-      },
-      paint: {
-        "line-color": "#2b1a12",
-        "line-width": 14,
-        "line-opacity": 0.9,
-      },
-    });
+    return split.point;
+  };
 
-    map.addLayer({
-      id: LAYER_IDS.route,
-      type: "line",
-      source: SOURCE_IDS.route,
-      layout: {
-        "line-cap": "round",
-        "line-join": "round",
-      },
-      paint: {
-        "line-color": "#ff7a1a",
-        "line-width": 7.5,
-        "line-opacity": 1,
-      },
-    });
+  const syncPetMarker = (
+    nextRoute: RouteSummary | null = routeRef.current,
+    nextProgress: number | null = routeProgressRef.current,
+    nextPlaybackMode: RoutePlaybackMode = routePlaybackModeRef.current,
+    nextLiveTrackedPoint: RoutePoint | null = liveTrackedPointRef.current
+  ) => {
+    const map = mapRef.current;
+    if (!map || !nextRoute) {
+      petMarkerRef.current?.remove();
+      petMarkerRef.current = null;
+      petMarkerAttachedRef.current = false;
+      petMarkerStateRef.current = null;
+      return;
+    }
 
-    ensureRouteOnTop();
+    if (pauseAutoplayPetUpdatesRef.current && nextPlaybackMode === "autoplay") {
+      return;
+    }
+
+    const activePoint = drawRoute(nextRoute.geometry, nextProgress);
+    const markerPoint = nextPlaybackMode === "live" && nextLiveTrackedPoint ? nextLiveTrackedPoint : activePoint;
+    if (!markerPoint || typeof nextProgress !== "number") {
+      petMarkerRef.current?.remove();
+      petMarkerRef.current = null;
+      petMarkerAttachedRef.current = false;
+      petMarkerStateRef.current = null;
+      return;
+    }
+
+    if (!petMarkerRef.current) {
+      petMarkerElementRef.current = createPetMarkerElement();
+      petMarkerRef.current = new mapboxgl.Marker({
+        element: petMarkerElementRef.current,
+        anchor: "center",
+      });
+    }
+
+    const direction = resolvePetDirection(nextRoute.geometry, nextProgress);
+    const previousState = petMarkerStateRef.current;
+    const deltaProgress = previousState?.progress === null || previousState?.progress === undefined
+      ? Math.abs(nextProgress)
+      : Math.abs(nextProgress - previousState.progress);
+    const deltaDistance =
+      previousState
+        ? Math.hypot(markerPoint.lng - previousState.point.lng, markerPoint.lat - previousState.point.lat)
+        : Number.POSITIVE_INFINITY;
+    const isMoving = deltaProgress > 0.0005 || deltaDistance > 0.00001;
+    if (petMarkerElementRef.current) {
+      updatePetMarkerPresentation(petMarkerElementRef.current, nextPlaybackMode, direction, isMoving);
+    }
+    petMarkerRef.current.setLngLat([markerPoint.lng, markerPoint.lat]);
+    if (!petMarkerAttachedRef.current) {
+      petMarkerRef.current.addTo(map);
+      petMarkerAttachedRef.current = true;
+    }
+    petMarkerStateRef.current = { point: markerPoint, progress: nextProgress };
+    maybeFollowPet(markerPoint);
   };
 
   const fitRoute = (geometry: GeoJSON.LineString) => {
@@ -358,6 +722,38 @@ export default function WhiteModelMap({
       zoom: Math.max(map.getZoom(), 17.2),
       pitch: 62,
       duration: 900,
+      essential: true,
+    });
+  };
+
+  const maybeFollowPet = (point: RoutePoint) => {
+    const map = mapRef.current;
+    if (!map || !followPetRef.current || routePlaybackModeRef.current === "idle") return;
+    const container = map.getContainer();
+    if (!container.clientWidth || !container.clientHeight || !map.isStyleLoaded()) return;
+
+    let projected: { x: number; y: number } | null = null;
+    try {
+      projected = map.project([point.lng, point.lat]);
+    } catch (error) {
+      console.warn("[WhiteModelMap] skipping pet follow because projection is not ready", error);
+      return;
+    }
+    if (!projected) return;
+
+    const horizontalMargin = container.clientWidth * 0.22;
+    const verticalMargin = container.clientHeight * 0.24;
+    const insideSafeBounds =
+      projected.x >= horizontalMargin &&
+      projected.x <= container.clientWidth - horizontalMargin &&
+      projected.y >= verticalMargin &&
+      projected.y <= container.clientHeight - verticalMargin;
+
+    if (insideSafeBounds) return;
+
+    map.easeTo({
+      center: [point.lng, point.lat],
+      duration: 650,
       essential: true,
     });
   };
@@ -753,6 +1149,18 @@ export default function WhiteModelMap({
   }, [route]);
 
   useEffect(() => {
+    routeProgressRef.current = routeProgress;
+  }, [routeProgress]);
+
+  useEffect(() => {
+    routePlaybackModeRef.current = routePlaybackMode;
+  }, [routePlaybackMode]);
+
+  useEffect(() => {
+    liveTrackedPointRef.current = liveTrackedPoint;
+  }, [liveTrackedPoint]);
+
+  useEffect(() => {
     if (!route) {
       hasFocusedInitialRouteRef.current = false;
     }
@@ -761,6 +1169,10 @@ export default function WhiteModelMap({
   useEffect(() => {
     showEasePlacesRef.current = showEasePlaces;
   }, [showEasePlaces]);
+
+  useEffect(() => {
+    followPetRef.current = followPet;
+  }, [followPet]);
 
   useEffect(() => {
     showNaturalPlacesRef.current = showNaturalPlaces;
@@ -877,6 +1289,10 @@ export default function WhiteModelMap({
     });
 
     map.on("error", (event) => {
+      if (isRecoverableMapboxError(event.error)) {
+        console.warn("[WhiteModelMap] ignoring recoverable Mapbox resource error", event.error);
+        return;
+      }
       const status = (event.error as { status?: number } | undefined)?.status;
       const detail = status ? ` Mapbox returned status ${status}.` : "";
       onMapErrorRef.current(`The 3D map could not load.${detail} Check the Mapbox public token and try again.`);
@@ -917,7 +1333,7 @@ export default function WhiteModelMap({
       );
 
       if (routeRef.current?.geometry) {
-        drawRoute(routeRef.current.geometry);
+        drawRoute(routeRef.current.geometry, routeProgressRef.current);
         fitRoute(routeRef.current.geometry);
       }
     });
@@ -934,10 +1350,26 @@ export default function WhiteModelMap({
       onMapClickRef.current({ lng: event.lngLat.lng, lat: event.lngLat.lat });
     });
 
+    const pauseAutoplayPetUpdates = () => {
+      pauseAutoplayPetUpdatesRef.current = true;
+    };
+
+    const resumeAutoplayPetUpdates = () => {
+      pauseAutoplayPetUpdatesRef.current = false;
+      syncPetMarker();
+    };
+
+    map.on("movestart", pauseAutoplayPetUpdates);
+    map.on("moveend", resumeAutoplayPetUpdates);
+
     return () => {
+      pauseAutoplayPetUpdatesRef.current = false;
+      map.off?.("movestart", pauseAutoplayPetUpdates);
+      map.off?.("moveend", resumeAutoplayPetUpdates);
       onViewportControlsReadyRef.current?.(null);
       startMarkerRef.current?.remove();
       endMarkerRef.current?.remove();
+      petMarkerRef.current?.remove();
       focusedStepMarkerRef.current?.remove();
       removePopup(naturalPopupRef);
       removePopup(easePlacesPopupRef);
@@ -947,6 +1379,9 @@ export default function WhiteModelMap({
       mapRef.current = null;
       startMarkerRef.current = null;
       endMarkerRef.current = null;
+      petMarkerRef.current = null;
+      petMarkerElementRef.current = null;
+      petMarkerStateRef.current = null;
       focusedStepMarkerRef.current = null;
     };
   }, [mapboxToken, showNavigationControl]);
@@ -1032,6 +1467,10 @@ export default function WhiteModelMap({
 
     if (!route) {
       removeRoute();
+      petMarkerRef.current?.remove();
+      petMarkerRef.current = null;
+      petMarkerElementRef.current = null;
+      petMarkerStateRef.current = null;
       return;
     }
 
@@ -1039,7 +1478,7 @@ export default function WhiteModelMap({
       if (!mapRef.current || mapRef.current !== map || routeRef.current !== route || !map.isStyleLoaded()) {
         return;
       }
-      drawRoute(route.geometry);
+      drawRoute(route.geometry, routeProgressRef.current);
       ensureRouteOnTop();
 
       if (startPoint) {
@@ -1073,6 +1512,10 @@ export default function WhiteModelMap({
   }, [route, startPoint, endPoint]);
 
   useEffect(() => {
+    syncPetMarker(route, routeProgress, routePlaybackMode, liveTrackedPoint);
+  }, [route, routeProgress, routePlaybackMode, followPet, liveTrackedPoint]);
+
+  useEffect(() => {
     const map = mapRef.current;
     if (!map || !focusedStep?.maneuverPoint) {
       focusedStepMarkerRef.current?.remove();
@@ -1094,5 +1537,27 @@ export default function WhiteModelMap({
     focusStep(focusedStep);
   }, [focusedStep]);
 
-  return <div ref={containerRef} className="route-3d-map" style={{ minHeight: "100dvh", width: "100%", touchAction: "none" }} />;
+  return (
+    <>
+      <style>
+        {`
+          @keyframes route-pet-bob {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-3px); }
+          }
+
+          @keyframes route-pet-pulse {
+            0%, 100% { transform: scale(0.92); opacity: 0.62; }
+            50% { transform: scale(1.04); opacity: 1; }
+          }
+
+          @keyframes route-pet-scooter-frames {
+            from { background-position-x: 0px; }
+            to { background-position-x: calc(var(--route-pet-frame-width, 52px) * -8); }
+          }
+        `}
+      </style>
+      <div ref={containerRef} className="route-3d-map" style={{ minHeight: "100dvh", width: "100%", touchAction: "none" }} />
+    </>
+  );
 }

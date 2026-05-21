@@ -1,13 +1,26 @@
 import { createScope, createTimeline, stagger } from "animejs";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
 import { useLocation, useNavigate } from "react-router";
+import LandingSpiderCatGuide from "./LandingSpiderCatGuide";
 import { LANDING_CHOREO_EASE, LANDING_REVEAL_DURATIONS } from "./landingMotion";
 
 const screenshotUrls = [
-  new URL("../../assets/landing/5.png", import.meta.url).href,
-  new URL("../../assets/landing/6.png", import.meta.url).href,
-  new URL("../../assets/landing/7.png", import.meta.url).href,
-  new URL("../../assets/landing/8.png", import.meta.url).href,
+  new URL("../../assets/landing/5-optimized.jpg", import.meta.url).href,
+  new URL("../../assets/landing/6-optimized.jpg", import.meta.url).href,
+  new URL("../../assets/landing/7-optimized.jpg", import.meta.url).href,
+  new URL("../../assets/landing/8-optimized.jpg", import.meta.url).href,
+] as const;
+
+const HOW_SPIDER_CAT_PATROL_POINTS = [
+  { x: 61, y: 20 },
+  { x: 70, y: 22 },
+  { x: 78, y: 28 },
+  { x: 80, y: 40 },
+  { x: 74, y: 52 },
+  { x: 66, y: 60 },
+  { x: 57, y: 56 },
+  { x: 54, y: 44 },
+  { x: 57, y: 30 },
 ] as const;
 
 function HowActionButton({
@@ -29,11 +42,11 @@ function HowActionButton({
 
 const steps = [
   {
-    shortLabel: "Landing",
+    shortLabel: "Home",
     eyebrow: "Step 1",
-    title: "Landing Page overview and project story",
+    title: "Home overview and project story",
     body:
-      "Start on the landing page to understand what MoveComfortly does, how the project is informed, and where each major feature lives before you head into the tools.",
+      "Start on the Home page to understand what MoveComfortly does, how the project is informed, and where each major feature lives before you head into the tools.",
     details: [
       "Read the project overview and introduction",
       "See the data and feature story at a glance",
@@ -41,7 +54,7 @@ const steps = [
       "Jump into the map, risks, or route tools from clear entry points",
     ],
     chips: ["Project overview", "Feature story", "Data context", "About Us"],
-    callout: "Use the landing page as the orientation layer before opening the tools.",
+    callout: "Use the Home page as the orientation layer before opening the tools.",
   },
   {
     shortLabel: "Map",
@@ -92,7 +105,17 @@ const steps = [
   },
 ] as const;
 
-export default function HowToUseScene() {
+type HowToUseSceneProps = {
+  sectionRef?: RefObject<HTMLElement | null>;
+  spiderJourneyAnchorRef?: RefObject<HTMLDivElement | null>;
+  showSpiderCatGuide?: boolean;
+};
+
+export default function HowToUseScene({
+  sectionRef,
+  spiderJourneyAnchorRef,
+  showSpiderCatGuide = true,
+}: HowToUseSceneProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const sceneRef = useRef<HTMLElement | null>(null);
@@ -103,6 +126,7 @@ export default function HowToUseScene() {
   const [isMotionReady, setIsMotionReady] = useState(false);
   const [isSceneRevealed, setIsSceneRevealed] = useState(false);
   const [choreoSeq, setChoreoSeq] = useState(0);
+  const [supportsHoverFlip, setSupportsHoverFlip] = useState(false);
   const activeStep = steps[activeStepIndex];
   const activeCallout = activeStep.callout;
   const activeScreenshotUrl = screenshotUrls[activeStepIndex];
@@ -133,7 +157,7 @@ export default function HowToUseScene() {
 
   const activeAction =
     activeStepIndex === 0
-      ? { label: "Open Landing", onClick: openLandingPage }
+      ? { label: "Open Home", onClick: openLandingPage }
       : activeStepIndex === 1
         ? { label: "Open Map", onClick: openMapPage }
         : activeStepIndex === 2
@@ -151,6 +175,22 @@ export default function HowToUseScene() {
       activateStep(activeStepIndex - 1);
     }
   };
+
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
+
+    const mediaQuery = window.matchMedia("(hover: hover) and (pointer: fine)");
+    const syncHoverCapability = (event?: MediaQueryListEvent) => {
+      setSupportsHoverFlip(event ? event.matches : mediaQuery.matches);
+    };
+
+    syncHoverCapability();
+    mediaQuery.addEventListener("change", syncHoverCapability);
+
+    return () => {
+      mediaQuery.removeEventListener("change", syncHoverCapability);
+    };
+  }, []);
 
   useEffect(() => {
     const root = sceneRef.current;
@@ -281,12 +321,24 @@ export default function HowToUseScene() {
 
   return (
     <section
-      ref={sceneRef}
+      ref={(node) => {
+        sceneRef.current = node;
+        if (sectionRef) {
+          sectionRef.current = node;
+        }
+      }}
       id="landing-next-section"
       className={`landing-how-scene${isMotionReady ? " is-motion-ready" : ""}${isSceneRevealed ? " is-revealed" : ""}`}
       data-choreo-seq={choreoSeq}
       aria-label="How to use MoveComfortly"
     >
+      {showSpiderCatGuide ? (
+        <LandingSpiderCatGuide
+          sceneRef={sceneRef}
+          patrolPoints={HOW_SPIDER_CAT_PATROL_POINTS}
+          testIdPrefix="landing-spider-cat-how"
+        />
+      ) : null}
       <div className="landing-how-inner">
         <div className="landing-how-grid">
           <div className="landing-how-copy">
@@ -336,7 +388,7 @@ export default function HowToUseScene() {
 
           <div className="landing-how-product">
             <div
-              className={`landing-how-flip-scene${isDetailFlipped ? " is-flipped" : ""}`}
+              className={`landing-how-flip-scene${supportsHoverFlip ? " landing-how-flip-scene--hover-enabled" : ""}${isDetailFlipped ? " is-flipped" : ""}`}
               style={{ aspectRatio: imageAspectRatio }}
             >
               <button
@@ -355,6 +407,8 @@ export default function HowToUseScene() {
                     <img
                       src={activeScreenshotUrl}
                       alt="MoveComfortly map interface with places and comfort data"
+                      loading="lazy"
+                      decoding="async"
                       onLoad={(event) => {
                         const { naturalWidth, naturalHeight } = event.currentTarget;
                         setImageAspectRatio(naturalWidth / Math.max(1, naturalHeight));
@@ -389,8 +443,10 @@ export default function HowToUseScene() {
                 </span>
               </button>
             </div>
-            <div className="landing-how-action-bar" aria-live="polite">
-              <span className="landing-how-flip-chip">Tap card for details</span>
+            <div ref={spiderJourneyAnchorRef} className="landing-how-action-bar" aria-live="polite">
+              <span className="landing-how-flip-chip">
+                {supportsHoverFlip ? "Hover or tap card for details" : "Tap card for details"}
+              </span>
               <HowActionButton label={activeAction.label} onClick={activeAction.onClick} />
             </div>
           </div>

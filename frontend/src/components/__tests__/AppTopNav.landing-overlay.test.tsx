@@ -81,7 +81,7 @@ describe("AppTopNav landing overlay", () => {
     view.unmount();
   });
 
-  test("treats Landing Page as a close-only action and navigates to route targets from overlay actions", () => {
+  test("treats Home as a close-only action and navigates to route targets from overlay actions", () => {
     vi.useFakeTimers();
 
     const view = render(
@@ -115,7 +115,7 @@ describe("AppTopNav landing overlay", () => {
 
     const landingPageAction = Array.from(
       view.container.querySelectorAll("button, a")
-    ).find((element) => element.textContent?.includes("Landing Page"));
+    ).find((element) => element.textContent?.includes("Home"));
 
     act(() => {
       landingPageAction?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
@@ -191,6 +191,130 @@ describe("AppTopNav landing overlay", () => {
     expect(view.container.textContent).toContain("Navigation");
     expect(view.container.textContent).toContain("About us");
     expect(view.container.textContent).toContain("Open map");
+
+    view.unmount();
+  });
+
+  test("keeps the original overlay image source on larger screens", () => {
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn().mockImplementation((query: string) => ({
+        matches: false,
+        media: query,
+        onchange: null,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      }))
+    );
+
+    const view = render(
+      <MemoryRouter initialEntries={["/map"]}>
+        <Routes>
+          <Route
+            path="/map"
+            element={
+              <AppTopNav
+                variant="landing"
+                landingMode="compact"
+                landingTransitionProgress={1}
+              />
+            }
+          />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    const openButton = view.container.querySelector(
+      ".app-top-nav__compact-trigger"
+    ) as HTMLButtonElement | null;
+
+    act(() => {
+      openButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    const overlayImage = view.container.querySelector(
+      ".app-top-nav__landing-overlay-visual-image"
+    ) as HTMLImageElement | null;
+
+    expect(overlayImage).not.toBeNull();
+    expect(overlayImage?.getAttribute("src")).toContain("2.png");
+    expect(overlayImage?.getAttribute("srcset")).toBeNull();
+
+    view.unmount();
+  });
+
+  test("lets the desktop poster area briefly switch into a do-not-touch easter egg", () => {
+    vi.useFakeTimers();
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn().mockImplementation((query: string) => ({
+        matches: false,
+        media: query,
+        onchange: null,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      }))
+    );
+
+    const view = render(
+      <MemoryRouter initialEntries={["/map"]}>
+        <Routes>
+          <Route
+            path="/map"
+            element={
+              <AppTopNav
+                variant="landing"
+                landingMode="compact"
+                landingTransitionProgress={1}
+              />
+            }
+          />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    const openButton = view.container.querySelector(
+      ".app-top-nav__compact-trigger"
+    ) as HTMLButtonElement | null;
+
+    act(() => {
+      openButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    const posterButton = view.container.querySelector(
+      ".app-top-nav__landing-overlay-visual-shell"
+    ) as HTMLButtonElement | null;
+
+    expect(posterButton?.tagName).toBe("BUTTON");
+
+    act(() => {
+      posterButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    const easterEgg = view.container.querySelector(
+      '[data-testid="landing-overlay-poster-easter-egg"]'
+    ) as HTMLElement | null;
+    const easterEggImage = view.container.querySelector(
+      ".app-top-nav__landing-overlay-easter-egg-image"
+    ) as HTMLImageElement | null;
+
+    expect(easterEgg).not.toBeNull();
+    expect(easterEggImage?.getAttribute("src")).toContain("menu-poster-no-touch.jpeg");
+    expect(view.container.textContent).toContain("Do not click");
+
+    act(() => {
+      vi.advanceTimersByTime(1700);
+    });
+
+    expect(
+      view.container.querySelector('[data-testid="landing-overlay-poster-easter-egg"]')
+    ).toBeNull();
 
     view.unmount();
   });

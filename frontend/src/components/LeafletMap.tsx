@@ -279,6 +279,15 @@ export default function LeafletMap({
           onEachFeature(feature, layer) {
             const areaId = String(feature?.properties?.id ?? '');
             const areaName = String(feature?.properties?.name ?? '');
+            layer.on('add', () => {
+              const element = (layer as L.Path).getElement?.();
+              if (!element) return;
+              element.classList.add('map-guide-area-block');
+              element.setAttribute('data-guide-area-block', areaId);
+              if (areaId === 'carlton') {
+                element.classList.add('map-guide-carlton-area');
+              }
+            });
             layer.bindTooltip(areaName, {
               sticky: true,
               direction: 'top',
@@ -539,7 +548,7 @@ export default function LeafletMap({
       const staleMessage = isStalePrecinct ? '<br/><span style="color:#ef4444">Data outdated</span>' : '';
 
       const icon = L.divIcon({
-        className: '',
+        className: `comfort-score-marker-icon${precinct.id === 'carlton' || precinct.name.toLowerCase().includes('carlton') ? ' map-guide-carlton-marker' : ''}`,
         html: `
           <div style="position:relative;display:flex;flex-direction:column;align-items:center;cursor:pointer;">
             <div style="

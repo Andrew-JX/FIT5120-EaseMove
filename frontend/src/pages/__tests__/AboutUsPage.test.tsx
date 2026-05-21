@@ -5,6 +5,14 @@ import { MemoryRouter, Route, Routes } from "react-router";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import AboutUsPage from "../AboutUsPage";
 
+vi.mock("canvas-confetti", () => ({
+  default: {
+    create: vi.fn(() => vi.fn()),
+  },
+}));
+
+const originalInnerHeight = window.innerHeight;
+
 function render(element: React.ReactNode) {
   const container = document.createElement("div");
   document.body.appendChild(container);
@@ -31,10 +39,21 @@ function pageText(container: HTMLElement) {
 
 afterEach(() => {
   document.body.innerHTML = "";
+  Object.defineProperty(window, "innerHeight", {
+    writable: true,
+    configurable: true,
+    value: originalInnerHeight,
+  });
 });
 
 beforeEach(() => {
+  vi.useFakeTimers();
   vi.stubGlobal("scrollTo", vi.fn());
+  Object.defineProperty(window, "innerHeight", {
+    writable: true,
+    configurable: true,
+    value: 900,
+  });
 });
 
 describe("AboutUsPage", () => {
@@ -98,9 +117,7 @@ describe("AboutUsPage", () => {
       </MemoryRouter>
     );
 
-    const button = Array.from(view.container.querySelectorAll("button")).find((item) =>
-      item.textContent?.includes("Back")
-    );
+    const button = view.container.querySelector(".aboutus-back-button") as HTMLButtonElement | null;
 
     expect(button).toBeTruthy();
 
@@ -130,9 +147,7 @@ describe("AboutUsPage", () => {
     });
     window.history.replaceState({ idx: 0 }, "", "/aboutus");
 
-    const button = Array.from(view.container.querySelectorAll("button")).find((item) =>
-      item.textContent?.includes("Back")
-    );
+    const button = view.container.querySelector(".aboutus-back-button") as HTMLButtonElement | null;
 
     expect(button).toBeTruthy();
 
@@ -143,5 +158,119 @@ describe("AboutUsPage", () => {
     expect(pageText(view.container)).toContain("Home page");
 
     view.unmount();
+  });
+
+  test("plays the about-us ending easter egg only after staying at the bottom for two seconds", () => {
+    const view = render(
+      <MemoryRouter initialEntries={["/aboutus"]}>
+        <Routes>
+          <Route path="/aboutus" element={<AboutUsPage />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    const trigger = view.container.querySelector('[data-testid="aboutus-easter-egg-trigger"]') as HTMLElement | null;
+    expect(trigger).toBeTruthy();
+
+    let triggerTop = 1400;
+    trigger!.getBoundingClientRect = vi.fn(() => ({
+      x: 0,
+      y: triggerTop,
+      top: triggerTop,
+      bottom: triggerTop + 20,
+      left: 0,
+      right: 20,
+      width: 20,
+      height: 20,
+      toJSON: () => ({}),
+    }));
+
+    act(() => {
+      window.dispatchEvent(new Event("scroll"));
+    });
+
+    expect(view.container.querySelector('[data-testid="aboutus-ending-easter-egg"]')).toBeNull();
+
+    triggerTop = 876;
+    act(() => {
+      window.dispatchEvent(new Event("scroll"));
+    });
+
+    act(() => {
+      vi.advanceTimersByTime(1900);
+    });
+
+    expect(view.container.querySelector('[data-testid="aboutus-ending-easter-egg"]')).toBeNull();
+
+    act(() => {
+      vi.advanceTimersByTime(120);
+    });
+
+    expect(view.container.querySelector('[data-testid="aboutus-ending-easter-egg"]')).not.toBeNull();
+    expect(pageText(view.container)).toContain("You made it all the way.");
+
+    act(() => {
+      window.dispatchEvent(new Event("scroll"));
+      vi.advanceTimersByTime(3200);
+    });
+
+    expect(view.container.querySelector('[data-testid="aboutus-ending-easter-egg"]')).not.toBeNull();
+
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
+
+    expect(view.container.querySelector('[data-testid="aboutus-ending-easter-egg"]')).toBeNull();
+
+    act(() => {
+      window.dispatchEvent(new Event("scroll"));
+      vi.advanceTimersByTime(2200);
+    });
+
+    expect(view.container.querySelector('[data-testid="aboutus-ending-easter-egg"]')).toBeNull();
+
+    view.unmount();
+  });
+
+  test("re-entering the about page allows the ending easter egg to trigger again", () => {
+    const mountAndTrigger = () => {
+      const view = render(
+        <MemoryRouter initialEntries={["/aboutus"]}>
+          <Routes>
+            <Route path="/aboutus" element={<AboutUsPage />} />
+          </Routes>
+        </MemoryRouter>
+      );
+
+      const trigger = view.container.querySelector('[data-testid="aboutus-easter-egg-trigger"]') as HTMLElement | null;
+      expect(trigger).toBeTruthy();
+
+      let triggerTop = 876;
+      trigger!.getBoundingClientRect = vi.fn(() => ({
+        x: 0,
+        y: triggerTop,
+        top: triggerTop,
+        bottom: triggerTop + 20,
+        left: 0,
+        right: 20,
+        width: 20,
+        height: 20,
+        toJSON: () => ({}),
+      }));
+
+      act(() => {
+        window.dispatchEvent(new Event("scroll"));
+        vi.advanceTimersByTime(2200);
+      });
+
+      expect(view.container.querySelector('[data-testid="aboutus-ending-easter-egg"]')).not.toBeNull();
+      return view;
+    };
+
+    const firstView = mountAndTrigger();
+    firstView.unmount();
+
+    const secondView = mountAndTrigger();
+    secondView.unmount();
   });
 });

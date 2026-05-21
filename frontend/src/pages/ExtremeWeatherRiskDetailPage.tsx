@@ -1,7 +1,7 @@
 import { ArrowLeft } from "lucide-react";
 import { useSearchParams, useNavigate } from "react-router";
 import { extremeWeatherRisks } from "../data/extremeWeather";
-import heroImage from "../assets/Heat.png";
+import heroImage from "../assets/heat.gif";
 
 export default function ExtremeWeatherRiskDetailPage() {
   const navigate = useNavigate();

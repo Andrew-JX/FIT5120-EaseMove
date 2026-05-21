@@ -76,4 +76,23 @@ describe("MissionGalleryScene", () => {
 
     view.unmount();
   });
+
+  test("keeps the original gallery card image source", () => {
+    const view = render(<MissionGalleryScene />);
+
+    act(() => {
+      window.scrollY = 1600;
+      window.dispatchEvent(new Event("scroll"));
+    });
+
+    const firstCard = view.container.querySelector(
+      ".landing-mission-gallery-card img"
+    ) as HTMLImageElement | null;
+
+    expect(firstCard).not.toBeNull();
+    expect(firstCard?.getAttribute("src")).toContain("1.png");
+    expect(firstCard?.getAttribute("srcset")).toBeNull();
+
+    view.unmount();
+  });
 });
