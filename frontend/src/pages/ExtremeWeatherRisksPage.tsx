@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent, type WheelEvent } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp } from "lucide-react";
 import { useNavigate } from "react-router";
 import AppTopNav from "../components/AppTopNav";
 import heatImage from "../assets/heat.gif";
@@ -56,6 +56,38 @@ type WeatherDetail = {
   movementExperience: string;
   tags: string[];
 };
+
+type SmokeParticle = {
+  angle: number;
+  radius: number;
+  size: number;
+  speed: number;
+  phase: number;
+  wobble: number;
+  alpha: number;
+};
+
+function hexToRgb(hex: string) {
+  const clean = hex.replace("#", "");
+  const value = Number.parseInt(clean, 16);
+  return {
+    r: (value >> 16) & 255,
+    g: (value >> 8) & 255,
+    b: value & 255,
+  };
+}
+
+function createSmokeParticles(count: number): SmokeParticle[] {
+  return Array.from({ length: count }, (_, index) => ({
+    angle: Math.random() * Math.PI * 2,
+    radius: 34 + Math.random() * 190,
+    size: 86 + Math.random() * 190,
+    speed: 0.14 + Math.random() * 0.36,
+    phase: Math.random() * Math.PI * 2,
+    wobble: 20 + Math.random() * 90,
+    alpha: 0.026 + (index % 5) * 0.006,
+  }));
+}
 
 const WEATHER_DETAILS: Record<WeatherRiskId, WeatherDetail> = {
   heat: {
@@ -697,6 +729,11 @@ export default function ExtremeWeatherRisksPage() {
   const wheelPositionRef = useRef(0);
   const suppressClickRef = useRef(false);
   const suppressClickTimeoutRef = useRef<number | null>(null);
+  const smokeCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const smokeAnimationFrameRef = useRef<number | null>(null);
+  const smokeCurrentRef = useRef({ x: 0, y: 0 });
+  const smokeDriftRef = useRef({ x: 0, y: 0, targetX: 0, targetY: 0, nextShiftAt: 0 });
+  const smokeParticlesRef = useRef<SmokeParticle[]>([]);
 
   const [activeSection, setActiveSection] = useState<SectionKey>("risk");
   const [wheelPosition, setWheelPosition] = useState(0);
@@ -726,12 +763,109 @@ export default function ExtremeWeatherRisksPage() {
   const selectorOffsets = [-3, -2, -1, 0, 1, 2, 3];
 
   useEffect(() => {
+    const canvas = smokeCanvasRef.current;
+    if (!canvas) return;
+
+    const context = canvas.getContext("2d");
+    if (!context) return;
+
+    let canvasWidth = 1;
+    let canvasHeight = 1;
+    const accent = hexToRgb(activeRisk.accent);
+    smokeParticlesRef.current =
+      smokeParticlesRef.current.length > 0 ? smokeParticlesRef.current : createSmokeParticles(54);
+
+    const resizeSmokeCanvas = () => {
+      const risk = riskRef.current;
+      if (!risk) return;
+
+      const rect = risk.getBoundingClientRect();
+      canvasWidth = Math.max(1, Math.round(rect.width));
+      canvasHeight = Math.max(1, Math.round(rect.height));
+      const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+
+      canvas.width = Math.round(canvasWidth * dpr);
+      canvas.height = Math.round(canvasHeight * dpr);
+      canvas.style.width = `${canvasWidth}px`;
+      canvas.style.height = `${canvasHeight}px`;
+      context.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+      if (smokeCurrentRef.current.x === 0 && smokeCurrentRef.current.y === 0) {
+        smokeCurrentRef.current = { x: rect.width * 0.52, y: rect.height * 0.35 };
+        smokeDriftRef.current = {
+          x: smokeCurrentRef.current.x,
+          y: smokeCurrentRef.current.y,
+          targetX: smokeCurrentRef.current.x,
+          targetY: smokeCurrentRef.current.y,
+          nextShiftAt: 0,
+        };
+      }
+    };
+
+    const renderSmoke = (time: number) => {
+      const current = smokeCurrentRef.current;
+      const drift = smokeDriftRef.current;
+
+      if (time > drift.nextShiftAt) {
+        drift.targetX = canvasWidth * (0.34 + Math.random() * 0.34);
+        drift.targetY = canvasHeight * (0.26 + Math.random() * 0.28);
+        drift.nextShiftAt = time + 2600 + Math.random() * 2200;
+      }
+
+      drift.x += (drift.targetX - drift.x) * 0.012;
+      drift.y += (drift.targetY - drift.y) * 0.012;
+      current.x = drift.x;
+      current.y = drift.y;
+
+      const t = time * 0.001;
+      context.clearRect(0, 0, canvasWidth, canvasHeight);
+      context.globalCompositeOperation = "lighter";
+      context.filter = "blur(26px)";
+
+      smokeParticlesRef.current.forEach((particle, index) => {
+        const drift = Math.sin(t * particle.speed + particle.phase);
+        const swirl = Math.cos(t * (particle.speed * 0.72) + particle.phase * 1.7);
+        const angle = particle.angle + drift * 0.85 + t * 0.035 * (index % 2 === 0 ? 1 : -1);
+        const radius = particle.radius + swirl * particle.wobble;
+        const x = current.x + Math.cos(angle) * radius + Math.sin(t * 0.21 + index) * 44;
+        const y = current.y + Math.sin(angle * 0.82) * radius * 0.62 + Math.cos(t * 0.18 + index) * 34;
+        const size = particle.size * (0.88 + Math.sin(t * 0.42 + particle.phase) * 0.16);
+        const gradient = context.createRadialGradient(x, y, 0, x, y, size);
+        const color =
+          index % 3 === 0
+            ? `${accent.r},${accent.g},${accent.b}`
+            : index % 3 === 1
+              ? "131,197,190"
+              : "237,246,249";
+
+        gradient.addColorStop(0, `rgba(${color},${particle.alpha * 0.95})`);
+        gradient.addColorStop(0.36, `rgba(${color},${particle.alpha * 0.55})`);
+        gradient.addColorStop(1, `rgba(${color},0)`);
+        context.fillStyle = gradient;
+        context.beginPath();
+        context.ellipse(x, y, size * 0.92, size * 0.54, angle * 0.28, 0, Math.PI * 2);
+        context.fill();
+      });
+
+      context.filter = "none";
+      context.globalCompositeOperation = "source-over";
+      smokeAnimationFrameRef.current = window.requestAnimationFrame(renderSmoke);
+    };
+
+    resizeSmokeCanvas();
+    window.addEventListener("resize", resizeSmokeCanvas);
+    smokeAnimationFrameRef.current = window.requestAnimationFrame(renderSmoke);
+
     return () => {
+      window.removeEventListener("resize", resizeSmokeCanvas);
       if (wheelAnimationFrameRef.current !== null) {
         window.cancelAnimationFrame(wheelAnimationFrameRef.current);
       }
       if (suppressClickTimeoutRef.current !== null) {
         window.clearTimeout(suppressClickTimeoutRef.current);
+      }
+      if (smokeAnimationFrameRef.current !== null) {
+        window.cancelAnimationFrame(smokeAnimationFrameRef.current);
       }
     };
   }, []);
@@ -800,6 +934,14 @@ export default function ExtremeWeatherRisksPage() {
 
   const settleToIndex = (targetIndex: number) => {
     animateWheelTo(targetIndex);
+  };
+
+  const slideCardsLeft = () => {
+    settleToIndex(snappedIndex + 1);
+  };
+
+  const slideCardsRight = () => {
+    settleToIndex(snappedIndex - 1);
   };
 
   const onDragStart = () => {
@@ -944,13 +1086,36 @@ export default function ExtremeWeatherRisksPage() {
         </button>
       </div>
 
-      <section ref={riskRef} className="snap-start h-screen pt-16 sm:pt-20">
+      <section
+        ref={riskRef}
+        className="snap-start h-screen bg-[#071313] pt-16 sm:pt-20 cursor-default select-none"
+      >
         <div className="relative h-full overflow-hidden px-3 sm:px-6 pb-4 sm:pb-6">
-          <div className="absolute inset-0 pointer-events-none" style={{ background: activeRisk.glow }} />
+          <div
+            className="absolute inset-0 pointer-events-none"
+            style={{
+              background: `
+                radial-gradient(circle at 50% 24%, ${activeRisk.accent}36, transparent 34%),
+                radial-gradient(circle at 18% 82%, rgba(131,197,190,0.24), transparent 34%),
+                linear-gradient(180deg, #071313 0%, #102624 46%, #061010 100%)
+              `,
+            }}
+          />
+          <canvas
+            ref={smokeCanvasRef}
+            className="pointer-events-none absolute inset-0 opacity-42 mix-blend-screen"
+            aria-hidden="true"
+          />
+          <div
+            className="absolute inset-x-0 bottom-0 h-[34%] pointer-events-none"
+            style={{ background: "linear-gradient(180deg, transparent, rgba(6,16,16,0.82))" }}
+          />
 
           <div className="relative h-full flex flex-col">
             <div
-              className="flex-[0.56] min-h-0 relative touch-pan-y"
+              className={`flex-[0.56] min-h-0 relative touch-pan-y select-none ${
+                isPointerDragging ? "cursor-grabbing" : "cursor-grab"
+              }`}
               onPointerDown={onCardsPointerDown}
               onPointerMove={onCardsPointerMove}
               onPointerUp={onCardsPointerUp}
@@ -979,7 +1144,7 @@ export default function ExtremeWeatherRisksPage() {
                       initial={false}
                       type="button"
                       onClick={() => onCardClick(virtualIndex)}
-                      className="absolute left-1/2 top-[44%] h-[clamp(180px,36vh,340px)] w-[clamp(210px,50vw,440px)] max-w-[78vw] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-[24px] border border-white/45 bg-white/80 shadow-[0_24px_58px_rgba(10,24,23,0.22)]"
+                      className="absolute left-1/2 top-[44%] h-[clamp(180px,36vh,340px)] w-[clamp(210px,50vw,440px)] max-w-[78vw] -translate-x-1/2 -translate-y-1/2 cursor-pointer overflow-hidden rounded-[24px] border border-white/45 bg-white/80 shadow-[0_24px_58px_rgba(10,24,23,0.22)] select-none"
                       style={{ zIndex }}
                       animate={{ x, y, rotateZ, scale, opacity, filter: `blur(${blur}px)` }}
                       transition={
@@ -988,7 +1153,7 @@ export default function ExtremeWeatherRisksPage() {
                           : { type: "spring", stiffness: 150, damping: 26, mass: 0.9 }
                       }
                     >
-                      <img src={risk.image} alt={risk.title} className="h-full w-full object-cover" />
+                      <img src={risk.image} alt={risk.title} draggable={false} className="h-full w-full object-cover select-none" />
                       <div className="absolute inset-0 bg-gradient-to-t from-black/34 via-black/10 to-transparent" />
                     </motion.button>
                   );
@@ -997,7 +1162,10 @@ export default function ExtremeWeatherRisksPage() {
             </div>
 
             <div className="flex-[0.2] min-h-0 flex items-center justify-center">
-              <div className="w-full max-w-[980px] text-center px-4 sm:px-6">
+              <div className="relative w-full max-w-[680px] px-4 text-center sm:px-6">
+                <div className="mx-auto mb-2 w-fit rounded-full border border-white/18 bg-[#081515]/58 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#edf6f9]/82 shadow-[0_12px_28px_rgba(4,14,14,0.22)] backdrop-blur-md">
+                  Drag left or right to slide
+                </div>
                 <div
                   className="relative mx-auto h-[64px] sm:h-[76px] overflow-hidden"
                   style={{ WebkitMaskImage: "linear-gradient(180deg, transparent 0%, #000 24%, #000 76%, transparent 100%)" }}
@@ -1017,7 +1185,7 @@ export default function ExtremeWeatherRisksPage() {
                       <motion.h3
                         key={`title-${virtualIndex}`}
                         initial={false}
-                        className="absolute left-0 top-1/2 w-full -translate-y-1/2 text-3xl sm:text-4xl font-extrabold tracking-[0.08em] uppercase"
+                        className="absolute left-0 top-1/2 w-full -translate-y-1/2 text-3xl sm:text-4xl font-extrabold tracking-[0.08em] uppercase select-none"
                         style={{ color: risk.accent }}
                         animate={{ y, opacity, scale, filter: `blur(${blur}px)` }}
                         transition={
@@ -1032,16 +1200,28 @@ export default function ExtremeWeatherRisksPage() {
                   })}
                 </div>
 
-                <button
+                <motion.button
                   type="button"
                   onClick={() => {
                     setSelectedDetailId(activeRisk.riskId);
                     setDetailSheetState("half");
                   }}
-                  className="mt-2 rounded-full border border-white/30 bg-gradient-to-b from-[#122d2b] to-[#17413f] px-6 py-2.5 text-sm font-semibold uppercase tracking-[0.1em] text-white shadow-[0_14px_30px_rgba(4,14,14,0.22)]"
+                  className="relative mt-2 overflow-hidden rounded-full border border-white/30 bg-gradient-to-b from-[#2b6460] via-[#17413f] to-[#102624] px-7 py-2.5 text-sm font-semibold uppercase tracking-[0.1em] text-white shadow-[0_16px_34px_rgba(4,14,14,0.28),0_0_0_1px_rgba(131,197,190,0.16)]"
+                  animate={{
+                    y: [0, -3, 0],
+                    boxShadow: [
+                      "0 16px 34px rgba(4,14,14,0.28), 0 0 0 1px rgba(131,197,190,0.16)",
+                      `0 20px 44px rgba(4,14,14,0.34), 0 0 30px ${activeRisk.accent}55`,
+                      "0 16px 34px rgba(4,14,14,0.28), 0 0 0 1px rgba(131,197,190,0.16)",
+                    ],
+                  }}
+                  whileHover={{ scale: 1.04, y: -4 }}
+                  whileTap={{ scale: 0.97, y: 0 }}
+                  transition={{ duration: 3.2, repeat: Infinity, ease: "easeInOut" }}
                 >
-                  Learn More
-                </button>
+                  <span className="pointer-events-none absolute inset-0 bg-[linear-gradient(110deg,transparent_24%,rgba(255,255,255,0.22)_48%,transparent_70%)] opacity-70" />
+                  <span className="relative">Learn More</span>
+                </motion.button>
               </div>
             </div>
 
@@ -1088,6 +1268,23 @@ export default function ExtremeWeatherRisksPage() {
                 })}
               </div>
             </div>
+
+            <button
+              type="button"
+              onClick={slideCardsLeft}
+              className="absolute bottom-4 left-4 z-30 flex h-12 w-12 cursor-pointer items-center justify-center rounded-full border border-white/50 bg-[#10201f]/88 text-white shadow-[0_16px_34px_rgba(4,14,14,0.26)] backdrop-blur-md transition hover:-translate-y-px hover:bg-[#17413f] active:translate-y-0 sm:bottom-6 sm:left-8 sm:h-14 sm:w-14"
+              aria-label="Slide weather cards left"
+            >
+              <ChevronLeft className="h-6 w-6" strokeWidth={2.3} />
+            </button>
+            <button
+              type="button"
+              onClick={slideCardsRight}
+              className="absolute bottom-4 right-4 z-30 flex h-12 w-12 cursor-pointer items-center justify-center rounded-full border border-white/50 bg-[#10201f]/88 text-white shadow-[0_16px_34px_rgba(4,14,14,0.26)] backdrop-blur-md transition hover:-translate-y-px hover:bg-[#17413f] active:translate-y-0 sm:bottom-6 sm:right-8 sm:h-14 sm:w-14"
+              aria-label="Slide weather cards right"
+            >
+              <ChevronRight className="h-6 w-6" strokeWidth={2.3} />
+            </button>
           </div>
         </div>
       </section>
