@@ -1,7 +1,9 @@
 import React from "react";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { MemoryRouter, Route, Routes } from "react-router";
+import { BrowserRouter, MemoryRouter, Route, Routes } from "react-router";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import AboutUsPage from "../AboutUsPage";
 
@@ -69,14 +71,23 @@ describe("AboutUsPage", () => {
     );
 
     const text = pageText(view.container);
+    const heroCard = view.container.querySelector('[data-testid="aboutus-hero-card"]');
+    const removedHeroRoutePanel = view.container.querySelector(".aboutus-hero-route-panel");
+    const removedHeroChips = view.container.querySelector(".aboutus-floating-chip");
 
+    expect(heroCard).not.toBeNull();
     expect(text).toContain("See urban comfort before the street asks you to react.");
     expect(text).toContain("MoveComfortly helps walkers, cyclists, students, and young workers");
-    expect(text).toContain("Heat-aware departures");
-    expect(text).toContain("Street-level reassurance");
+    expect(text).toContain("Route comfort, local support, and weather context in one planning layer.");
+    expect(text).toContain("City-scale awareness");
+    expect(text).toContain("Route rehearsal");
     expect(text).toContain("Project archive");
     expect(text).toContain("Open Monash ePortfolio");
     expect(text).toContain("Open 3D route");
+    expect(text).toContain("Confidence preview");
+    expect(text).toContain("Departure timing");
+    expect(removedHeroChips).toBeNull();
+    expect(removedHeroRoutePanel).toBeNull();
     expect(text).not.toContain("static project summary");
 
     view.unmount();
@@ -92,17 +103,50 @@ describe("AboutUsPage", () => {
     );
 
     const text = pageText(view.container);
+    const modulesCarousel = view.container.querySelector('[data-testid="aboutus-modules-carousel"]');
+    const moduleCards = view.container.querySelectorAll('[data-testid="aboutus-module-card"]');
 
     expect(text).toContain("Route atmosphere");
     expect(text).toContain("Map intelligence");
     expect(text).toContain("3D route preview");
     expect(text).toContain("Risk guidance");
     expect(text).toContain("Support-place context");
-    expect(text).toContain("Drag sideways to explore all six layers");
+    expect(text).toContain("Journey timing");
+    expect(text).toContain("Drag left or right, or select a side card to bring it forward.");
+    expect(modulesCarousel).not.toBeNull();
+    expect(moduleCards).toHaveLength(6);
+    expect(text).not.toContain("Drag sideways to explore all six layers");
+    expect(text).not.toContain("Left");
+    expect(text).not.toContain("Right");
     expect(text).toContain("Public data context");
     expect(text).toContain("Comparative guidance");
     expect(text).toContain("Educational framing");
     expect(text).not.toContain("The motion is theatrical");
+
+    view.unmount();
+  });
+
+  test("clicking a side carousel card brings it to the front", () => {
+    const view = render(
+      <MemoryRouter initialEntries={["/aboutus"]}>
+        <Routes>
+          <Route path="/aboutus" element={<AboutUsPage />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    const cards = Array.from(view.container.querySelectorAll('[data-testid="aboutus-module-card"]')) as HTMLElement[];
+
+    expect(cards).toHaveLength(6);
+    expect(cards[0]?.dataset.front).toBe("true");
+    expect(cards[1]?.dataset.front).not.toBe("true");
+
+    act(() => {
+      cards[1]!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(cards[1]?.dataset.front).toBe("true");
+    expect(cards[0]?.dataset.front).not.toBe("true");
 
     view.unmount();
   });
@@ -158,6 +202,57 @@ describe("AboutUsPage", () => {
     expect(pageText(view.container)).toContain("Home page");
 
     view.unmount();
+  });
+
+  test("back falls back to the landing page when browser history has no router idx metadata", () => {
+    window.history.replaceState(null, "", "/aboutus");
+
+    const view = render(
+      <BrowserRouter>
+        <Routes>
+          <Route path="/aboutus" element={<AboutUsPage />} />
+          <Route path="/" element={<div>Home page</div>} />
+        </Routes>
+      </BrowserRouter>
+    );
+
+    const button = view.container.querySelector(".aboutus-back-button") as HTMLButtonElement | null;
+
+    expect(button).toBeTruthy();
+
+    act(() => {
+      button!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(pageText(view.container)).toContain("Home page");
+
+    view.unmount();
+  });
+
+  test("keeps the back button above the landing navigation hero layer", () => {
+    const cssPath = path.resolve(import.meta.dirname, "../aboutus.css");
+    const css = readFileSync(cssPath, "utf8");
+    const backButtonRule = css.match(/\.aboutus-back-button\s*\{\s*position:\s*absolute;[\s\S]*?z-index:\s*(\d+);/);
+
+    expect(backButtonRule).not.toBeNull();
+    expect(Number(backButtonRule?.[1] ?? 0)).toBeGreaterThan(150);
+  });
+
+  test("hero signal cards render immediately inside the merged hero card", () => {
+    const cssPath = path.resolve(import.meta.dirname, "../aboutus.css");
+    const css = readFileSync(cssPath, "utf8");
+    const signalCardRule = css.match(/\.aboutus-signal-card\s*\{[\s\S]*?opacity:\s*(\d+(?:\.\d+)?);/);
+
+    expect(signalCardRule).not.toBeNull();
+    expect(Number(signalCardRule?.[1] ?? 0)).toBe(1);
+  });
+
+  test("about page motion keeps back button staged and reveal panels timely", () => {
+    const sourcePath = path.resolve(import.meta.dirname, "../AboutUsPage.tsx");
+    const source = readFileSync(sourcePath, "utf8");
+
+    expect(source).toContain('const heroBackButton = root.querySelector(".aboutus-back-button")');
+    expect(source).toContain('start: "top 90%"');
   });
 
   test("plays the about-us ending easter egg only after staying at the bottom for two seconds", () => {

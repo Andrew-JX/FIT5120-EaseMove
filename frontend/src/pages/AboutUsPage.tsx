@@ -4,7 +4,6 @@ import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import {
   ArrowLeft,
-  ArrowRight,
   ArrowUpRight,
   Compass,
   Map,
@@ -22,6 +21,8 @@ import { APP_ROUTES } from "../lib/navigation";
 import aboutUsEndingEasterEggGif from "../assets/aboutus/aboutus-ending-easter-egg.gif";
 import "./aboutus.css";
 
+let hasPlayedAboutUsIntroInRuntime = false;
+
 const PORTFOLIO_URL =
   "https://eportfolio.monash.edu/view/view.php?t=837e187f170601e067b5";
 
@@ -32,12 +33,12 @@ const heroSignals = [
     copy: "Compare precinct patterns before a familiar trip becomes a draining one.",
   },
   {
-    label: "Street-level reassurance",
+    label: "Confidence preview",
     value: "Route rehearsal",
     copy: "Preview crossings, incline, and route mood before you commit to leaving.",
   },
   {
-    label: "Heat-aware departures",
+    label: "Departure timing",
     value: "Timing cues",
     copy: "Turn heat, rain, and exposure into timing decisions that feel realistic.",
   },
@@ -138,8 +139,8 @@ const signalMarquee = [
   "Signal stream",
   "Comfort field",
   "Route atmosphere",
-  "Heat-aware departures",
-  "Street-level reassurance",
+  "Confidence preview",
+  "Departure timing",
   "Journey timing",
 ] as const;
 
@@ -150,6 +151,9 @@ const ABOUT_DARK_SECTION_SELECTORS = [".aboutus-hero", ".aboutus-evidence"] as c
 
 const ABOUTUS_ENDING_EASTER_EGG_DELAY_MS = 2000;
 const ABOUTUS_ENDING_EASTER_EGG_VISIBLE_MS = 3400;
+const ABOUTUS_CAROUSEL_DRAG_DEGREES_PER_PX = 0.32;
+const ABOUTUS_CAROUSEL_INERTIA_DECAY = 0.92;
+const ABOUTUS_CAROUSEL_MIN_VELOCITY = 0.02;
 
 const endingOrbiters = [
   { x: "-38vw", y: "-18vh", rotate: -26, scale: 0.74, delayMs: 90 },
@@ -267,11 +271,21 @@ function launchEndingFireworks(canvas: HTMLCanvasElement) {
   };
 }
 
+function clampValue(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function mapValue(value: number, inputMin: number, inputMax: number, outputMin: number, outputMax: number) {
+  if (inputMax === inputMin) return outputMin;
+  const progress = (value - inputMin) / (inputMax - inputMin);
+  return outputMin + (outputMax - outputMin) * progress;
+}
+
 function AboutUsPage() {
   const navigate = useNavigate();
   const pageRef = useRef<HTMLDivElement | null>(null);
-  const routePathRef = useRef<SVGPathElement | null>(null);
-  const modulesRailRef = useRef<HTMLDivElement | null>(null);
+  const heroCardRef = useRef<HTMLElement | null>(null);
+  const modulesCarouselRef = useRef<HTMLDivElement | null>(null);
   const endingTriggerRef = useRef<HTMLDivElement | null>(null);
   const endingFireworksCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const endingHoldTimerRef = useRef<number | null>(null);
@@ -294,14 +308,6 @@ function AboutUsPage() {
     }
 
     navigate(-1);
-  };
-
-  const scrollModulesRailBy = (direction: -1 | 1) => {
-    const rail = modulesRailRef.current;
-    if (!rail) return;
-
-    const step = Math.min(rail.clientWidth * 0.82, 320);
-    rail.scrollBy({ left: direction * step, behavior: "smooth" });
   };
 
   useEffect(() => {
@@ -486,6 +492,7 @@ function AboutUsPage() {
       return;
     }
 
+    const shouldPlayHeroIntro = !hasPlayedAboutUsIntroInRuntime;
     const canUseScrollTrigger = typeof window.matchMedia === "function";
 
     const animeScope = createScope({ root }).add(() => {
@@ -496,119 +503,168 @@ function AboutUsPage() {
         },
       });
 
-      const heroKicker = root.querySelector(".aboutus-hero-kicker");
-      const heroTitle = root.querySelector(".aboutus-hero-title");
-      const heroCopy = root.querySelector(".aboutus-hero-copy-block");
-      const heroActions = Array.from(root.querySelectorAll(".aboutus-hero-actions > *"));
-      const heroConsole = root.querySelector(".aboutus-hero-console");
-      const heroRoute = root.querySelector(".aboutus-hero-route-panel");
-      const heroChips = Array.from(root.querySelectorAll(".aboutus-floating-chip"));
-      const heroSignalsNodes = Array.from(root.querySelectorAll(".aboutus-signal-card"));
-      const marqueeRows = Array.from(root.querySelectorAll(".aboutus-marquee-row"));
+      const heroContent = root.querySelector(".aboutus-hero-card-content");
+      const heroCardShell = root.querySelector(".aboutus-hero-card-shell");
+      const heroCardEdge = root.querySelector(".aboutus-hero-card-edge");
+      const heroIntroOverlay = root.querySelector(".aboutus-hero-intro-overlay");
+      const heroIntroLine = root.querySelector(".aboutus-hero-intro-line");
+      const heroIntroLineGlow = root.querySelector(".aboutus-hero-intro-line-glow");
+      const heroIntroLineDot = root.querySelector(".aboutus-hero-intro-line-dot");
+      const heroIntroLineShell = root.querySelector(".aboutus-hero-intro-line-shell");
+      const heroConsole = root.querySelector(".aboutus-hero-card-panel");
+      const heroBackButton = root.querySelector(".aboutus-back-button");
 
-      if (heroKicker) {
-        introTimeline.add(heroKicker, {
+      if (shouldPlayHeroIntro && heroCardShell && heroContent && heroIntroLineShell) {
+        const heroCardRect = heroCardShell.getBoundingClientRect();
+        const lineTravelY = heroCardRect.top - window.innerHeight / 2;
+        const initialLineWidth = heroIntroLineShell.getBoundingClientRect().width;
+
+        if (heroBackButton) {
+          gsap.set(heroBackButton, {
+            opacity: 0,
+            y: -8,
+          });
+        }
+        if (heroCardEdge) {
+          gsap.set(heroCardEdge, {
+            opacity: 0,
+          });
+        }
+        if (heroConsole) {
+          gsap.set(heroConsole, {
+            opacity: 0,
+            x: 20,
+            scale: 0.97,
+            filter: "blur(10px)",
+          });
+        }
+
+        introTimeline.add(heroIntroLineDot, {
           opacity: [0, 1],
-          y: ["18px", "0px"],
-          filter: ["blur(8px)", "blur(0px)"],
-          duration: 380,
+          scale: [0.28, 0.72],
+          duration: 180,
+          ease: "out(3)",
         });
-      }
 
-      if (heroTitle) {
         introTimeline.add(
-          heroTitle,
+          [heroIntroLine, heroIntroLineGlow],
           {
             opacity: [0, 1],
-            y: ["36px", "0px"],
-            filter: ["blur(18px)", "blur(0px)"],
-            duration: 620,
+            scaleX: [0.08, 1],
+            duration: 460,
+            ease: "out(4)",
           },
-          "-=120"
+          "-=40"
         );
-      }
 
-      if (heroCopy) {
         introTimeline.add(
-          heroCopy,
+          heroIntroLineDot,
           {
-            opacity: [0, 1],
-            y: ["24px", "0px"],
-            duration: 440,
+            opacity: [1, 0],
+            scale: [0.72, 0.3],
+            duration: 120,
+            ease: "out(2)",
           },
-          "-=260"
+          "-=180"
         );
-      }
 
-      if (heroActions.length > 0) {
         introTimeline.add(
-          heroActions,
+          heroIntroLineShell,
           {
-            opacity: [0, 1],
-            y: ["18px", "0px"],
-            scale: [0.96, 1],
-            delay: stagger(110),
-            duration: 440,
+            y: [0, `${lineTravelY}px`],
+            width: [`${initialLineWidth}px`, `${heroCardRect.width}px`],
+            duration: 280,
+            ease: "inOut(2)",
+          },
+          "-=20"
+        );
+
+        introTimeline.add(
+          heroCardShell,
+          {
+            opacity: [1, 1],
+            scaleY: [0.16, 1],
+            scaleX: [0.992, 1],
+            rotateX: ["-7deg", "0deg"],
+            rotateY: ["0deg", "0deg"],
+            y: ["0px", "0px"],
+            filter: ["blur(0px)", "blur(0px)"],
+            duration: 520,
+            ease: "out(4)",
           },
           "-=240"
         );
-      }
 
-      if (heroConsole) {
         introTimeline.add(
-          heroConsole,
+          heroContent,
           {
             opacity: [0, 1],
-            x: ["42px", "0px"],
-            y: ["18px", "0px"],
-            rotate: ["-2deg", "0deg"],
-            scale: [0.97, 1],
-            filter: ["blur(18px)", "blur(0px)"],
-            duration: 760,
+            filter: ["blur(10px)", "blur(0px)"],
+            duration: 420,
+            ease: "out(3)",
           },
-          "-=680"
+          "-=140"
         );
+
+        if (heroCardEdge) {
+          introTimeline.add(
+            heroCardEdge,
+            {
+              opacity: [0, 1],
+              duration: 180,
+              ease: "out(2)",
+            },
+            "<"
+          );
+        }
+
+        if (heroConsole) {
+          introTimeline.add(
+            heroConsole,
+            {
+              opacity: [0, 1],
+              x: ["20px", "0px"],
+              scale: [0.97, 1],
+              filter: ["blur(10px)", "blur(0px)"],
+              duration: 360,
+              ease: "out(3)",
+            },
+            "-=220"
+          );
+        }
+
+        if (heroBackButton) {
+          introTimeline.add(
+            heroBackButton,
+            {
+              opacity: [0, 1],
+              y: ["-8px", "0px"],
+              duration: 260,
+              ease: "out(3)",
+            },
+            "-=180"
+          );
+        }
+
+        introTimeline.add(
+          heroIntroOverlay,
+          {
+            opacity: [1, 0],
+            duration: 260,
+            ease: "out(2)",
+          },
+          "-=420"
+        );
+      } else {
+        if (heroCardShell) gsap.set(heroCardShell, { opacity: 1 });
+        if (heroContent) gsap.set(heroContent, { opacity: 1 });
+        if (heroCardEdge) gsap.set(heroCardEdge, { opacity: 1 });
+        if (heroConsole) gsap.set(heroConsole, { opacity: 1, x: 0, scale: 1, filter: "blur(0px)" });
+        if (heroBackButton) gsap.set(heroBackButton, { opacity: 1, y: 0 });
+        if (heroIntroOverlay) gsap.set(heroIntroOverlay, { opacity: 0, display: "none" });
       }
 
-      if (heroRoute) {
-        introTimeline.add(
-          heroRoute,
-          {
-            opacity: [0, 1],
-            y: ["22px", "0px"],
-            scale: [0.98, 1],
-            duration: 520,
-          },
-          "-=520"
-        );
-      }
-
-      if (heroChips.length > 0) {
-        introTimeline.add(
-          heroChips,
-          {
-            opacity: [0, 1],
-            y: ["14px", "0px"],
-            delay: stagger(100),
-            duration: 360,
-          },
-          "-=460"
-        );
-      }
-
-      if (heroSignalsNodes.length > 0) {
-        introTimeline.add(
-          heroSignalsNodes,
-          {
-            opacity: [0, 1],
-            y: ["20px", "0px"],
-            x: (_target: Element, index: number) => (index % 2 === 0 ? ["-16px", "0px"] : ["16px", "0px"]),
-            delay: stagger(90),
-            duration: 460,
-          },
-          "-=320"
-        );
-      }
+      const marqueeRows = Array.from(root.querySelectorAll(".aboutus-marquee-row"));
 
       if (marqueeRows.length > 0) {
         introTimeline.add(
@@ -653,113 +709,187 @@ function AboutUsPage() {
         });
       }
 
-      const routePanel = root.querySelector(".aboutus-hero-route-panel");
-      const routeOverlay = root.querySelector(".aboutus-route-overlay");
-      if (
-        routePanel &&
-        routeOverlay &&
-        typeof (routeOverlay as SVGPathElement).getTotalLength === "function"
-      ) {
-        const overlayPath = routeOverlay as SVGPathElement;
-        const routeLength = overlayPath.getTotalLength();
-        overlayPath.style.strokeDasharray = `${routeLength}`;
-        overlayPath.style.strokeDashoffset = `${routeLength}`;
-
-        introTimeline.add(
-          overlayPath,
-          {
-            strokeDashoffset: [routeLength, 0],
-            duration: 1200,
-            ease: "out(3)",
-          },
-          "-=420"
-        );
-      }
+      introTimeline.add(() => {
+        const heroCard = heroCardRef.current;
+        if (heroCard) {
+          heroCard.dataset.introState = "complete";
+        }
+        hasPlayedAboutUsIntroInRuntime = true;
+      }, shouldPlayHeroIntro ? undefined : 0);
     });
 
     let cleanupModulesRail = () => {};
-    const modulesRail = modulesRailRef.current;
-    if (modulesRail) {
-      const moduleCards = Array.from(modulesRail.querySelectorAll<HTMLElement>(".aboutus-module-card"));
+    const modulesCarousel = modulesCarouselRef.current;
+    if (modulesCarousel) {
+      const moduleCards = Array.from(modulesCarousel.querySelectorAll<HTMLElement>(".aboutus-module-card"));
+      let angle = 0;
+      let velocity = 0;
+      let dragStartX = 0;
+      let dragAngleStart = 0;
       let isDragging = false;
-      let startX = 0;
-      let startScrollLeft = 0;
-      let lastScrollLeft = modulesRail.scrollLeft;
+      let inertiaFrame = 0;
+      let lastPointerX = 0;
+      let lastPointerTime = 0;
 
-      const settleCards = () => {
-        moduleCards.forEach((card) => {
-          gsap.to(card, {
-            duration: 1.05,
-            ease: "elastic.out(1, 0.42)",
-            "--swing-rotate": 0,
-            "--swing-shift": 0,
-            overwrite: true,
-          });
-        });
-      };
+      const applyCarouselLayout = () => {
+        const viewportWidth = window.innerWidth || 1280;
+        const radius = Math.max(240, Math.min(420, viewportWidth * 0.24));
+        const step = 360 / Math.max(1, moduleCards.length);
 
-      const applySwing = (delta: number) => {
         moduleCards.forEach((card, index) => {
-          const direction = index % 2 === 0 ? 1 : -1;
-          const rotate = gsap.utils.clamp(-9, 9, delta * 0.16 * direction);
-          const shift = gsap.utils.clamp(0, 16, Math.abs(delta) * (0.28 + (index % 3) * 0.05));
+          const cardAngle = angle + step * index;
+          const radians = (cardAngle * Math.PI) / 180;
+          const x = Math.sin(radians) * radius;
+          const z = Math.cos(radians) * radius;
+          const depthProgress = clampValue((z + radius) / (radius * 2), 0, 1);
+          const scale = mapValue(depthProgress, 0, 1, 0.74, 1.08);
+          const opacity = mapValue(depthProgress, 0, 1, 0.32, 1);
+          const rotationY = mapValue(x, -radius, radius, 26, -26);
+          const isFront = depthProgress > 0.92;
+
+          card.dataset.front = isFront ? "true" : "false";
+          card.style.zIndex = `${Math.round(mapValue(depthProgress, 0, 1, 1, 20))}`;
 
           gsap.set(card, {
-            "--swing-rotate": rotate,
-            "--swing-shift": shift,
+            x,
+            z,
+            scale,
+            opacity,
+            rotateY: rotationY,
+            filter: `brightness(${mapValue(depthProgress, 0, 1, 0.68, 1.04)}) saturate(${mapValue(depthProgress, 0, 1, 0.82, 1.04)})`,
           });
         });
-
-        settleCards();
       };
 
-      const handleScroll = () => {
-        const delta = modulesRail.scrollLeft - lastScrollLeft;
-        lastScrollLeft = modulesRail.scrollLeft;
-        if (Math.abs(delta) > 0.2) {
-          applySwing(delta);
+      const stopInertia = () => {
+        if (inertiaFrame) {
+          window.cancelAnimationFrame(inertiaFrame);
+          inertiaFrame = 0;
         }
+      };
+
+      const normalizeAngleDelta = (delta: number) => {
+        let normalized = delta % 360;
+        if (normalized > 180) normalized -= 360;
+        if (normalized < -180) normalized += 360;
+        return normalized;
+      };
+
+      const rotateToCard = (index: number) => {
+        const step = 360 / Math.max(1, moduleCards.length);
+        const targetAngle = -(step * index);
+        const shortestDelta = normalizeAngleDelta(targetAngle - angle);
+        const nextAngle = angle + shortestDelta;
+
+        velocity = 0;
+        stopInertia();
+        angle = nextAngle;
+        applyCarouselLayout();
+      };
+
+      const startInertia = () => {
+        stopInertia();
+
+        const tick = () => {
+          velocity *= ABOUTUS_CAROUSEL_INERTIA_DECAY;
+          angle += velocity;
+          applyCarouselLayout();
+
+          if (Math.abs(velocity) <= ABOUTUS_CAROUSEL_MIN_VELOCITY) {
+            inertiaFrame = 0;
+            velocity = 0;
+            return;
+          }
+
+          inertiaFrame = window.requestAnimationFrame(tick);
+        };
+
+        inertiaFrame = window.requestAnimationFrame(tick);
       };
 
       const handlePointerDown = (event: PointerEvent) => {
         if (event.button !== 0) return;
         isDragging = true;
-        startX = event.clientX;
-        startScrollLeft = modulesRail.scrollLeft;
-        modulesRail.classList.add("is-dragging");
-        modulesRail.setPointerCapture?.(event.pointerId);
+        dragStartX = event.clientX;
+        dragAngleStart = angle;
+        lastPointerX = event.clientX;
+        lastPointerTime = event.timeStamp;
+        velocity = 0;
+        stopInertia();
+        modulesCarousel.classList.add("is-dragging");
+        modulesCarousel.setPointerCapture?.(event.pointerId);
         event.preventDefault();
       };
 
       const handlePointerMove = (event: PointerEvent) => {
         if (!isDragging) return;
-        const deltaX = event.clientX - startX;
-        modulesRail.scrollLeft = startScrollLeft - deltaX * 1.08;
+
+        const deltaX = event.clientX - dragStartX;
+        angle = dragAngleStart + deltaX * ABOUTUS_CAROUSEL_DRAG_DEGREES_PER_PX;
+        applyCarouselLayout();
+
+        const deltaPointer = event.clientX - lastPointerX;
+        const deltaTime = Math.max(1, event.timeStamp - lastPointerTime);
+        velocity = (deltaPointer / deltaTime) * ABOUTUS_CAROUSEL_DRAG_DEGREES_PER_PX * 16;
+        lastPointerX = event.clientX;
+        lastPointerTime = event.timeStamp;
         event.preventDefault();
       };
 
       const stopDragging = (event?: PointerEvent) => {
+        if (!isDragging) return;
         isDragging = false;
-        modulesRail.classList.remove("is-dragging");
+        modulesCarousel.classList.remove("is-dragging");
         if (event) {
-          modulesRail.releasePointerCapture?.(event.pointerId);
+          modulesCarousel.releasePointerCapture?.(event.pointerId);
         }
+        startInertia();
       };
 
-      modulesRail.addEventListener("scroll", handleScroll, { passive: true });
-      modulesRail.addEventListener("pointerdown", handlePointerDown);
+      const handleResize = () => {
+        applyCarouselLayout();
+      };
+
+      const handleCardClick = (event: Event) => {
+        if (isDragging) return;
+        const card = event.currentTarget as HTMLElement;
+        const cardIndex = Number(card.dataset.carouselIndex);
+        if (!Number.isFinite(cardIndex)) return;
+        rotateToCard(cardIndex);
+      };
+
+      const handleCardKeyDown = (event: KeyboardEvent) => {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        event.preventDefault();
+        const card = event.currentTarget as HTMLElement;
+        const cardIndex = Number(card.dataset.carouselIndex);
+        if (!Number.isFinite(cardIndex)) return;
+        rotateToCard(cardIndex);
+      };
+
+      modulesCarousel.addEventListener("pointerdown", handlePointerDown);
       window.addEventListener("pointermove", handlePointerMove);
       window.addEventListener("pointerup", stopDragging);
-      modulesRail.addEventListener("pointerleave", stopDragging);
+      window.addEventListener("pointercancel", stopDragging);
+      window.addEventListener("resize", handleResize);
+      moduleCards.forEach((card) => {
+        card.addEventListener("click", handleCardClick);
+        card.addEventListener("keydown", handleCardKeyDown);
+      });
 
-      settleCards();
+      applyCarouselLayout();
 
       cleanupModulesRail = () => {
-        modulesRail.removeEventListener("scroll", handleScroll);
-        modulesRail.removeEventListener("pointerdown", handlePointerDown);
+        stopInertia();
+        modulesCarousel.removeEventListener("pointerdown", handlePointerDown);
         window.removeEventListener("pointermove", handlePointerMove);
         window.removeEventListener("pointerup", stopDragging);
-        modulesRail.removeEventListener("pointerleave", stopDragging);
+        window.removeEventListener("pointercancel", stopDragging);
+        window.removeEventListener("resize", handleResize);
+        moduleCards.forEach((card) => {
+          card.removeEventListener("click", handleCardClick);
+          card.removeEventListener("keydown", handleCardKeyDown);
+        });
       };
     }
 
@@ -797,24 +927,64 @@ function AboutUsPage() {
             );
           });
 
-          gsap.utils.toArray<HTMLElement>(".aboutus-reveal-panel").forEach((panel, index) => {
+          gsap.utils.toArray<HTMLElement>(".aboutus-reveal-panel:not(.aboutus-story-panel)").forEach((panel, index) => {
             gsap.fromTo(
               panel,
               {
                 opacity: 0,
-                y: 80,
-                rotateX: 8,
+                y: 56,
+                rotateX: 5,
               },
               {
                 opacity: 1,
                 y: 0,
                 rotateX: 0,
-                duration: 1.1,
+                duration: 0.86,
                 ease: "power3.out",
-                delay: index * 0.05,
+                delay: index * 0.035,
                 scrollTrigger: {
                   trigger: panel,
-                  start: "top 84%",
+                  start: "top 90%",
+                  toggleActions: "play none none reverse",
+                },
+              }
+            );
+          });
+
+          gsap.utils.toArray<HTMLElement>(".aboutus-story-panel").forEach((panel, index) => {
+            gsap.fromTo(
+              panel,
+              {
+                opacity: 0,
+                y: 130,
+                x: index % 2 === 0 ? 64 : -46,
+                z: -140,
+                rotateX: 24,
+                rotateY: index % 2 === 0 ? -18 : 18,
+                rotateZ: index === 1 ? -1.8 : 1.5,
+                scale: 0.82,
+                filter: "blur(18px) saturate(0.72)",
+                "--story-sweep-x": "-145%",
+                "--story-core-glow": 0,
+              },
+              {
+                opacity: 1,
+                y: 0,
+                x: 0,
+                z: 0,
+                rotateX: 0,
+                rotateY: 0,
+                rotateZ: 0,
+                scale: 1,
+                filter: "blur(0px) saturate(1)",
+                "--story-sweep-x": "285%",
+                "--story-core-glow": 1,
+                duration: 1.16,
+                delay: index * 0.1,
+                ease: "expo.out",
+                scrollTrigger: {
+                  trigger: panel,
+                  start: "top 88%",
                   toggleActions: "play none none reverse",
                 },
               }
@@ -830,21 +1000,6 @@ function AboutUsPage() {
               end: "bottom bottom-=120",
               pin: storyRail,
               pinSpacing: false,
-            });
-          }
-
-          const routePath = routePathRef.current;
-          const routePanel = root.querySelector(".aboutus-hero-route-panel");
-          if (routePath && routePanel) {
-            gsap.to(routePanel, {
-              yPercent: -8,
-              ease: "none",
-              scrollTrigger: {
-                trigger: routePanel,
-                start: "top 85%",
-                end: "bottom top",
-                scrub: 1,
-              },
             });
           }
 
@@ -954,6 +1109,13 @@ function AboutUsPage() {
       ) : null}
 
       <section className="aboutus-hero">
+        <div className="aboutus-hero-intro-overlay" aria-hidden="true">
+          <div className="aboutus-hero-intro-line-shell">
+            <span className="aboutus-hero-intro-line-glow" />
+            <span className="aboutus-hero-intro-line" />
+            <span className="aboutus-hero-intro-line-dot" />
+          </div>
+        </div>
         <div className="aboutus-hero-noise" aria-hidden="true" />
         <div className="aboutus-hero-glow aboutus-parallax-layer aboutus-float-node" aria-hidden="true" />
         <div className="aboutus-hero-glow aboutus-hero-glow--secondary aboutus-parallax-layer aboutus-pulse-node" aria-hidden="true" />
@@ -969,101 +1131,72 @@ function AboutUsPage() {
         </button>
 
         <div className="aboutus-shell aboutus-hero-grid">
-          <div className="aboutus-hero-copy">
-            <p className="aboutus-hero-kicker">MoveComfortly Melbourne</p>
-            <h1 className="aboutus-hero-title">
-              See urban comfort before the street asks you to react.
-            </h1>
-            <div className="aboutus-hero-copy-block">
-              <p>
-                MoveComfortly helps walkers, cyclists, students, and young workers compare how
-                Melbourne routes may feel before they travel.
-              </p>
-              <p>
-                The project combines comfort score, route preview, local support places, and
-                weather-aware guidance so users can make calmer departure decisions.
-              </p>
-            </div>
-            <div className="aboutus-hero-actions">
-              <button className="aboutus-btn-primary" onClick={() => navigate(APP_ROUTES.map)}>
-                Explore the map
-              </button>
-              <button
-                className="aboutus-btn-secondary"
-                onClick={() => navigate(APP_ROUTES.map3dRoute)}
-              >
-                Open 3D route
-                <MoveRight className="h-4 w-4" />
-              </button>
-            </div>
-          </div>
-
-          <aside className="aboutus-hero-console">
-            <div className="aboutus-console-header">
-              <div className="aboutus-console-topline">
-                <span className="aboutus-console-dot aboutus-pulse-node" aria-hidden="true" />
-                About MoveComfortly
+          <article
+            ref={heroCardRef}
+            className="aboutus-hero-card-shell"
+            data-intro-state="idle"
+            data-testid="aboutus-hero-card"
+          >
+            <div className="aboutus-hero-card-edge" aria-hidden="true" />
+            <div className="aboutus-hero-card-content">
+              <div className="aboutus-hero-copy">
+                <p className="aboutus-hero-kicker">MoveComfortly Melbourne</p>
+                <h1 className="aboutus-hero-title">
+                  See urban comfort before the street asks you to react.
+                </h1>
+                <div className="aboutus-hero-copy-block">
+                  <p>
+                    MoveComfortly helps walkers, cyclists, students, and young workers compare how
+                    Melbourne routes may feel before they travel.
+                  </p>
+                  <p>
+                    The project combines comfort score, route preview, local support places, and
+                    weather-aware guidance so users can make calmer departure decisions.
+                  </p>
+                </div>
+                <div className="aboutus-hero-actions">
+                  <button className="aboutus-btn-primary" onClick={() => navigate(APP_ROUTES.map)}>
+                    Explore the map
+                  </button>
+                  <button
+                    className="aboutus-btn-secondary"
+                    onClick={() => navigate(APP_ROUTES.map3dRoute)}
+                  >
+                    Open 3D route
+                    <MoveRight className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
-              <p className="aboutus-console-kicker">Signal stream</p>
-            </div>
 
-            <div className="aboutus-console-heading">
-              <h2>Route comfort, local support, and weather context in one planning layer.</h2>
-              <p>
-                MoveComfortly is built to help users understand how a trip may feel, not only
-                where it goes.
-              </p>
-            </div>
+              <aside className="aboutus-hero-card-panel">
+                <div className="aboutus-console-header">
+                  <div className="aboutus-console-topline">
+                    <span className="aboutus-console-dot aboutus-pulse-node" aria-hidden="true" />
+                    About MoveComfortly
+                  </div>
+                  <p className="aboutus-console-kicker">Signal stream</p>
+                </div>
 
-            <div className="aboutus-console-chips">
-              <span className="aboutus-floating-chip aboutus-float-node">Comfort field active</span>
-              <span className="aboutus-floating-chip aboutus-floating-chip--warm aboutus-float-node">
-                Heat-aware departures
-              </span>
-              <span className="aboutus-floating-chip aboutus-float-node">Street-level reassurance</span>
-            </div>
+                <div className="aboutus-console-heading">
+                  <h2>Route comfort, local support, and weather context in one planning layer.</h2>
+                  <p>
+                    MoveComfortly is built to help users understand how a trip may feel, not only
+                    where it goes.
+                  </p>
+                </div>
 
-            <div className="aboutus-signal-grid">
-              {heroSignals.map((signal) => (
-                <article key={signal.label} className="aboutus-signal-card">
-                  <p className="aboutus-signal-label">{signal.label}</p>
-                  <h3>{signal.value}</h3>
-                  <p>{signal.copy}</p>
-                </article>
-              ))}
+                <div className="aboutus-signal-grid">
+                  {heroSignals.map((signal) => (
+                    <article key={signal.label} className="aboutus-signal-card">
+                      <p className="aboutus-signal-label">{signal.label}</p>
+                      <h3>{signal.value}</h3>
+                      <p>{signal.copy}</p>
+                    </article>
+                  ))}
+                </div>
+              </aside>
             </div>
-
-            <div className="aboutus-hero-route-panel">
-              <div className="aboutus-route-head">
-                <p className="aboutus-route-kicker">Route atmosphere</p>
-                <span className="aboutus-route-badge aboutus-pulse-node">Live concept</span>
-              </div>
-              <svg
-                className="aboutus-route-svg"
-                viewBox="0 0 320 124"
-                aria-hidden="true"
-                preserveAspectRatio="none"
-              >
-                <path
-                  className="aboutus-route-base"
-                  d="M10 95 C40 62 74 26 112 34 C142 40 160 102 196 102 C238 102 250 36 310 18"
-                />
-                <path
-                  ref={routePathRef}
-                  className="aboutus-route-overlay"
-                  d="M10 95 C40 62 74 26 112 34 C142 40 160 102 196 102 C238 102 250 36 310 18"
-                />
-                <path
-                  className="aboutus-route-dash"
-                  d="M10 95 C40 62 74 26 112 34 C142 40 160 102 196 102 C238 102 250 36 310 18"
-                />
-                <circle className="aboutus-route-node aboutus-pulse-node" cx="10" cy="95" r="6" />
-                <circle className="aboutus-route-node aboutus-pulse-node" cx="112" cy="34" r="6" />
-                <circle className="aboutus-route-node aboutus-pulse-node" cx="196" cy="102" r="6" />
-                <circle className="aboutus-route-node aboutus-pulse-node" cx="310" cy="18" r="7" />
-              </svg>
-            </div>
-          </aside>
+          </article>
         </div>
       </section>
 
@@ -1119,62 +1252,44 @@ function AboutUsPage() {
               These parts of the project help users compare places, preview routes, understand
               weather risk, and prepare for the journey ahead.
             </p>
+            <p className="aboutus-modules-carousel-hint">
+              Drag left or right, or select a side card to bring it forward.
+            </p>
           </div>
 
-          <div className="aboutus-modules-rail-shell aboutus-reveal-panel">
-            <div className="aboutus-modules-rope" aria-hidden="true" />
-            <p className="aboutus-modules-hint">Drag sideways to explore all six layers</p>
+          <div className="aboutus-modules-carousel-shell aboutus-reveal-panel">
             <div
-              ref={modulesRailRef}
-              className="aboutus-modules-rail"
+              ref={modulesCarouselRef}
+              className="aboutus-modules-carousel"
+              data-testid="aboutus-modules-carousel"
               aria-label="MoveComfortly capability layers carousel"
             >
-            {productModules.map((module, index) => {
-              const Icon = module.icon;
-              const cardStyle = {
-                "--card-tilt": index % 2 === 0 ? -1.6 : 1.6,
-                "--hang-length": 38 + (index % 3) * 8,
-              } as CSSProperties;
+              <div className="aboutus-modules-carousel-track">
+                {productModules.map((module, index) => {
+                  const Icon = module.icon;
 
-              return (
-                <article
-                  key={module.title}
-                  className={`aboutus-module-card aboutus-reveal-panel aboutus-module-card--${index + 1}`}
-                  style={cardStyle}
-                >
-                  <span className="aboutus-module-peg" aria-hidden="true" />
-                  <span className="aboutus-module-string" aria-hidden="true" />
-                  <div className="aboutus-module-icon">
-                    <Icon className="h-5 w-5" />
-                  </div>
-                  <div className="aboutus-module-copy">
-                    <h3>{module.title}</h3>
-                    <p>{module.copy}</p>
-                  </div>
-                  <p className="aboutus-module-meta">{module.meta}</p>
-                </article>
-              );
-            })}
-            </div>
-            <div className="aboutus-modules-controls">
-              <button
-                type="button"
-                className="aboutus-modules-control"
-                onClick={() => scrollModulesRailBy(-1)}
-                aria-label="Scroll capability cards left"
-              >
-                <ArrowLeft className="h-4 w-4" />
-                <span>Left</span>
-              </button>
-              <button
-                type="button"
-                className="aboutus-modules-control"
-                onClick={() => scrollModulesRailBy(1)}
-                aria-label="Scroll capability cards right"
-              >
-                <span>Right</span>
-                <ArrowRight className="h-4 w-4" />
-              </button>
+                  return (
+                    <article
+                      key={module.title}
+                      className={`aboutus-module-card aboutus-reveal-panel aboutus-module-card--${index + 1}`}
+                      data-carousel-index={index}
+                      data-testid="aboutus-module-card"
+                      role="button"
+                      tabIndex={0}
+                      aria-label={`Bring ${module.title} card to the front`}
+                    >
+                      <div className="aboutus-module-icon">
+                        <Icon className="h-5 w-5" />
+                      </div>
+                      <div className="aboutus-module-copy">
+                        <h3>{module.title}</h3>
+                        <p>{module.copy}</p>
+                      </div>
+                      <p className="aboutus-module-meta">{module.meta}</p>
+                    </article>
+                  );
+                })}
+              </div>
             </div>
           </div>
         </div>

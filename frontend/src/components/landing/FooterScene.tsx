@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 
 function Accordion({ title, children }: { title: string; children: React.ReactNode }) {
@@ -23,13 +23,57 @@ function Accordion({ title, children }: { title: string; children: React.ReactNo
 
 export default function FooterScene() {
   const navigate = useNavigate();
+  const closingLineRef = useRef<HTMLParagraphElement | null>(null);
+  const [isClosingLineRevealed, setIsClosingLineRevealed] = useState(false);
   const scrollTop = () => window.scrollTo({ top: 0, behavior: "smooth" });
+
+  useEffect(() => {
+    const line = closingLineRef.current;
+    if (!line) return;
+
+    const prefersReducedMotion =
+      typeof window.matchMedia === "function" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    if (prefersReducedMotion || typeof window.IntersectionObserver !== "function") {
+      setIsClosingLineRevealed(true);
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry?.isIntersecting) return;
+        setIsClosingLineRevealed(true);
+        observer.disconnect();
+      },
+      { threshold: 0.42 }
+    );
+
+    observer.observe(line);
+
+    return () => observer.disconnect();
+  }, []);
 
   return (
     <section className="landing-footer-scene" aria-label="Site footer">
       <div className="landing-footer-transition">
-        <p className="landing-footer-closing-line">
-          Find a place in Melbourne that suits you better.
+        <p
+          ref={closingLineRef}
+          className={`landing-footer-closing-line${isClosingLineRevealed ? " is-revealed" : ""}`}
+          aria-label="Find a place in Melbourne that suits you better."
+        >
+          <span className="landing-footer-closing-final" aria-hidden="true">
+            Find a place in Melbourne that suits you better.
+          </span>
+          <span className="landing-footer-closing-build" aria-hidden="true">
+            <span className="landing-footer-closing-half landing-footer-closing-half--left">
+              Find a place in Melbourne
+            </span>
+            <span className="landing-footer-closing-join" />
+            <span className="landing-footer-closing-half landing-footer-closing-half--right">
+              that suits you better.
+            </span>
+          </span>
         </p>
       </div>
 
