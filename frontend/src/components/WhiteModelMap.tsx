@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { booleanPointInPolygon, distance, nearestPointOnLine, point as turfPoint, polygonToLine } from "@turf/turf";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import { EASE_PLACES_DATA, easePlacesMarkerColor, type EasePlacesFeature } from "../lib/easePlaces";
@@ -77,6 +78,12 @@ export type RouteSummary = {
 };
 
 export type RoutePlaybackMode = "idle" | "autoplay" | "live";
+export type BlockedPointSelection = {
+  reason: "waterbody";
+  attemptedPoint: RoutePoint;
+  suggestedPoint: RoutePoint;
+  distanceMeters: number;
+};
 
 export type MapViewportControls = {
   zoomIn: () => void;
@@ -99,6 +106,7 @@ type WhiteModelMapProps = {
   showNavigationControl?: boolean;
   onMapClick: (point: RoutePoint) => void;
   onMapError: (message: string) => void;
+  onBlockedPointSelection?: (selection: BlockedPointSelection) => void;
   onViewportControlsReady?: (controls: MapViewportControls | null) => void;
   onEasePlaceSelect?: (
     feature: EasePlacesFeature,
@@ -130,6 +138,135 @@ function toFeatureCollection(features: GeoJSON.Feature[]): FeatureCollection {
     type: "FeatureCollection",
     features,
   };
+}
+
+function isPolygonalFeature(
+  feature: GeoJSON.Feature<GeoJSON.Geometry, GeoJSON.GeoJsonProperties>
+): feature is GeoJSON.Feature<GeoJSON.Polygon | GeoJSON.MultiPolygon, GeoJSON.GeoJsonProperties> {
+  return feature.geometry.type === "Polygon" || feature.geometry.type === "MultiPolygon";
+}
+
+function isWaterLikeRenderedFeature(feature: {
+  layer?: { id?: string };
+  source?: string;
+  sourceLayer?: string;
+  properties?: Record<string, unknown>;
+}) {
+  const layerId = feature.layer?.id?.toLowerCase() ?? "";
+  const source = feature.source?.toLowerCase() ?? "";
+  const sourceLayer = feature.sourceLayer?.toLowerCase() ?? "";
+  const propertyValues = Object.values(feature.properties ?? {})
+    .map((value) => String(value).toLowerCase())
+    .join(" ");
+  const waterHints = ["water", "waterway", "ocean", "sea", "bay", "harbour", "harbor", "river", "lake"];
+
+  return waterHints.some((hint) =>
+    layerId.includes(hint) ||
+    source.includes(hint) ||
+    sourceLayer.includes(hint) ||
+    propertyValues.includes(hint)
+  );
+}
+
+function isPointInsideWaterbody(point: RoutePoint, waterbodies: FeatureCollection | null) {
+  if (!waterbodies) return false;
+  const candidatePoint = turfPoint([point.lng, point.lat]);
+  return waterbodies.features.some((feature) => (
+    isPolygonalFeature(feature) && booleanPointInPolygon(candidatePoint, feature)
+  ));
+}
+
+function getWaterbodyBoundaryFeatures(
+  feature: GeoJSON.Feature<GeoJSON.Polygon | GeoJSON.MultiPolygon, GeoJSON.GeoJsonProperties>
+) {
+  const boundaries = polygonToLine(feature);
+  if (boundaries.type === "FeatureCollection") {
+    return boundaries.features;
+  }
+  return [boundaries];
+}
+
+function pushPointOutsideWaterbody(
+  attemptedPoint: RoutePoint,
+  boundaryPoint: RoutePoint,
+  waterbodies: FeatureCollection
+) {
+  const dx = boundaryPoint.lng - attemptedPoint.lng;
+  const dy = boundaryPoint.lat - attemptedPoint.lat;
+  const magnitude = Math.hypot(dx, dy);
+  if (magnitude === 0) {
+    return boundaryPoint;
+  }
+
+  for (const factor of [1.01, 1.03, 1.06, 1.1, 1.16, 1.24]) {
+    const candidatePoint = {
+      lng: attemptedPoint.lng + dx * factor,
+      lat: attemptedPoint.lat + dy * factor,
+    };
+    if (!isPointInsideWaterbody(candidatePoint, waterbodies)) {
+      return candidatePoint;
+    }
+  }
+
+  return boundaryPoint;
+}
+
+function findNearestReachableWaterEdgePoint(point: RoutePoint, waterbodies: FeatureCollection | null): BlockedPointSelection | null {
+  if (!waterbodies) return null;
+
+  const attempted = turfPoint([point.lng, point.lat]);
+  let bestSelection: BlockedPointSelection | null = null;
+
+  for (const feature of waterbodies.features) {
+    if (!isPolygonalFeature(feature) || !booleanPointInPolygon(attempted, feature)) {
+      continue;
+    }
+
+    for (const boundaryFeature of getWaterbodyBoundaryFeatures(feature)) {
+      const snappedPoint = nearestPointOnLine(boundaryFeature, attempted);
+      const [lng, lat] = snappedPoint.geometry.coordinates;
+      const suggestedPoint = pushPointOutsideWaterbody(point, { lng, lat }, waterbodies);
+      const distanceMeters = distance(attempted, turfPoint([suggestedPoint.lng, suggestedPoint.lat]), {
+        units: "kilometers",
+      }) * 1000;
+
+      if (!bestSelection || distanceMeters < bestSelection.distanceMeters) {
+        bestSelection = {
+          reason: "waterbody",
+          attemptedPoint: point,
+          suggestedPoint,
+          distanceMeters,
+        };
+      }
+    }
+  }
+
+  return bestSelection;
+}
+
+function findRenderedWaterSelection(point: RoutePoint, features: Array<{
+  geometry?: GeoJSON.Geometry;
+  layer?: { id?: string };
+  source?: string;
+  sourceLayer?: string;
+  properties?: Record<string, unknown>;
+}>): BlockedPointSelection | null {
+  const candidateCollection: FeatureCollection = {
+    type: "FeatureCollection",
+    features: features
+      .filter((feature): feature is typeof feature & { geometry: GeoJSON.Geometry } =>
+        Boolean(feature.geometry) &&
+        (feature.geometry.type === "Polygon" || feature.geometry.type === "MultiPolygon") &&
+        isWaterLikeRenderedFeature(feature)
+      )
+      .map((feature) => ({
+        type: "Feature" as const,
+        geometry: feature.geometry as GeoJSON.Polygon | GeoJSON.MultiPolygon,
+        properties: feature.properties ?? {},
+      })),
+  };
+
+  return findNearestReachableWaterEdgePoint(point, candidateCollection.features.length > 0 ? candidateCollection : null);
 }
 
 function createMarkerElement(color: string, label: string) {
@@ -479,6 +616,7 @@ export default function WhiteModelMap({
   showNavigationControl = true,
   onMapClick,
   onMapError,
+  onBlockedPointSelection,
   onViewportControlsReady,
   onEasePlaceSelect,
 }: WhiteModelMapProps) {
@@ -500,6 +638,7 @@ export default function WhiteModelMap({
   const streetFacilitiesDataRef = useRef<FeatureCollection | null>(null);
   const onMapClickRef = useRef(onMapClick);
   const onMapErrorRef = useRef(onMapError);
+  const onBlockedPointSelectionRef = useRef(onBlockedPointSelection);
   const onViewportControlsReadyRef = useRef(onViewportControlsReady);
   const onEasePlaceSelectRef = useRef(onEasePlaceSelect);
   const routeRef = useRef(route);
@@ -1137,6 +1276,10 @@ export default function WhiteModelMap({
   }, [onMapError]);
 
   useEffect(() => {
+    onBlockedPointSelectionRef.current = onBlockedPointSelection;
+  }, [onBlockedPointSelection]);
+
+  useEffect(() => {
     onViewportControlsReadyRef.current = onViewportControlsReady;
   }, [onViewportControlsReady]);
 
@@ -1347,7 +1490,29 @@ export default function WhiteModelMap({
         layers: [LAYER_IDS.streetFacilitiesHitArea],
       });
       if (facilityHits.length > 0) return;
-      onMapClickRef.current({ lng: event.lngLat.lng, lat: event.lngLat.lat });
+      const nextPoint = { lng: event.lngLat.lng, lat: event.lngLat.lat };
+      const blockedSelection =
+        (isPointInsideWaterbody(nextPoint, waterDataRef.current)
+          ? findNearestReachableWaterEdgePoint(nextPoint, waterDataRef.current)
+          : null) ??
+        findRenderedWaterSelection(nextPoint, map.queryRenderedFeatures(event.point) as Array<{
+          geometry?: GeoJSON.Geometry;
+          layer?: { id?: string };
+          source?: string;
+          sourceLayer?: string;
+          properties?: Record<string, unknown>;
+        }>);
+      if (blockedSelection) {
+        if (blockedSelection && onBlockedPointSelectionRef.current) {
+          onBlockedPointSelectionRef.current(blockedSelection);
+          return;
+        }
+        onMapErrorRef.current(
+          "Waterbody selected. Choose a point on land so walking and cycling routes stay on real streets and paths."
+        );
+        return;
+      }
+      onMapClickRef.current(nextPoint);
     });
 
     const pauseAutoplayPetUpdates = () => {

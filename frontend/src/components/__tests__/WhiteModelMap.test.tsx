@@ -184,6 +184,28 @@ function render(element: React.ReactNode) {
   };
 }
 
+const WATERBODY_FIXTURE: GeoJSON.FeatureCollection = {
+  type: "FeatureCollection",
+  features: [
+    {
+      type: "Feature",
+      properties: {
+        NAME_LABEL: "Test Harbour",
+      },
+      geometry: {
+        type: "Polygon",
+        coordinates: [[
+          [144.949, -37.8216],
+          [144.9528, -37.8216],
+          [144.9528, -37.8192],
+          [144.949, -37.8192],
+          [144.949, -37.8216],
+        ]],
+      },
+    },
+  ],
+};
+
 beforeEach(() => {
   mapInstances.length = 0;
   markerInstances.length = 0;
@@ -195,6 +217,158 @@ afterEach(() => {
 });
 
 describe("WhiteModelMap", () => {
+  test("blocks clicks that land inside waterbodies and reports a land-only routing hint", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/geoscape/waterbodies.geojson")) {
+        return {
+          ok: true,
+          json: async () => WATERBODY_FIXTURE,
+        };
+      }
+      return {
+        ok: true,
+        json: async () => ({ features: [] }),
+      };
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const module = await import("../WhiteModelMap");
+    const WhiteModelMap = module.default;
+    const onMapClick = vi.fn();
+    const onMapError = vi.fn();
+    const onBlockedPointSelection = vi.fn();
+
+    const view = render(
+      <WhiteModelMap
+        mapboxToken="token"
+        startPoint={null}
+        endPoint={null}
+        route={null}
+        routeProgress={null}
+        routePlaybackMode="idle"
+        followPet={false}
+        focusedStep={null}
+        showEasePlaces={false}
+        showNaturalPlaces={false}
+        showStreetFacilities={false}
+        onMapClick={onMapClick}
+        onMapError={onMapError}
+        onBlockedPointSelection={onBlockedPointSelection}
+      />
+    );
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const map = mapInstances[0];
+    expect(map).toBeTruthy();
+
+    act(() => {
+      map.trigger("click", {
+        point: { x: 100, y: 120 },
+        lngLat: { lng: 144.9511, lat: -37.8204 },
+      });
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith("/geoscape/waterbodies.geojson");
+    expect(onMapClick).not.toHaveBeenCalled();
+    expect(onMapError).not.toHaveBeenCalled();
+    expect(onBlockedPointSelection).toHaveBeenCalledWith(
+      expect.objectContaining({
+        reason: "waterbody",
+        attemptedPoint: { lng: 144.9511, lat: -37.8204 },
+        suggestedPoint: expect.objectContaining({
+          lng: expect.any(Number),
+          lat: expect.any(Number),
+        }),
+        distanceMeters: expect.any(Number),
+      })
+    );
+
+    view.unmount();
+  });
+
+  test("falls back to rendered map water features when the local waterbody file does not cover the clicked harbor area", async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ type: "FeatureCollection", features: [] }),
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const module = await import("../WhiteModelMap");
+    const WhiteModelMap = module.default;
+    const onMapClick = vi.fn();
+    const onBlockedPointSelection = vi.fn();
+
+    const view = render(
+      <WhiteModelMap
+        mapboxToken="token"
+        startPoint={null}
+        endPoint={null}
+        route={null}
+        routeProgress={null}
+        routePlaybackMode="idle"
+        followPet={false}
+        focusedStep={null}
+        showEasePlaces={false}
+        showNaturalPlaces={false}
+        showStreetFacilities={false}
+        onMapClick={onMapClick}
+        onMapError={vi.fn()}
+        onBlockedPointSelection={onBlockedPointSelection}
+      />
+    );
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const map = mapInstances[0];
+    expect(map).toBeTruthy();
+
+    map.queryRenderedFeatures = vi.fn((_, options?: { layers?: string[] }) => {
+      if (options?.layers?.includes("ease-places-hit-area-3d")) return [];
+      if (options?.layers?.includes("street-facilities-hit-area-3d")) return [];
+      return [
+        {
+          geometry: {
+            type: "Polygon",
+            coordinates: [[
+              [144.949, -37.8216],
+              [144.9528, -37.8216],
+              [144.9528, -37.8192],
+              [144.949, -37.8192],
+              [144.949, -37.8216],
+            ]],
+          },
+          layer: { id: "water" },
+          properties: { class: "water" },
+          source: "composite",
+          sourceLayer: "water",
+        },
+      ];
+    });
+
+    act(() => {
+      map.trigger("click", {
+        point: { x: 100, y: 120 },
+        lngLat: { lng: 144.9511, lat: -37.8204 },
+      });
+    });
+
+    expect(onMapClick).not.toHaveBeenCalled();
+    expect(onBlockedPointSelection).toHaveBeenCalledWith(
+      expect.objectContaining({
+        reason: "waterbody",
+        attemptedPoint: { lng: 144.9511, lat: -37.8204 },
+      })
+    );
+
+    view.unmount();
+  });
+
   test("can disable the default mapbox navigation control and expose viewport controls", async () => {
     const module = await import("../WhiteModelMap");
     const WhiteModelMap = module.default;

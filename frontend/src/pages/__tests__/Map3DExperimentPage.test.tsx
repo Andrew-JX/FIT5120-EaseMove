@@ -42,6 +42,12 @@ type WhiteModelMapProps = {
   showNavigationControl?: boolean;
   onMapClick: (point: MockRoutePoint) => void;
   onMapError: (message: string) => void;
+  onBlockedPointSelection?: (selection: {
+    reason: "waterbody";
+    attemptedPoint: MockRoutePoint;
+    suggestedPoint: MockRoutePoint;
+    distanceMeters: number;
+  }) => void;
   onViewportControlsReady?: (controls: { zoomIn: () => void; zoomOut: () => void } | null) => void;
   onEasePlaceSelect?: (
     feature: {
@@ -131,6 +137,19 @@ vi.mock("../../components/WhiteModelMap", async () => {
         </button>
         <button type="button" onClick={() => props.onMapClick({ lng: 144.9502, lat: -37.8204 })}>
           Map click reset
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            props.onBlockedPointSelection?.({
+              reason: "waterbody",
+              attemptedPoint: { lng: 144.9511, lat: -37.8204 },
+              suggestedPoint: { lng: 144.9496, lat: -37.8191 },
+              distanceMeters: 210,
+            })
+          }
+        >
+          Map click blocked water
         </button>
         <button type="button" onClick={() => props.onMapClick({ lng: 151.2093, lat: -33.8688 })}>
           Map click australia
@@ -260,6 +279,37 @@ function createRouteResponse(profile: "walking" | "cycling") {
             ],
           },
         ],
+      },
+    ],
+  };
+}
+
+function createSnappedRouteResponse(profile: "walking" | "cycling") {
+  return {
+    ...createRouteResponse(profile),
+    waypoints: [
+      {
+        location: [144.9631, -37.8136],
+        name: "Start",
+        distance: 0,
+      },
+      {
+        location: [144.9496, -37.8191],
+        name: "Nearest land point",
+        distance: 210,
+      },
+    ],
+    routes: [
+      {
+        ...createRouteResponse(profile).routes[0],
+        geometry: {
+          type: "LineString",
+          coordinates: [
+            [144.9631, -37.8136],
+            [144.9588, -37.8172],
+            [144.9496, -37.8191],
+          ],
+        },
       },
     ],
   };
@@ -1322,6 +1372,90 @@ describe("Map3DExperimentPage - Epic 5", () => {
     expect(view.container.textContent).toContain("Only locations inside Australia");
     expect(view.container.textContent).toContain("-37.81140, 144.95420");
     expect(view.container.textContent).toContain("Not selected");
+
+    view.unmount();
+  });
+
+  test("asks for confirmation before routing to the nearest reachable land point when the user clicks water", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => ({
+      ok: true,
+      json: async () => createRouteResponse(String(input).includes("/cycling/") ? "cycling" : "walking"),
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const Map3DExperimentPage = await loadPageWithToken();
+    const view = render(
+      <MemoryRouter initialEntries={["/map/3d-route"]}>
+        <Routes>
+          <Route path="/map/3d-route" element={<Map3DExperimentPage />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    clickByText(view.container, "Map click start");
+    await view.flush();
+    clickByText(view.container, "Map click blocked water");
+    await view.flush();
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(view.container.textContent).toContain("can't be reached by walking or cycling");
+    expect(view.container.textContent).toContain("nearest reachable point");
+    expect(view.container.textContent).toContain("210 m");
+
+    const confirmButton = Array.from(view.container.querySelectorAll("button")).find((item) =>
+      item.textContent?.includes("Navigate to nearest point")
+    );
+    expect(confirmButton).toBeTruthy();
+
+    act(() => {
+      confirmButton!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    await view.flush();
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(String(fetchMock.mock.calls[0]?.[0])).toContain("144.9631,-37.8136;144.9496,-37.8191");
+    expect(view.container.textContent).toContain("-37.81910, 144.94960");
+
+    view.unmount();
+  });
+
+  test("asks for confirmation before showing a route when Directions snaps the clicked destination to a far-away reachable point", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => ({
+      ok: true,
+      json: async () => createSnappedRouteResponse(String(input).includes("/cycling/") ? "cycling" : "walking"),
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const Map3DExperimentPage = await loadPageWithToken();
+    const view = render(
+      <MemoryRouter initialEntries={["/map/3d-route"]}>
+        <Routes>
+          <Route path="/map/3d-route" element={<Map3DExperimentPage />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    clickByText(view.container, "Map click start");
+    clickByText(view.container, "Map click end");
+    await view.flush();
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(view.container.querySelector('[data-testid="mock-route-profile"]')?.textContent).toBe("no-route");
+    expect(view.container.textContent).toContain("can't be reached by walking or cycling");
+    expect(view.container.textContent).toContain("Navigate to nearest point");
+
+    const confirmButton = Array.from(view.container.querySelectorAll("button")).find((item) =>
+      item.textContent?.includes("Navigate to nearest point")
+    );
+    expect(confirmButton).toBeTruthy();
+
+    act(() => {
+      confirmButton!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    await view.flush();
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(String(fetchMock.mock.calls[1]?.[0])).toContain("144.9631,-37.8136;144.9496,-37.8191");
 
     view.unmount();
   });

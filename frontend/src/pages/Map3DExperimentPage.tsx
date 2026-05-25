@@ -21,6 +21,7 @@ import { useLocation, useNavigate } from "react-router";
 import AppTopNav from "../components/AppTopNav";
 import SpotlightGuide, { type SpotlightGuideStep } from "../components/SpotlightGuide";
 import WhiteModelMap, {
+  type BlockedPointSelection,
   type MapViewportControls,
   type RoutePoint,
   type RoutePlaybackMode,
@@ -39,6 +40,7 @@ const LOW_ACCURACY_THRESHOLD_METERS = 120;
 const ROUTE_AUTOPLAY_DURATION_MS = 11000;
 const ROUTE_AUTOPLAY_END_HOLD_MS = 1100;
 const LIVE_REROUTE_PROMPT_DISTANCE_METERS = 1200;
+const ROUTE_SNAP_CONFIRM_THRESHOLD_METERS = 60;
 const MOBILE_PANEL_MEDIA_QUERY = "(max-width: 767px)";
 let hasAutoShownRouteGuideThisRuntime = false;
 const liquidGlassPanelStyle: CSSProperties = {
@@ -83,6 +85,11 @@ type AreaLayerState = {
 type PanelView = "route" | "layers" | null;
 
 type DirectionsResponse = {
+  waypoints?: Array<{
+    location?: [number, number];
+    name?: string;
+    distance?: number;
+  }>;
   routes?: Array<{
     distance: number;
     duration: number;
@@ -118,6 +125,10 @@ type DisabledActivityDensityState = {
   loading: boolean;
   loaded: boolean;
   error: string | null;
+};
+
+type PendingBlockedPointSelection = BlockedPointSelection & {
+  target: "start" | "end";
 };
 
 function formatDistance(meters: number) {
@@ -359,6 +370,7 @@ export default function Map3DExperimentPage() {
     point: RoutePoint;
     distanceMeters: number;
   } | null>(null);
+  const [pendingBlockedPointSelection, setPendingBlockedPointSelection] = useState<PendingBlockedPointSelection | null>(null);
   const [geolocation, setGeolocation] = useState<GeolocationState>({
     status: "idle",
     message: null,
@@ -470,6 +482,38 @@ export default function Map3DExperimentPage() {
         const nextRoute = parseRoute(data, nextProfile);
 
         if (requestIdRef.current !== requestId) return;
+        const startSnapPoint =
+          Array.isArray(data.waypoints?.[0]?.location) && data.waypoints[0]?.location?.length === 2
+            ? { lng: data.waypoints[0].location[0], lat: data.waypoints[0].location[1] }
+            : null;
+        const endSnapPoint =
+          Array.isArray(data.waypoints?.[1]?.location) && data.waypoints[1]?.location?.length === 2
+            ? { lng: data.waypoints[1].location[0], lat: data.waypoints[1].location[1] }
+            : null;
+        const startSnapDistance = startSnapPoint ? distanceBetweenPointsMeters(nextStart, startSnapPoint) : 0;
+        const endSnapDistance = endSnapPoint ? distanceBetweenPointsMeters(nextEnd, endSnapPoint) : 0;
+
+        if (endSnapPoint && endSnapDistance > ROUTE_SNAP_CONFIRM_THRESHOLD_METERS) {
+          setPendingBlockedPointSelection({
+            reason: "waterbody",
+            attemptedPoint: nextEnd,
+            suggestedPoint: endSnapPoint,
+            distanceMeters: endSnapDistance,
+            target: "end",
+          });
+          return;
+        }
+
+        if (startSnapPoint && startSnapDistance > ROUTE_SNAP_CONFIRM_THRESHOLD_METERS) {
+          setPendingBlockedPointSelection({
+            reason: "waterbody",
+            attemptedPoint: nextStart,
+            suggestedPoint: startSnapPoint,
+            distanceMeters: startSnapDistance,
+            target: "start",
+          });
+          return;
+        }
         setRoute(nextRoute);
       } catch (error) {
         if (requestIdRef.current !== requestId) return;
@@ -493,6 +537,26 @@ export default function Map3DExperimentPage() {
     [isSupportedPoint, resetRoutePlaybackState, showOutsideRegionError, stopRouteAutoplay]
   );
 
+  const applyMapPointSelection = useCallback((point: RoutePoint) => {
+    setFocusedStepIndex(null);
+    setGeolocation((current) => (current.status === "loading" ? current : { status: "idle", message: null }));
+    setRouteError(null);
+
+    if (!startPoint || (startPoint && endPoint)) {
+      setActivePanel(isMobileViewport ? null : "route");
+      requestIdRef.current += 1;
+      setStartPoint(point);
+      setEndPoint(null);
+      setRoute(null);
+      setIsRouteLoading(false);
+      return;
+    }
+
+    setActivePanel("route");
+    setEndPoint(point);
+    void requestRoute(profile, startPoint, point);
+  }, [endPoint, isMobileViewport, profile, requestRoute, startPoint]);
+
   const startRouteAutoplay = useCallback((nextRoute: RouteSummary) => {
     stopRouteAutoplay();
     routeRef.current = nextRoute;
@@ -514,25 +578,9 @@ export default function Map3DExperimentPage() {
         showOutsideRegionError();
         return;
       }
-      setFocusedStepIndex(null);
-      setGeolocation((current) => (current.status === "loading" ? current : { status: "idle", message: null }));
-      setRouteError(null);
-
-      if (!startPoint || (startPoint && endPoint)) {
-        setActivePanel(isMobileViewport ? null : "route");
-        requestIdRef.current += 1;
-        setStartPoint(point);
-        setEndPoint(null);
-        setRoute(null);
-        setIsRouteLoading(false);
-        return;
-      }
-
-      setActivePanel("route");
-      setEndPoint(point);
-      void requestRoute(profile, startPoint, point);
+      applyMapPointSelection(point);
     },
-    [endPoint, isMapPointSelectionEnabled, isMobileViewport, isSupportedPoint, profile, requestRoute, showOutsideRegionError, startPoint]
+    [applyMapPointSelection, isMapPointSelectionEnabled, isSupportedPoint, showOutsideRegionError]
   );
 
   const handleProfileChange = useCallback(
@@ -743,6 +791,43 @@ export default function Map3DExperimentPage() {
       message,
     });
   }, []);
+
+  const handleBlockedPointSelection = useCallback((selection: BlockedPointSelection) => {
+    setPendingBlockedPointSelection({
+      ...selection,
+      target: !startPoint || endPoint ? "start" : "end",
+    });
+    setRouteError(null);
+    setActivePanel("route");
+  }, [endPoint, startPoint]);
+
+  const handleCancelBlockedPointSelection = useCallback(() => {
+    setPendingBlockedPointSelection(null);
+  }, []);
+
+  const handleConfirmBlockedPointSelection = useCallback(() => {
+    if (!pendingBlockedPointSelection) return;
+    const { suggestedPoint, target } = pendingBlockedPointSelection;
+    setPendingBlockedPointSelection(null);
+    setRouteError(null);
+
+    if (target === "start") {
+      clearRouteOnly();
+      setStartPoint(suggestedPoint);
+      if (endPoint) {
+        void requestRoute(profile, suggestedPoint, endPoint);
+      }
+      return;
+    }
+
+    if (!startPoint) {
+      setStartPoint(suggestedPoint);
+      return;
+    }
+
+    setEndPoint(suggestedPoint);
+    void requestRoute(profile, startPoint, suggestedPoint);
+  }, [clearRouteOnly, endPoint, pendingBlockedPointSelection, profile, requestRoute, startPoint]);
 
   const handleEasePlaceSelect = useCallback((
     feature: EasePlacesFeature,
@@ -1142,6 +1227,7 @@ export default function Map3DExperimentPage() {
         showNavigationControl
         onMapClick={handleMapClick}
         onMapError={handleMapError}
+        onBlockedPointSelection={handleBlockedPointSelection}
         onViewportControlsReady={setMapViewportControls}
         onEasePlaceSelect={handleEasePlaceSelect}
       />
@@ -1200,6 +1286,54 @@ export default function Map3DExperimentPage() {
                   className="inline-flex min-h-11 items-center justify-center rounded-full bg-[#17413f] px-4 py-2 text-sm font-semibold text-white shadow-[0_10px_20px_rgba(23,65,63,0.16)] transition hover:bg-[#0f3230] active:scale-[0.98]"
                 >
                   Re-route from my location
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
+      <AnimatePresence>
+        {pendingBlockedPointSelection ? (
+          <motion.div
+            className="fixed inset-0 z-[420] flex items-center justify-center bg-[rgba(7,21,21,0.26)] px-4 py-6 backdrop-blur-[3px] sm:px-6"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <motion.div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="blocked-point-title"
+              initial={{ opacity: 0, y: 18, scale: 0.96 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 12, scale: 0.97 }}
+              transition={{ type: "spring", stiffness: 220, damping: 22, mass: 0.92 }}
+              className="w-full max-w-[min(92vw,32rem)] rounded-[28px] border border-white/60 bg-[radial-gradient(circle_at_18%_0%,rgba(255,255,255,0.72),transparent_38%),linear-gradient(145deg,rgba(255,255,255,0.95),rgba(239,248,246,0.92)_58%,rgba(231,245,241,0.88))] p-5 text-[#17413f] shadow-[0_28px_64px_rgba(7,21,21,0.22),inset_0_1px_0_rgba(255,255,255,0.84)] sm:p-6"
+            >
+              <p id="blocked-point-title" className="text-lg font-semibold tracking-[-0.01em] text-[#17413f]">
+                This point can't be reached by walking or cycling
+              </p>
+              <p className="mt-3 text-sm leading-6 text-[#456765] sm:text-[0.95rem]">
+                The point you picked is on water, so the current route mode cannot go there directly. Would you like to
+                route to the nearest reachable point on land instead?
+              </p>
+              <p className="mt-3 rounded-2xl border border-[#83c5be]/35 bg-white/65 px-4 py-3 text-sm text-[#17413f]">
+                Nearest reachable point: {formatDistance(pendingBlockedPointSelection.distanceMeters)}
+              </p>
+              <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                <button
+                  type="button"
+                  onClick={handleCancelBlockedPointSelection}
+                  className="inline-flex min-h-11 items-center justify-center rounded-full border border-[#83c5be]/55 bg-white px-4 py-2 text-sm font-semibold text-[#17413f] transition hover:bg-[#f7fcfb] active:scale-[0.98]"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmBlockedPointSelection}
+                  className="inline-flex min-h-11 items-center justify-center rounded-full bg-[#17413f] px-4 py-2 text-sm font-semibold text-white shadow-[0_10px_20px_rgba(23,65,63,0.16)] transition hover:bg-[#0f3230] active:scale-[0.98]"
+                >
+                  Navigate to nearest point
                 </button>
               </div>
             </motion.div>
