@@ -20,17 +20,16 @@ type RiskItem = {
   title: string;
   image: string;
   accent: string;
-  segmentColor: string;
   glow: string;
 };
 
 const RISK_ITEMS: RiskItem[] = [
-  { id: "heat-1", riskId: "heat", title: "HEAT", image: heatImage, accent: "#e86b45", segmentColor: "#f0a118", glow: "radial-gradient(circle at 50% 40%, rgba(232,107,69,0.11), transparent 60%)" },
-  { id: "cold-1", riskId: "cold", title: "COLD", image: coldImage, accent: "#4f91d8", segmentColor: "#8cb5d8", glow: "radial-gradient(circle at 50% 40%, rgba(79,145,216,0.11), transparent 60%)" },
-  { id: "rain-1", riskId: "heavy-rain", title: "HEAVY RAIN", image: heavyRainImage, accent: "#1389a6", segmentColor: "#64686e", glow: "radial-gradient(circle at 50% 40%, rgba(19,137,166,0.12), transparent 62%)" },
-  { id: "heat-2", riskId: "heat", title: "HEAT", image: heatImage, accent: "#e86b45", segmentColor: "#f0a118", glow: "radial-gradient(circle at 50% 40%, rgba(232,107,69,0.11), transparent 60%)" },
-  { id: "cold-2", riskId: "cold", title: "COLD", image: coldImage, accent: "#4f91d8", segmentColor: "#8cb5d8", glow: "radial-gradient(circle at 50% 40%, rgba(79,145,216,0.11), transparent 60%)" },
-  { id: "rain-2", riskId: "heavy-rain", title: "HEAVY RAIN", image: heavyRainImage, accent: "#1389a6", segmentColor: "#64686e", glow: "radial-gradient(circle at 50% 40%, rgba(19,137,166,0.12), transparent 62%)" },
+  { id: "heat-1", riskId: "heat", title: "HEAT", image: heatImage, accent: "#e86b45", glow: "radial-gradient(circle at 50% 40%, rgba(232,107,69,0.11), transparent 60%)" },
+  { id: "cold-1", riskId: "cold", title: "COLD", image: coldImage, accent: "#4f91d8", glow: "radial-gradient(circle at 50% 40%, rgba(79,145,216,0.11), transparent 60%)" },
+  { id: "rain-1", riskId: "heavy-rain", title: "HEAVY RAIN", image: heavyRainImage, accent: "#1389a6", glow: "radial-gradient(circle at 50% 40%, rgba(19,137,166,0.12), transparent 62%)" },
+  { id: "heat-2", riskId: "heat", title: "HEAT", image: heatImage, accent: "#e86b45", glow: "radial-gradient(circle at 50% 40%, rgba(232,107,69,0.11), transparent 60%)" },
+  { id: "cold-2", riskId: "cold", title: "COLD", image: coldImage, accent: "#4f91d8", glow: "radial-gradient(circle at 50% 40%, rgba(79,145,216,0.11), transparent 60%)" },
+  { id: "rain-2", riskId: "heavy-rain", title: "HEAVY RAIN", image: heavyRainImage, accent: "#1389a6", glow: "radial-gradient(circle at 50% 40%, rgba(19,137,166,0.12), transparent 62%)" },
 ];
 
 type WeatherDetail = {
@@ -88,36 +87,6 @@ function createSmokeParticles(count: number): SmokeParticle[] {
     wobble: 20 + Math.random() * 90,
     alpha: 0.026 + (index % 5) * 0.006,
   }));
-}
-
-function polarPoint(cx: number, cy: number, radius: number, angleRad: number) {
-  return {
-    x: cx + Math.cos(angleRad) * radius,
-    y: cy + Math.sin(angleRad) * radius,
-  };
-}
-
-function describeDonutSegmentPath(
-  cx: number,
-  cy: number,
-  outerRadius: number,
-  innerRadius: number,
-  startAngleRad: number,
-  endAngleRad: number
-) {
-  const startOuter = polarPoint(cx, cy, outerRadius, startAngleRad);
-  const endOuter = polarPoint(cx, cy, outerRadius, endAngleRad);
-  const startInner = polarPoint(cx, cy, innerRadius, startAngleRad);
-  const endInner = polarPoint(cx, cy, innerRadius, endAngleRad);
-  const largeArc = endAngleRad - startAngleRad > Math.PI ? 1 : 0;
-
-  return [
-    `M ${startOuter.x} ${startOuter.y}`,
-    `A ${outerRadius} ${outerRadius} 0 ${largeArc} 1 ${endOuter.x} ${endOuter.y}`,
-    `L ${endInner.x} ${endInner.y}`,
-    `A ${innerRadius} ${innerRadius} 0 ${largeArc} 0 ${startInner.x} ${startInner.y}`,
-    "Z",
-  ].join(" ");
 }
 
 const WEATHER_DETAILS: Record<WeatherRiskId, WeatherDetail> = {
@@ -773,7 +742,6 @@ export default function ExtremeWeatherRisksPage() {
   const [landingMenuOpen, setLandingMenuOpen] = useState(false);
   const [detailSheetState, setDetailSheetState] = useState<DetailSheetState>("closed");
   const [selectedDetailId, setSelectedDetailId] = useState<WeatherRiskId>("heat");
-  const [isSplitLayerOpen, setIsSplitLayerOpen] = useState(true);
 
   const isMobile = typeof window !== "undefined" ? window.innerWidth <= 768 : false;
   const cardDistance = isMobile ? 220 : 340;
@@ -781,20 +749,6 @@ export default function ExtremeWeatherRisksPage() {
   const snappedIndex = roundToSlot(wheelPosition);
   const activeIndex = wrapIndex(snappedIndex, RISK_ITEMS.length);
   const activeRisk = RISK_ITEMS[activeIndex];
-  const splitRingItems = useMemo(
-    () => [
-      { riskId: "heavy-rain" as WeatherRiskId, title: "Heavy Rain", color: "#64686e" },
-      { riskId: "cold" as WeatherRiskId, title: "Cold", color: "#8cb5d8" },
-      { riskId: "heat" as WeatherRiskId, title: "Heat", color: "#f0a118" },
-    ],
-    []
-  );
-  const activeSplitIndex = Math.max(
-    0,
-    splitRingItems.findIndex((item) => item.riskId === activeRisk.riskId)
-  );
-  const splitRingSweep = (Math.PI * 2) / splitRingItems.length;
-  const splitRingRotateDeg = -(activeSplitIndex * (360 / splitRingItems.length));
   const selectedDetail = WEATHER_DETAILS[selectedDetailId];
   const ringCenter = roundToSlot(wheelPosition);
   const visibleCards = useMemo(
@@ -1068,23 +1022,6 @@ export default function ExtremeWeatherRisksPage() {
     animateWheelTo(targetIndex, 0.45);
   };
 
-  const focusRiskOnWheel = (riskId: WeatherRiskId) => {
-    const current = roundToSlot(wheelPositionRef.current);
-    let bestTarget = current;
-    let bestDistance = Number.POSITIVE_INFINITY;
-    for (let shift = -RISK_ITEMS.length; shift <= RISK_ITEMS.length; shift += 1) {
-      const candidate = current + shift;
-      const item = RISK_ITEMS[wrapIndex(candidate, RISK_ITEMS.length)];
-      if (item.riskId !== riskId) continue;
-      const distance = Math.abs(candidate - wheelPositionRef.current);
-      if (distance < bestDistance) {
-        bestDistance = distance;
-        bestTarget = candidate;
-      }
-    }
-    animateWheelTo(bestTarget, 0.5);
-  };
-
   const onSectionWheel = (event: WheelEvent<HTMLDivElement>) => {
     if (wheelLockRef.current || Math.abs(event.deltaY) < 20) return;
     event.preventDefault();
@@ -1114,7 +1051,7 @@ export default function ExtremeWeatherRisksPage() {
       style={{ background: "linear-gradient(180deg, #122d2b 0%, #eef8f5 16%, #f7fbfa 76%, #dfeee9 100%)" }}
     >
       <div className="fixed top-0 left-0 right-0 z-40 px-3 sm:px-4 pt-2 sm:pt-3 pointer-events-none">
-        <div className="relative pointer-events-auto">
+        <div className="pointer-events-auto">
           <AppTopNav
             variant="landing"
             landingMode="compact"
@@ -1125,15 +1062,6 @@ export default function ExtremeWeatherRisksPage() {
             landingOverlayContext="map"
             className="app-top-nav--map-overlay"
           />
-          {!isSplitLayerOpen && (
-            <button
-              type="button"
-              onClick={() => setIsSplitLayerOpen(true)}
-              className="fixed z-[221] top-3 sm:top-[14px] right-[122px] sm:right-[150px] min-h-[30px] sm:min-h-[34px] px-[9px] sm:px-3 rounded-[4px] border border-white/25 bg-gradient-to-b from-[#122d2b] to-[#17413f] text-[0.78rem] sm:text-[0.94rem] font-bold tracking-[0.08em] sm:tracking-[0.1em] uppercase text-white/90 shadow-[0_12px_28px_rgba(4,14,14,0.24)] transition hover:-translate-y-px hover:brightness-[1.04] hover:shadow-[0_16px_34px_rgba(4,14,14,0.28)] active:translate-y-0"
-            >
-              Back to Ring
-            </button>
-          )}
         </div>
       </div>
 
@@ -1358,136 +1286,6 @@ export default function ExtremeWeatherRisksPage() {
               <ChevronRight className="h-6 w-6" strokeWidth={2.3} />
             </button>
           </div>
-
-          <AnimatePresence>
-            {isSplitLayerOpen && (
-              <motion.div
-                className="absolute inset-0 z-40"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.3, ease: "easeOut" }}
-              >
-                <div
-                  className="absolute inset-0"
-                  style={{
-                    background: `
-                      radial-gradient(circle at 50% 24%, ${activeRisk.accent}2f, transparent 36%),
-                      radial-gradient(circle at 18% 82%, rgba(131,197,190,0.22), transparent 34%),
-                      linear-gradient(180deg, rgba(7,19,19,0.97) 0%, rgba(16,38,36,0.97) 46%, rgba(6,16,16,0.98) 100%)
-                    `,
-                  }}
-                />
-                <div className="relative h-full grid grid-cols-1 lg:grid-cols-[1.18fr_100px_0.82fr] gap-0 px-4 sm:px-6 pb-4 sm:pb-6">
-                  <div className="min-h-0 flex items-center justify-center pt-10 sm:pt-14">
-                    <div className="relative h-[min(68vh,620px)] w-[min(84vw,680px)]">
-                      <svg viewBox="0 0 620 620" className="absolute inset-0 h-full w-full" aria-label="Extreme weather ring selector">
-                        <motion.g
-                          animate={{ rotate: splitRingRotateDeg }}
-                          style={{ transformOrigin: "310px 310px" }}
-                          transition={{ type: "spring", stiffness: 120, damping: 22, mass: 0.95 }}
-                        >
-                        {splitRingItems.map((item, index) => {
-                          const gap = 0.12;
-                          const start = -Math.PI / 2 - splitRingSweep / 2 + index * splitRingSweep + gap / 2;
-                          const end = start + splitRingSweep - gap;
-                          const centerAngle = (start + end) / 2;
-                          const isActive = item.riskId === activeRisk.riskId;
-                          const labelRadius = 240;
-                          const label = polarPoint(310, 310, labelRadius, centerAngle);
-                          const textRotation = (centerAngle * 180) / Math.PI + 90;
-
-                          return (
-                            <g key={`${item.riskId}-split-sector`}>
-                              <path
-                                d={describeDonutSegmentPath(310, 310, 280, 170, start, end)}
-                                fill={item.color}
-                                stroke={isActive ? "rgba(255,255,255,0.95)" : "rgba(255,255,255,0.68)"}
-                                strokeWidth={isActive ? 5 : 3}
-                                style={{ cursor: "pointer", filter: isActive ? "drop-shadow(0 0 14px rgba(255,255,255,0.45))" : "none" }}
-                                onClick={() => focusRiskOnWheel(item.riskId)}
-                              />
-                              <text
-                                x={label.x}
-                                y={label.y}
-                                textAnchor="middle"
-                                dominantBaseline="middle"
-                                fill="white"
-                                fontSize={isMobile ? 24 : 28}
-                                fontWeight={800}
-                                transform={`rotate(${textRotation}, ${label.x}, ${label.y})`}
-                                style={{ pointerEvents: "none", letterSpacing: "0.02em", textShadow: "0 2px 4px rgba(0,0,0,0.4)" }}
-                              >
-                                {item.title}
-                              </text>
-                            </g>
-                          );
-                        })}
-                        </motion.g>
-                      </svg>
-                      <div className="pointer-events-none absolute left-1/2 top-1/2 h-[156px] w-[156px] sm:h-[192px] sm:w-[192px] -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white/70 bg-[#061212] p-1 shadow-[0_0_40px_rgba(0,0,0,0.44),0_0_20px_rgba(255,255,255,0.2)]">
-                        <img src={activeRisk.image} alt={`${activeRisk.title} center`} className="h-full w-full rounded-full object-cover" />
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="hidden lg:flex relative items-center justify-center">
-                    <div className="h-[72%] w-[2px] rounded-full bg-gradient-to-b from-white/10 via-white/80 to-white/10 shadow-[0_0_24px_rgba(255,255,255,0.5)]" />
-                    <button
-                      type="button"
-                      onClick={() => setIsSplitLayerOpen(false)}
-                      className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/55 bg-[#12302e] px-4 py-2 text-xs font-black uppercase tracking-[0.12em] text-white shadow-[0_12px_28px_rgba(4,14,14,0.36)] hover:bg-[#1a4441]"
-                    >
-                      Open Wheel
-                    </button>
-                  </div>
-
-                  <div className="min-h-0 flex items-center pb-4 lg:pb-0">
-                    <div className="w-full rounded-[24px] border border-white/20 bg-[#0b1d1cbf] p-4 sm:p-5 lg:p-6 shadow-[0_20px_50px_rgba(4,14,14,0.34)] backdrop-blur-md">
-                      <p className="text-[11px] font-black uppercase tracking-[0.2em] text-[#9bc8c2]">{WEATHER_DETAILS[activeRisk.riskId].kicker}</p>
-                      <h3 className="mt-1 text-3xl font-black uppercase tracking-[0.06em]" style={{ color: WEATHER_DETAILS[activeRisk.riskId].accent }}>
-                        {WEATHER_DETAILS[activeRisk.riskId].title}
-                      </h3>
-                      <p className="mt-3 text-sm leading-relaxed text-[#d8ece8]">{WEATHER_DETAILS[activeRisk.riskId].intro}</p>
-                      <div className="mt-4 space-y-3">
-                        {WEATHER_DETAILS[activeRisk.riskId].risks.map((risk) => (
-                          <article key={`${risk.name}-split`} className="rounded-xl border border-white/14 bg-[#102927] p-3">
-                            <div className="flex items-center justify-between gap-3">
-                              <h4 className="text-sm font-extrabold text-white">{risk.name}</h4>
-                              <span className="rounded-full border border-white/30 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.08em] text-[#d6f2ee]">
-                                {risk.severity}
-                              </span>
-                            </div>
-                            <p className="mt-1 text-xs leading-relaxed text-[#b9d5d1]">{risk.impact}</p>
-                          </article>
-                        ))}
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSelectedDetailId(activeRisk.riskId);
-                          setDetailSheetState("half");
-                        }}
-                        className="mt-4 inline-flex items-center justify-center rounded-full border border-white/40 bg-gradient-to-b from-[#2b6460] via-[#17413f] to-[#102624] px-5 py-2 text-xs font-bold uppercase tracking-[0.12em] text-white shadow-[0_12px_28px_rgba(4,14,14,0.34)] transition hover:-translate-y-px hover:brightness-110 active:translate-y-0"
-                      >
-                        Learn More
-                      </button>
-                      <div className="mt-4 flex items-center gap-3 lg:hidden">
-                        <button
-                          type="button"
-                          onClick={() => setIsSplitLayerOpen(false)}
-                          className="rounded-full border border-white/55 bg-[#12302e] px-4 py-2 text-xs font-black uppercase tracking-[0.12em] text-white shadow-[0_12px_28px_rgba(4,14,14,0.36)] hover:bg-[#1a4441]"
-                        >
-                          Open Wheel
-                        </button>
-                        <span className="text-xs text-[#b7d5d0]">Then you can use the current large wheel below.</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
         </div>
       </section>
 
